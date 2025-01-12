@@ -116,7 +116,7 @@ randomSplitRankings gen completeRankings =
 
 galeShapley :: Rankings -> Rankings -> IO Marriages
 galeShapley proposerRankings proposeeRankings = do
-  putStrLn "Starting Gale-Shapley Algorithm..."
+  putStrLn "\nStarting Gale-Shapley Algorithm..."
   let initialHistory =
         Map.fromList [(uid, []) | uid <- Map.keys proposerRankings]
       initialMarriages =
@@ -227,8 +227,10 @@ testGaleShapley n = do
     (\(uid, ranking) -> putStrLn $ show uid ++ ": " ++ show ranking)
     (Map.toList completeRankings)
 
-  -- let (group1Rankings, group2Rankings) = splitRankings completeRankings
-  let (group1Rankings, group2Rankings) = randomSplitRankings gen completeRankings
+  -- let (group1Rankings, group2Rankings) =
+  --       splitRankings completeRankings
+  let (group1Rankings, group2Rankings) =
+        randomSplitRankings gen completeRankings
   putStrLn "\nGroup 1 Rankings:"
   mapM_
     (\(uid, ranking) -> putStrLn $ show uid ++ ": " ++ show ranking)
@@ -246,3 +248,194 @@ testGaleShapley n = do
 
   let stable = isStableMarriage group1Rankings group2Rankings marriages
   putStrLn $ "\nMatching is stable: " ++ show stable
+
+randomInitialMarriages :: (Random.RandomGen g)
+                       => g -> Rankings -> Rankings
+                       -> Marriages
+randomInitialMarriages gen group1Rankings group2Rankings =
+  let group1 = Map.keys group1Rankings
+      group2 = Map.keys group2Rankings
+      (shuffledGroup2, _) = fisherYatesShuffle gen group2
+      pairs = zip group1 shuffledGroup2
+   in Map.fromList $
+        [(p1, Just p2) | (p1, p2) <- pairs]
+          ++ [(p2, Just p1) | (p1, p2) <- pairs]
+
+-- Count blocking pairs
+countBlockingPairs :: Rankings -> Rankings -> Marriages -> Int
+countBlockingPairs group1Rankings group2Rankings marriages =
+  length
+    [ (p1, p2)
+    | p1 <- Map.keys group1Rankings
+    , p2 <- Map.keys group2Rankings
+    , blockingPair p1 p2
+    ]
+  where
+    blockingPair p1 p2 =
+      let p1Partner = Maybe.fromJust $ Map.lookup p1 marriages
+          p2Partner = Maybe.fromJust $ Map.lookup p2 marriages
+       in case (p1Partner, p2Partner) of
+            (Just current1, Just current2) ->
+              preference group1Rankings p1 p2 (current1) == GT
+                && preference group2Rankings p2 p1 (current2) == GT
+            _ -> False
+
+-- Calculate percentage of blocking pairs
+blockingPairsPercentage :: Rankings -> Rankings -> Marriages -> Double
+blockingPairsPercentage group1Rankings group2Rankings marriages =
+  let totalPossiblePairs =
+        length (Map.keys group1Rankings) * length (Map.keys group2Rankings)
+      blockingPairsCount =
+        countBlockingPairs group1Rankings group2Rankings marriages
+   in (fromIntegral blockingPairsCount / fromIntegral totalPossiblePairs) * 100
+
+-- Find a random blocking pair
+findRandomBlockingPair :: (Random.RandomGen g)
+                       => g -> Rankings -> Rankings -> Marriages
+                       -> IO (Maybe (UserID, UserID), g)
+findRandomBlockingPair gen group1Rankings group2Rankings marriages = do
+  let pairs =
+        [ (p1, p2)
+        | p1 <- Map.keys group1Rankings
+        , p2 <- Map.keys group2Rankings
+        , blockingPair p1 p2
+        ]
+      blockingPair p1 p2 =
+        let p1Partner = Maybe.fromJust $ Map.lookup p1 marriages
+            p2Partner = Maybe.fromJust $ Map.lookup p2 marriages
+         in case (p1Partner, p2Partner) of
+              (Just current1, Just current2) ->
+                preference group1Rankings p1 p2 current1 == GT
+                  && preference group2Rankings p2 p1 current2 == GT
+              _ -> False
+
+  if null pairs
+    then return (Nothing, gen)
+    else do
+      let (index, newGen) = Random.randomR (0, length pairs - 1) gen
+      return (Just (pairs !! index), newGen)
+
+-- Local search algorithm with logging
+localSearch :: Rankings -> Rankings -> Int -> Double -> IO Marriages
+localSearch
+  group1Rankings group2Rankings maxIterations maxBlockingPercentage = do
+  gen <- Random.getStdGen
+  let initialMatching =
+        randomInitialMarriages gen group1Rankings group2Rankings
+
+  putStrLn "Starting Local Search Algorithm..."
+  putStrLn $
+    "Initial blocking pairs: "
+      ++ show
+        (countBlockingPairs group1Rankings group2Rankings initialMatching)
+
+  localSearchRound
+    group1Rankings
+    group2Rankings
+    initialMatching
+    gen
+    1
+    maxIterations
+    maxBlockingPercentage
+
+localSearchRound :: Rankings -> Rankings -> Marriages
+                 -> Random.StdGen -> Int -> Int -> Double
+                 -> IO Marriages
+localSearchRound group1Rankings group2Rankings marriages
+  gen iteration maxIterations maxBlockingPercentage = do
+    let currentBlockingPairs =
+          countBlockingPairs group1Rankings group2Rankings marriages
+        currentPercentage =
+          blockingPairsPercentage group1Rankings group2Rankings marriages
+
+    putStrLn $ "\nIteration " ++ show iteration
+    putStrLn $ "Current blocking pairs: " ++ show currentBlockingPairs
+    putStrLn $ "Blocking pairs percentage: " ++ show currentPercentage ++ "%"
+
+    if iteration >= maxIterations
+      then do
+        putStrLn "Maximum iterations reached. Terminating..."
+        return marriages
+      else
+        if currentPercentage <= maxBlockingPercentage
+          then do
+            putStrLn
+              "Achieved target blocking pairs percentage. Terminating..."
+            return marriages
+          else do
+            (maybeBlockingPair, newGen) <-
+              findRandomBlockingPair
+                gen
+                group1Rankings
+                group2Rankings
+                marriages
+            case maybeBlockingPair of
+              Nothing -> do
+                putStrLn "No blocking pairs found. Solution is stable!"
+                return marriages
+              Just (p1, p2) -> do
+                let p1CurrentPartner =
+                      Maybe.fromJust $ Maybe.fromJust $ Map.lookup p1 marriages
+                    p2CurrentPartner =
+                      Maybe.fromJust $ Maybe.fromJust $ Map.lookup p2 marriages
+
+                putStrLn $
+                  "Resolving blocking pair: ("
+                    ++ show p1
+                    ++ ","
+                    ++ show p2
+                    ++ ")"
+
+                -- Swap partners
+                let newMarriages =
+                      Map.insert p1 (Just p2) $
+                        Map.insert p2 (Just p1) $
+                          Map.insert p1CurrentPartner (Just p2CurrentPartner) $
+                            Map.insert p2CurrentPartner
+                              (Just p1CurrentPartner) marriages
+
+                localSearchRound
+                  group1Rankings
+                  group2Rankings
+                  newMarriages
+                  newGen
+                  (iteration + 1)
+                  maxIterations
+                  maxBlockingPercentage
+
+testLocalSearch :: Int -> Int -> Double -> IO ()
+testLocalSearch n maxIterations maxBlockingPercentage = do
+  gen <- Random.getStdGen
+  let completeRankings = randomRankings gen n
+      (group1Rankings, group2Rankings) = splitRankings completeRankings
+
+  putStrLn "Complete Rankings:"
+  mapM_
+    (\(uid, ranking) -> putStrLn $ show uid ++ ": " ++ show ranking)
+    (Map.toList completeRankings)
+
+  putStrLn "\nGroup 1 Rankings:"
+  mapM_
+    (\(uid, ranking) -> putStrLn $ show uid ++ ": " ++ show ranking)
+    (Map.toList group1Rankings)
+
+  putStrLn "\nGroup 2 Rankings:"
+  mapM_
+    (\(uid, ranking) -> putStrLn $ show uid ++ ": " ++ show ranking)
+    (Map.toList group2Rankings)
+
+  marriages <-
+    localSearch group1Rankings group2Rankings
+      maxIterations maxBlockingPercentage
+
+  putStrLn "\nFinal Marriages:"
+  mapM_
+    (\(uid, partner) -> putStrLn $ show uid ++ " -> " ++ show partner)
+    (Map.toList marriages)
+
+  let stable = isStableMarriage group1Rankings group2Rankings marriages
+  putStrLn $ "\nMatching is stable: " ++ show stable
+
+  let finalPercentage =
+        blockingPairsPercentage group1Rankings group2Rankings marriages
+  putStrLn $ "Final blocking pairs percentage: " ++ show finalPercentage ++ "%"
