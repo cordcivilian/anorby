@@ -227,8 +227,7 @@ testGaleShapley n = do
     (\(uid, ranking) -> putStrLn $ show uid ++ ": " ++ show ranking)
     (Map.toList completeRankings)
 
-  -- let (group1Rankings, group2Rankings) =
-  --       splitRankings completeRankings
+  -- let (group1Rankings, group2Rankings) = splitRankings completeRankings
   let (group1Rankings, group2Rankings) =
         randomSplitRankings gen completeRankings
   putStrLn "\nGroup 1 Rankings:"
@@ -261,7 +260,6 @@ randomInitialMarriages gen group1Rankings group2Rankings =
         [(p1, Just p2) | (p1, p2) <- pairs]
           ++ [(p2, Just p1) | (p1, p2) <- pairs]
 
--- Count blocking pairs
 countBlockingPairs :: Rankings -> Rankings -> Marriages -> Int
 countBlockingPairs group1Rankings group2Rankings marriages =
   length
@@ -280,7 +278,6 @@ countBlockingPairs group1Rankings group2Rankings marriages =
                 && preference group2Rankings p2 p1 (current2) == GT
             _ -> False
 
--- Calculate percentage of blocking pairs
 blockingPairsPercentage :: Rankings -> Rankings -> Marriages -> Double
 blockingPairsPercentage group1Rankings group2Rankings marriages =
   let totalPossiblePairs =
@@ -289,7 +286,6 @@ blockingPairsPercentage group1Rankings group2Rankings marriages =
         countBlockingPairs group1Rankings group2Rankings marriages
    in (fromIntegral blockingPairsCount / fromIntegral totalPossiblePairs) * 100
 
--- Find a random blocking pair
 findRandomBlockingPair :: (Random.RandomGen g)
                        => g -> Rankings -> Rankings -> Marriages
                        -> IO (Maybe (UserID, UserID), g)
@@ -315,7 +311,6 @@ findRandomBlockingPair gen group1Rankings group2Rankings marriages = do
       let (index, newGen) = Random.randomR (0, length pairs - 1) gen
       return (Just (pairs !! index), newGen)
 
--- Local search algorithm with logging
 localSearch :: Rankings -> Rankings -> Int -> Double -> IO Marriages
 localSearch
   group1Rankings group2Rankings maxIterations maxBlockingPercentage = do
