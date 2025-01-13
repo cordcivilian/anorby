@@ -1,6 +1,6 @@
 module Rank where
 
-import System.Random as Random
+import qualified System.Random as Random
 
 import qualified Data.Map as Map
 import qualified Data.List as List
@@ -54,32 +54,3 @@ randomizeTies group =
       gen = Random.mkStdGen 21
       (shuffledIDs, _) = fisherYatesShuffle gen userIDs
   in shuffledIDs
-
-generateCandidates :: Int -> Int -> Int -> Either String Candidates
-generateCandidates n len seed
-  | n <= 0 = Left "number of candidates must be positive"
-  | len <= 0 = Left "vector length must be positive"
-  | otherwise = do
-      let candidatesList = map (generateCandidate len) [seed .. (seed + n - 1)]
-      candidates <- sequence candidatesList
-      return $ Map.fromList $ zip [0 ..] candidates
-
-generateCandidate :: Int -> Int -> Either String UserSubmission
-generateCandidate len seed = do
-  let binaryVector = randomBinaryVector seed len
-  let rng = mkStdGen (seed + 1)
-  let (weightIndex, rng2) = randomR (0, len - 1) rng
-  let (weightFactor, _) = randomR (1.0, 5.0) rng2
-  let schemes = [PPPod, Balance, Bipolar]
-  let schemeIndex = mod seed 3
-  let scheme = schemes !! schemeIndex
-  let eitherWeightVector = createWeightVector len weightIndex weightFactor
-  case eitherWeightVector of
-    Right weightVector -> Right (binaryVector, weightVector, scheme)
-    Left err -> Left err
-
-testCandidatesToRankings :: Int -> Int -> Int -> Rankings
-testCandidatesToRankings n len seed =
-  case generateCandidates n len seed of
-    Right candidates -> candidatesToRankings candidates
-    Left _ -> Map.fromList [(1, [2]), (2, [1])]
