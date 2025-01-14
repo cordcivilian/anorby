@@ -395,3 +395,16 @@ getUserTopXMostControversial conn uid x = do
         ]
   results <- SQL.query conn query (uid, x)
   return results
+
+getUserAorbsFromControversialToCommonPlace :: SQL.Connection -> UserID
+                                           -> IO [AorbWithAnswer]
+getUserAorbsFromControversialToCommonPlace conn uid = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, ans.answer"
+        , "FROM aorb a"
+        , "JOIN aorb_answers ans ON a.id = ans.aorb_id"
+        , "WHERE ans.user_id = ?"
+        , "ORDER BY ABS(CAST(ans.answer AS REAL) - a.mean) DESC"
+        ]
+  results <- SQL.query conn query [uid]
+  return results

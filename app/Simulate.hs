@@ -161,8 +161,8 @@ mockAorbAnswers conn aorbs users = do
         return (mockAorbAnswer : accAnswers, nextGen)
         ) ([], g) $ zip [0..] [(u, a) | u <- users, a <- aorbs]
 
-testUserTopAorbs :: Int -> IO ()
-testUserTopAorbs n = do
+testUserAorbs :: Int -> IO ()
+testUserAorbs n = do
 
   now <- Time.getCurrentTime
   let timestamp = DateTimeFormat.formatTime
@@ -230,6 +230,33 @@ testUserTopAorbs n = do
     putStrLn $ "  Agreement: " ++ percentageText
     putStrLn ""
     ) controversial
+
+  putStrLn "Choices from most controversial to most commonplace:"
+  aorbs <- getUserAorbsFromControversialToCommonPlace conn 1
+  mapM_ (\awa -> do
+    let aorb = aorbData awa
+        answer = case userAnswer awa of
+          AorbAnswer 0 -> "A: " ++ T.unpack (aorbA aorb)
+          AorbAnswer _ -> "B: " ++ T.unpack (aorbB aorb)
+        percentageText = case userAnswer awa of
+          AorbAnswer 0 ->
+            let percentB = aorbMean aorb * 100
+                percentA = 100 - percentB
+            in Text.printf "%.1f%% of users also chose A" percentA
+          AorbAnswer 1 ->
+            let percentB = aorbMean aorb * 100
+            in Text.printf "%.1f%% of users also chose B" percentB
+          _ -> "unknown"
+    putStrLn $ "  ID: " ++ show (aorbId aorb)
+    putStrLn $ "  Context: " ++ T.unpack (aorbCtx aorb)
+    putStrLn $ "  Subtext: " ++ T.unpack (aorbStx aorb)
+    putStrLn $ "  A: " ++ T.unpack (aorbA aorb)
+    putStrLn $ "  B: " ++ T.unpack (aorbB aorb)
+    putStrLn $ "  Mean: " ++ show (aorbMean aorb)
+    putStrLn $ "  User chose: " ++ answer
+    putStrLn $ "  Agreement: " ++ percentageText
+    putStrLn ""
+    ) aorbs
 
   putStrLn "Closing database connection..."
   SQL.close conn
