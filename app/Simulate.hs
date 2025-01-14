@@ -1,11 +1,19 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Simulate where
 
 import qualified System.Random as Random
 
+import qualified Data.Time as Time
+import qualified Data.Time.Format as DateTimeFormat
+import qualified Data.Text as T
 import qualified Data.Map as Map
 
+import qualified Control.Monad as Monad
+
+import qualified Database.SQLite.Simple as SQL
+
 import Anorby
-import Similarity
 import Rank
 import Marry
 
@@ -20,32 +28,26 @@ randomRs range = unfoldr (Just . Random.randomR range)
         Just (a, b') -> a : unfoldr f b'
         Nothing      -> []
 
-createWeightVector :: Int -> Int -> Double -> WeightVector
-createWeightVector len index factor =
-  [ if i == index then 1.0 * factor else 1.0 | i <- [0..len-1] ]
-
 -- ---------------------------------------------------------------------------
 
-generateCandidates :: Int -> Int -> Int -> Candidates
-generateCandidates n len seed = do
-  let candidatesList = map (generateCandidate len) [seed .. (seed + n - 1)]
-  Map.fromList $ zip [0 ..] candidatesList
+generateSubmissions :: Int -> Int -> Int -> Submissions
+generateSubmissions n len seed = do
+  let submissionsList = map (generateSubmission len) [seed .. (seed + n - 1)]
+  Map.fromList $ zip [0 ..] submissionsList
 
-generateCandidate :: Int -> Int -> UserSubmission
-generateCandidate len seed =
+generateSubmission :: Int -> Int -> UserSubmission
+generateSubmission len seed =
   let binaryVector = randomBinaryVector seed len
       rng = Random.mkStdGen (seed + 1)
-      (weightIndex, rng2) = Random.randomR (0, len - 1) rng
-      (weightFactor, _) = Random.randomR (1.0, 5.0) rng2
+      (weightIndex, _) = Random.randomR (0, len - 1) rng
       schemes = [PPPod, Balance, Bipolar]
-      schemeIndex = mod seed 3
+      schemeIndex = rem seed 3
       scheme = schemes !! schemeIndex
-      weightVector = createWeightVector len weightIndex weightFactor
-  in (binaryVector, weightVector, scheme)
+  in (binaryVector, weightIndex, scheme)
 
-testCandidatesToRankings :: Int -> Int -> Int -> Rankings
-testCandidatesToRankings n len seed =
-  candidatesToRankings $ generateCandidates n len seed
+testSubmissionsToRankings :: Int -> Int -> Int -> Rankings
+testSubmissionsToRankings n len seed =
+  submissionsToRankings $ generateSubmissions n len seed
 
 -- ---------------------------------------------------------------------------
 
@@ -67,25 +69,143 @@ randomRankings gen n =
 
 -- ---------------------------------------------------------------------------
 
-testRandomCandidatesGaleShapley :: Int -> Int -> Int -> IO ()
-testRandomCandidatesGaleShapley n len seed
+mockBaseAorbAnswers :: SQL.Connection -> Int -> IO ()
+mockBaseAorbAnswers conn n = do
+  putStrLn $ "Initializing tables for " ++ show n ++ " users..."
+  initTables conn
+  putStrLn "Generating mock users..."
+  mockUsers conn n
+  putStrLn "Ingesting base A/B data..."
+  ingestBaseAorbData conn
+  putStrLn "Fetching generated users..."
+  users <- SQL.query_ conn "SELECT * FROM users" :: IO [User]
+  putStrLn $ "Found " ++ show (length users) ++ " users"
+  putStrLn "Fetching A/B items..."
+  aorbs <- SQL.query_ conn "SELECT * FROM aorb" :: IO [Aorb]
+  putStrLn $ "Found " ++ show (length aorbs) ++ " A/B items"
+  putStrLn "Generating mock A/B answers..."
+  mockAorbAnswers conn aorbs users
+  putStrLn "Mock data generation complete."
+
+mockUsers :: SQL.Connection -> Int -> IO ()
+mockUsers conn n = do
+  putStrLn $ "Getting random seed for " ++ show n ++ " users..."
+  gen <- Random.getStdGen
+  putStrLn "Generating mock user data..."
+  (users, _) <- generateMockUsers n gen
+  putStrLn $ "Inserting " ++ show (length users) ++ " users into database..."
+  SQL.withTransaction conn $ SQL.executeMany conn
+    "INSERT OR REPLACE INTO users (id, name, email, aorb_id, assoc) VALUES (?, ?, ?, ?, ?)"
+    users
+  putStrLn "User generation complete."
+  where
+    generateMockUsers :: Int -> Random.StdGen -> IO ([User], Random.StdGen)
+    generateMockUsers count g = do
+      putStrLn "Starting user generation loop..."
+      Monad.foldM (\(accUsers, currGen) i -> do
+        let (mockAssoc, g2) = Random.random currGen
+            (mockAorbId, g3) = Random.randomR (1, 100) g2
+            user = User
+              { userId = i + 1
+              , userName = T.pack $ "User" ++ show (i + 1)
+              , userEmail = T.pack $ "user" ++ show (i + 1) ++ "@example.com"
+              , userAorbId = mockAorbId
+              , userAssoc = mockAssoc
+              }
+        Monad.when (rem i 100 == 0) $ 
+          putStrLn $ "Generated " ++ show i ++ " users..."
+        return (user : accUsers, g3)
+        ) ([], g) [0..count-1]
+
+mockAorbAnswers :: SQL.Connection -> [Aorb] -> [User] -> IO ()
+mockAorbAnswers conn aorbs users = do
+  putStrLn $ "Getting random seed for " ++ show (length users) ++ " users × " ++ show (length aorbs) ++ " A/B items..."
+  gen <- Random.getStdGen
+  putStrLn "Generating mock answers..."
+  (answers, _) <- generateMockAnswers gen
+  putStrLn $ "Inserting " ++ show (length answers) ++ " answers into database..."
+  SQL.withTransaction conn $ SQL.executeMany conn
+    "INSERT OR REPLACE INTO aorb_answers (user_id, aorb_id, answer) VALUES (?, ?, ?)"
+    answers
+  putStrLn "Answer generation complete."
+  where
+    generateMockAnswers :: Random.StdGen -> IO ([AorbAnswers], Random.StdGen)
+    generateMockAnswers g = do
+      putStrLn "Starting answer generation loop..."
+      let total = length users * length aorbs
+      Monad.foldM (\(accAnswers, currGen) (idx, (u, a)) -> do
+        let (answer, nextGen) = Random.random currGen
+            mockAorbAnswer = AorbAnswers
+              { aorbUserId = userId u
+              , aorbAorbId = aorbId a  
+              , aorbAnswer = answer
+              }
+        Monad.when (rem idx (1000 :: Int) == 0) $
+          putStrLn $ "Generated " ++ show idx ++ "/" ++ show total ++ " answers..."
+        return (mockAorbAnswer : accAnswers, nextGen)
+        ) ([], g) $ zip [0..] [(u, a) | u <- users, a <- aorbs]
+
+-- ---------------------------------------------------------------------------
+
+testAorbGaleShapley :: Int -> IO ()
+testAorbGaleShapley n
+  | n <= 1 = putStrLn "number of matching entities must be greater than two"
+  | otherwise = do
+  now <- Time.getCurrentTime
+  let timestamp = DateTimeFormat.formatTime 
+                  DateTimeFormat.defaultTimeLocale 
+                  "%Y%m%d%H%M%S" 
+                  now
+      dbName = "data/test-anorby-" ++ timestamp ++ ".db"
+  conn <- initDB dbName
+  mockBaseAorbAnswers conn n
+  submissions <- baseAorbsToSubmissions conn
+  let rankings = submissionsToRankings submissions
+  testGaleShapleyFromRankings rankings
+  SQL.close conn
+
+testRandomSubmissionsGaleShapley :: Int -> Int -> Int -> IO ()
+testRandomSubmissionsGaleShapley n len seed
   | n <= 1 = putStrLn "number of matching entities must be greater than two"
   | len <= 0 = putStrLn "vector size must be at least one"
   | otherwise =
-  let candidates = generateCandidates n len seed
-  in testGaleShapleyFromRankings $ candidatesToRankings candidates
+  let submissions = generateSubmissions n len seed
+  in testGaleShapleyFromRankings $ submissionsToRankings submissions
 
 testRandomRankingsGaleShapley :: Int -> IO ()
 testRandomRankingsGaleShapley n
   | n <= 1 = putStrLn "number of matching entities must be greater than two"
   | otherwise = do
   gen <- Random.getStdGen
-  let completeRankings = randomRankings gen n
-  testGaleShapleyFromRankings completeRankings
+  let rankings = randomRankings gen n
+  testGaleShapleyFromRankings rankings
 
-testRandomCandidatesLocalSearch :: Int -> Int -> Int -> Int -> Double -> Int
+-- ---------------------------------------------------------------------------
+
+testAorbLocalSearch :: Int -> Int -> Double -> Int -> IO ()
+testAorbLocalSearch n maxIterations maxBlockingPercentage batchSize
+  | n <= 1 = putStrLn "number of matching entities must be greater than two"
+  | maxIterations <= 0 = putStrLn "max iterations must be positive"
+  | maxBlockingPercentage <= 0.0 = putStrLn "max blocking % must be positive"
+  | batchSize <= 1 = putStrLn "batch size must be at least one"
+  | otherwise = do
+  now <- Time.getCurrentTime
+  let timestamp = DateTimeFormat.formatTime 
+                  DateTimeFormat.defaultTimeLocale 
+                  "%Y%m%d%H%M%S" 
+                  now
+      dbName = "data/test-anorby-" ++ timestamp ++ ".db"
+  conn <- initDB dbName
+  mockBaseAorbAnswers conn n
+  submissions <- baseAorbsToSubmissions conn
+  let rankings = submissionsToRankings submissions
+  testLocalSearchFromRankings
+    rankings maxIterations maxBlockingPercentage batchSize
+  SQL.close conn
+
+testRandomSubmissionsLocalSearch :: Int -> Int -> Int -> Int -> Double -> Int
                                 -> IO ()
-testRandomCandidatesLocalSearch
+testRandomSubmissionsLocalSearch
   n len seed maxIterations maxBlockingPercentage batchSize
   | n <= 1 = putStrLn "number of matching entities must be greater than two"
   | len <= 0 = putStrLn "vector size must be at least one"
@@ -93,18 +213,25 @@ testRandomCandidatesLocalSearch
   | maxBlockingPercentage <= 0.0 = putStrLn "max blocking % must be positive"
   | batchSize <= 1 = putStrLn "batch size must be at least one"
   | otherwise =
-  let candidates = generateCandidates n len seed
+  let submissions = generateSubmissions n len seed
   in testLocalSearchFromRankings
-      (candidatesToRankings candidates)
+      (submissionsToRankings submissions)
       maxIterations maxBlockingPercentage batchSize
 
 testRandomRankingsLocalSearch :: Int -> Int -> Double -> Int -> IO ()
 testRandomRankingsLocalSearch
-  n maxIterations maxBlockingPercentage batchSize = do
+  n maxIterations maxBlockingPercentage batchSize
+  | n <= 1 = putStrLn "number of matching entities must be greater than two"
+  | maxIterations <= 0 = putStrLn "max iterations must be positive"
+  | maxBlockingPercentage <= 0.0 = putStrLn "max blocking % must be positive"
+  | batchSize <= 1 = putStrLn "batch size must be at least one"
+  | otherwise = do
   gen <- Random.getStdGen
-  let completeRankings = randomRankings gen n
+  let rankings = randomRankings gen n
   testLocalSearchFromRankings
-    completeRankings maxIterations maxBlockingPercentage batchSize
+    rankings maxIterations maxBlockingPercentage batchSize
+
+-- ---------------------------------------------------------------------------
 
 testGaleShapleyFromRankings :: Rankings -> IO ()
 testGaleShapleyFromRankings rankings = do

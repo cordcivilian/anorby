@@ -6,10 +6,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 
-type UserID = Int
-type Ranking = [UserID]
-type Rankings = Map.Map UserID Ranking
-type Marriages = Map.Map UserID (Maybe UserID)
+import Anorby
 
 fisherYatesShuffle :: (Random.RandomGen g) => g -> [a] -> ([a], g)
 fisherYatesShuffle gen [] = ([], gen)

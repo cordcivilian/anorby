@@ -6,27 +6,25 @@ import qualified Data.Map as Map
 import qualified Data.List as List
 import qualified Data.Ord as Ord
 
+import Anorby
 import Similarity
 import Marry
-import Anorby
 
-type UserSubmission = (BinaryVector, WeightVector, AssociationScheme)
-type Candidates = Map.Map UserID UserSubmission
-
-candidatesToRankings :: Candidates -> Rankings
-candidatesToRankings candidates = Map.fromList rankings
+submissionsToRankings :: Submissions -> Rankings
+submissionsToRankings submissions = Map.fromList rankings
   where
-    userIds = Map.keys candidates
-    rankings = map (makeRanking candidates userIds) userIds
+    userIds = Map.keys submissions 
+    rankings = map (makeRanking submissions userIds) userIds
 
-makeRanking :: Candidates -> [UserID] -> UserID -> (UserID, Ranking)
-makeRanking candidates allUsers uid = (uid, randomizedRanking)
+makeRanking :: Submissions -> [UserID] -> UserID -> (UserID, Ranking)
+makeRanking submissions allUsers uid = (uid, randomizedRanking)
   where
-    (userVector, userWeights, scheme) = candidates Map.! uid
+    (userVector, weightIndex, scheme) = submissions Map.! uid
     (baseline, similarityFunc) = associate scheme
+    userWeights = createWeightVector (length userVector) weightIndex 10.0
 
     similarityScores =
-      map (calculateScore candidates userVector userWeights similarityFunc)
+      map (calculateScore submissions userVector userWeights similarityFunc)
           (filter (/= uid) allUsers)
 
     sortedScores =
@@ -35,13 +33,13 @@ makeRanking candidates allUsers uid = (uid, randomizedRanking)
     groupedScores = groupByScore sortedScores
     randomizedRanking = concatMap randomizeTies groupedScores
 
-calculateScore :: Candidates
+calculateScore :: Submissions
                -> BinaryVector -> WeightVector -> BinaryVectorSimilarity
                -> UserID -> (UserID, Double)
-calculateScore candidates userVector userWeights similarityFunc otherId =
+calculateScore submissions userVector userWeights similarityFunc otherId =
   (otherId, similarityScore)
   where
-    (otherVector, _, _) = candidates Map.! otherId
+    (otherVector, _, _) = submissions Map.! otherId
     similarityScore = similarityFunc userVector otherVector userWeights
 
 groupByScore :: [(UserID, Double)] -> [[(UserID, Double)]]

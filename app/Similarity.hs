@@ -5,21 +5,16 @@ import qualified Data.List as List
 
 import Anorby
 
-type SimilarityScore = Double
-type BinaryVector = [Word.Word8]
-type Contingency = (Int, Int, Int, Int)
-type WeightVector = [Double]
-type WeightedContingency = (Double, Double, Double, Double)
-
-type BinaryVectorSimilarity = BinaryVector -> BinaryVector -> WeightVector
-                            -> SimilarityScore
-
 associate :: AssociationScheme -> (Double , BinaryVectorSimilarity)
 associate scheme =
   case scheme of
     PPPod -> (1.0, weightedSokalSneath)       -- [ 0, 1]
     Balance -> (0.0, weightedYuleQ)           -- [-1, 1]
     Bipolar -> (0.0, weightedRogersTanimoto)  -- [ 0, 1]
+
+createWeightVector :: Int -> Int -> Double -> WeightVector
+createWeightVector len index factor =
+  [ if i == index then 1.0 * factor else 1.0 | i <- [0..len-1] ]
 
 -- a = number of positions where both vectors have 1
 -- b = number of positions where first has 1, second has 0

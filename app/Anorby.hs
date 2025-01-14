@@ -4,29 +4,46 @@ module Anorby where
 
 import qualified System.Random as Random
 
-import qualified Data.Time as Time
-import qualified Data.Time.Format as DateTimeFormat
+import qualified Data.Word as Word
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Aeson as JSON
-
-import qualified Control.Monad as Monad
+import qualified Data.Map as Map
 
 import qualified Database.SQLite.Simple as SQL
 import qualified Database.SQLite.Simple.FromField as SQL
 import qualified Database.SQLite.Simple.ToField as SQL
 import qualified Database.SQLite.Simple.Ok as SQL
 
+type SimilarityScore = Double
+type AorbAnswer = Word.Word8
+type BinaryVector = [AorbAnswer]
+type Contingency = (Int, Int, Int, Int)
+type WeightVector = [Double]
+type WeightedContingency = (Double, Double, Double, Double)
+type BinaryVectorSimilarity =
+  BinaryVector -> BinaryVector -> WeightVector -> SimilarityScore
+
+type AorbID = Int
+type UserID = Int
+type UserSubmission = (BinaryVector, AorbID, AssociationScheme)
+type Submissions = Map.Map UserID UserSubmission
+type Ranking = [UserID]
+type Rankings = Map.Map UserID Ranking
+type Marriages = Map.Map UserID (Maybe UserID)
+
+-- ---------------------------------------------------------------------------
+
 data User = User
-  { userId :: Int
+  { userId :: UserID
   , userName :: T.Text
   , userEmail :: T.Text
-  , userAorbId :: Int
+  , userAorbId :: AorbID
   , userAssoc :: AssociationScheme
   } deriving (Show)
 
 data Aorb = Aorb
-  { aorbId :: Int
+  { aorbId :: AorbID
   , aorbCtx :: T.Text
   , aorbStx :: T.Text
   , aorbA :: T.Text
@@ -35,13 +52,19 @@ data Aorb = Aorb
   } deriving (Show)
 
 data AorbAnswers = AorbAnswers
-  { aorbUserId :: Int
-  , aorbAorbId :: Int
-  , aorbAnswer :: Bool
+  { aorbUserId :: UserID
+  , aorbAorbId :: AorbID
+  , aorbAnswer :: AorbAnswer
   } deriving (Show)
 
 data AssociationScheme = PPPod | Balance | Bipolar 
   deriving (Eq, Show, Enum, Bounded)
+
+instance Random.Random AssociationScheme where
+  random g = Random.randomR (minBound, maxBound) g
+  randomR (a, b) g =
+    case Random.randomR (fromEnum a, fromEnum b) g of
+      (x, g') -> (toEnum x, g')
 
 instance SQL.FromField AssociationScheme where
   fromField f = do
@@ -109,7 +132,7 @@ instance SQL.ToRow AorbAnswers where
   toRow ans =
     [ SQL.SQLInteger (fromIntegral $ aorbUserId ans)
     , SQL.SQLInteger (fromIntegral $ aorbAorbId ans)
-    , SQL.SQLInteger (if aorbAnswer ans then 1 else 0)
+    , SQL.SQLInteger (fromIntegral $ aorbAnswer ans)
     ]
 
 -- ---------------------------------------------------------------------------
@@ -167,69 +190,49 @@ ingestBaseAorbData conn = do
            ) aorbs)
     Nothing -> putStrLn "error parsing json"
 
--- ---------------------------------------------------------------------------
+getUsersWithAnswers :: SQL.Connection -> [AorbID] -> IO [UserID]
+getUsersWithAnswers conn aorbIds = do
+  let placeholders = replicate (length aorbIds) "?"
+      inClause = T.intercalate "," placeholders
+      query = SQL.Query $
+        "SELECT user_id FROM aorb_answers WHERE aorb_id IN ("
+        <> inClause <>
+        ") GROUP BY user_id HAVING COUNT(DISTINCT aorb_id) = ?"
+      params = aorbIds ++ [length aorbIds]
+  users <- SQL.query conn query params :: IO [SQL.Only UserID]
+  return $ map SQL.fromOnly users
 
-mockBaseAorbAnswers :: Int -> IO ()
-mockBaseAorbAnswers n = do
-  now <- Time.getCurrentTime
-  let timestamp = DateTimeFormat.formatTime 
-                  DateTimeFormat.defaultTimeLocale 
-                  "%Y%m%d%H%M%S" 
-                  now
-      dbName = "data/test-anorby-" ++ timestamp ++ ".db"
-  conn <- initDB dbName
-  initTables conn
-  mockUsers conn n
-  ingestBaseAorbData conn
-  users <- SQL.query_ conn "SELECT * FROM users" :: IO [User]
-  aorbs <- SQL.query_ conn "SELECT * FROM aorb" :: IO [Aorb]
-  mockAorbAnswers conn aorbs users
+getUsersAnswers :: SQL.Connection -> [UserID]
+                -> IO (Map.Map UserID [AorbAnswers])
+getUsersAnswers conn users = do
+  let placeholders = replicate (length users) "?"
+      inClause = T.intercalate "," placeholders
+      query = SQL.Query $
+        "SELECT user_id, aorb_id, answer FROM aorb_answers WHERE user_id IN ("
+        <> inClause <>
+        ")"
+  answers <- SQL.query conn query users :: IO [AorbAnswers]
+  return $
+    Map.fromListWith (++) $ map (\ans -> (aorbUserId ans, [ans])) answers
 
-instance Random.Random AssociationScheme where
-  random g = Random.randomR (minBound, maxBound) g
-  randomR (a, b) g =
-    case Random.randomR (fromEnum a, fromEnum b) g of
-      (x, g') -> (toEnum x, g')
+getUsersAorbAndAssoc :: SQL.Connection -> [UserID]
+                     -> IO (Map.Map UserID (AorbID, AssociationScheme))
+getUsersAorbAndAssoc conn users = do
+  let placeholders = replicate (length users) "?"
+      inClause = T.intercalate "," placeholders
+      query = SQL.Query $
+        "SELECT id, aorb_id, assoc FROM users WHERE id IN (" <> inClause <> ")"
+  aorbs <- SQL.query
+    conn query users :: IO [(UserID, AorbID, AssociationScheme)]
+  return $ Map.fromList [(uid, (aid, assoc)) | (uid, aid, assoc) <- aorbs]
 
-mockUsers :: SQL.Connection -> Int -> IO ()
-mockUsers conn n = do
-  gen <- Random.getStdGen
-  (users, _) <- generateMockUsers n gen
-  SQL.withTransaction conn $ SQL.executeMany conn
-    "INSERT OR REPLACE INTO users (id, name, email, aorb_id, assoc) VALUES (?, ?, ?, ?, ?)"
-    users
-  where
-    generateMockUsers :: Int -> Random.StdGen -> IO ([User], Random.StdGen)
-    generateMockUsers count g = do
-      Monad.foldM (\(accUsers, currGen) i -> do
-        let (mockAssoc, g2) = Random.random currGen
-            (mockAorbId, g3) = Random.randomR (1, 100) g2
-            user = User
-              { userId = i + 1
-              , userName = T.pack $ "User" ++ show (i + 1)
-              , userEmail = T.pack $ "user" ++ show (i + 1) ++ "@example.com"
-              , userAorbId = mockAorbId
-              , userAssoc = mockAssoc
-              }
-        return (user : accUsers, g3)
-        ) ([], g) [0..count-1]
-
-mockAorbAnswers :: SQL.Connection -> [Aorb] -> [User] -> IO ()
-mockAorbAnswers conn aorbs users = do
-  gen <- Random.getStdGen
-  (answers, _) <- generateMockAnswers gen
-  SQL.withTransaction conn $ SQL.executeMany conn
-    "INSERT OR REPLACE INTO aorb_answers (user_id, aorb_id, answer) VALUES (?, ?, ?)"
-    answers
-  where
-    generateMockAnswers :: Random.StdGen -> IO ([AorbAnswers], Random.StdGen)
-    generateMockAnswers g = do
-      Monad.foldM (\(accAnswers, currGen) (u, a) -> do
-        let (answer, nextGen) = Random.random currGen
-            mockAorbAnswer= AorbAnswers
-              { aorbUserId = userId u
-              , aorbAorbId = aorbId a  
-              , aorbAnswer = answer
-              }
-        return (mockAorbAnswer : accAnswers, nextGen)
-        ) ([], g) [(u, a) | u <- users, a <- aorbs]
+baseAorbsToSubmissions :: SQL.Connection -> IO Submissions
+baseAorbsToSubmissions conn = do
+  basedUsers <- getUsersWithAnswers conn [1..100]
+  basedUsersAnswers <- getUsersAnswers conn basedUsers
+  basedUsersAorbAssoc <- getUsersAorbAndAssoc conn basedUsers
+  return $ Map.mapWithKey (\uid (aid, assoc) -> 
+    let answers =
+          maybe [] (map aorbAnswer) $ Map.lookup uid basedUsersAnswers
+    in (answers, aid, assoc)
+    ) basedUsersAorbAssoc
