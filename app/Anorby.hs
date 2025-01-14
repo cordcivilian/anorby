@@ -17,14 +17,18 @@ import qualified Database.SQLite.Simple.FromField as SQL
 import qualified Database.SQLite.Simple.ToField as SQL
 import qualified Database.SQLite.Simple.Ok as SQL
 
-type SimilarityScore = Double
-type AorbAnswer = Word.Word8
+-- | AorbAnswer: 0 corresponds to choice A, 1 corresponds to choice B
+newtype AorbAnswer = AorbAnswer Word.Word8 deriving (Show, Eq)
 type BinaryVector = [AorbAnswer]
 type Contingency = (Int, Int, Int, Int)
 type WeightVector = [Double]
 type WeightedContingency = (Double, Double, Double, Double)
+type SimilarityScore = Double
 type BinaryVectorSimilarity =
   BinaryVector -> BinaryVector -> WeightVector -> SimilarityScore
+
+data AssociationScheme = PPPod | Balance | Bipolar
+  deriving (Eq, Show, Enum, Bounded)
 
 type AorbID = Int
 type UserID = Int
@@ -33,6 +37,22 @@ type Submissions = Map.Map UserID UserSubmission
 type Ranking = [UserID]
 type Rankings = Map.Map UserID Ranking
 type Marriages = Map.Map UserID (Maybe UserID)
+
+-- ---------------------------------------------------------------------------
+
+instance Random.Random AorbAnswer where
+  random g =
+    case Random.random g of
+      (b, g') -> (if b then AorbAnswer 1 else AorbAnswer 0, g')
+  randomR (_, _) g =
+    case Random.random g of
+      (b, g') -> (if b then AorbAnswer 1 else AorbAnswer 0, g')
+
+instance Random.Random AssociationScheme where
+  random g = Random.randomR (minBound, maxBound) g
+  randomR (a, b) g =
+    case Random.randomR (fromEnum a, fromEnum b) g of
+      (x, g') -> (toEnum x, g')
 
 -- ---------------------------------------------------------------------------
 
@@ -59,15 +79,6 @@ data AorbAnswers = AorbAnswers
   , aorbAnswer :: AorbAnswer
   } deriving (Show)
 
-data AssociationScheme = PPPod | Balance | Bipolar
-  deriving (Eq, Show, Enum, Bounded)
-
-instance Random.Random AssociationScheme where
-  random g = Random.randomR (minBound, maxBound) g
-  randomR (a, b) g =
-    case Random.randomR (fromEnum a, fromEnum b) g of
-      (x, g') -> (toEnum x, g')
-
 instance SQL.FromField AssociationScheme where
   fromField f = do
     assocInt <- SQL.fromField f
@@ -81,6 +92,16 @@ instance SQL.ToField AssociationScheme where
   toField PPPod   = SQL.SQLInteger 1
   toField Balance = SQL.SQLInteger 0
   toField Bipolar = SQL.SQLInteger (-1)
+
+instance SQL.FromField AorbAnswer where
+  fromField f = do
+    val <- SQL.fromField f
+    return $ AorbAnswer (if val == (1 :: Int) then 1 else 0 :: Word.Word8)
+
+instance SQL.ToField AorbAnswer where
+  toField (AorbAnswer w) =
+    SQL.SQLInteger $
+      fromIntegral (if w == (1 :: Word.Word8) then 1 else 0 :: Word.Word8)
 
 -- ---------------------------------------------------------------------------
 
@@ -134,8 +155,26 @@ instance SQL.ToRow AorbAnswers where
   toRow ans =
     [ SQL.SQLInteger (fromIntegral $ aorbUserId ans)
     , SQL.SQLInteger (fromIntegral $ aorbAorbId ans)
-    , SQL.SQLInteger (fromIntegral $ aorbAnswer ans)
+    , SQL.toField (aorbAnswer ans)
     ]
+
+-- ---------------------------------------------------------------------------
+
+data AorbWithAnswer = AorbWithAnswer
+  { aorbData :: Aorb
+  , userAnswer :: AorbAnswer
+  } deriving (Show)
+
+instance SQL.FromRow AorbWithAnswer where
+  fromRow = AorbWithAnswer
+    <$> (Aorb
+          <$> SQL.field
+          <*> SQL.field
+          <*> SQL.field
+          <*> SQL.field
+          <*> SQL.field
+          <*> SQL.field)
+    <*> SQL.field
 
 -- ---------------------------------------------------------------------------
 
@@ -203,20 +242,49 @@ initTables conn = SQL.withTransaction conn $ do
   initAorbMeanTrigger conn
 
 initUserTable :: SQL.Connection -> IO()
-initUserTable conn = SQL.execute_ conn query
-  where query = "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, aorb_id INTEGER NOT NULL, assoc INTEGER NOT NULL, UNIQUE(email))"
+initUserTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+ [ "CREATE TABLE IF NOT EXISTS users"
+ , "(id INTEGER PRIMARY KEY,"
+ , "name TEXT NOT NULL,"
+ , "email TEXT NOT NULL,"
+ , "aorb_id INTEGER NOT NULL,"
+ , "assoc INTEGER NOT NULL,"
+ , "UNIQUE(email))"
+ ]
 
 initAorbTable :: SQL.Connection -> IO()
-initAorbTable conn = SQL.execute_ conn query
-  where query = "CREATE TABLE IF NOT EXISTS aorb (id INTEGER PRIMARY KEY, context TEXT NOT NULL, subtext TEXT NOT NULL, a TEXT NOT NULL, b TEXT NOT NULL, mean REAL NOT NULL DEFAULT 0.500000000000000)"
+initAorbTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+ [ "CREATE TABLE IF NOT EXISTS aorb"
+ , "(id INTEGER PRIMARY KEY,"
+ , "context TEXT NOT NULL,"
+ , "subtext TEXT NOT NULL,"
+ , "a TEXT NOT NULL,"
+ , "b TEXT NOT NULL,"
+ , "mean REAL NOT NULL DEFAULT 0.500000000000000)"
+ ]
 
 initAorbAnswersTable :: SQL.Connection -> IO()
-initAorbAnswersTable conn = SQL.execute_ conn query
-  where query = "CREATE TABLE IF NOT EXISTS aorb_answers (user_id INTEGER NOT NULL, aorb_id INTEGER NOT NULL, answer INTEGER NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id), FOREIGN KEY (aorb_id) REFERENCES aorb(id), UNIQUE(user_id, aorb_id))"
+initAorbAnswersTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+ [ "CREATE TABLE IF NOT EXISTS aorb_answers"
+ , "(user_id INTEGER NOT NULL,"
+ , "aorb_id INTEGER NOT NULL,"
+ , "answer INTEGER NOT NULL,"
+ , "FOREIGN KEY (user_id) REFERENCES users(id),"
+ , "FOREIGN KEY (aorb_id) REFERENCES aorb(id),"
+ , "UNIQUE(user_id, aorb_id))"
+ ]
 
 initAorbMeanTrigger :: SQL.Connection -> IO ()
-initAorbMeanTrigger conn = SQL.execute_ conn query
-  where query = "CREATE TRIGGER IF NOT EXISTS update_aorb_mean AFTER INSERT ON aorb_answers BEGIN UPDATE aorb SET mean = (SELECT AVG(answer) FROM aorb_answers WHERE aorb_id = NEW.aorb_id) WHERE id = NEW.aorb_id; END"
+initAorbMeanTrigger conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+ [ "CREATE TRIGGER IF NOT EXISTS update_aorb_mean"
+ , "AFTER INSERT ON aorb_answers BEGIN"
+ , "UPDATE aorb"
+ , "SET mean = (SELECT AVG(answer)"
+ , "FROM aorb_answers"
+ , "WHERE aorb_id = NEW.aorb_id)"
+ , "WHERE id = NEW.aorb_id;"
+ , "END"
+ ]
 
 readBaseAorbs :: IO (Maybe [Aorb])
 readBaseAorbs = do
@@ -233,6 +301,8 @@ ingestBaseAorbData conn = do
         (aorbId aorb, aorbCtx aorb, aorbStx aorb, aorbA aorb, aorbB aorb)
            ) aorbs)
     Nothing -> putStrLn "error parsing json"
+
+-- ---------------------------------------------------------------------------
 
 getUsersWithAnswers :: SQL.Connection -> [AorbID] -> IO [UserID]
 getUsersWithAnswers conn aorbIds = do
@@ -259,9 +329,9 @@ getUsersAnswers conn users = do
   return $
     Map.fromListWith (++) $ map (\ans -> (aorbUserId ans, [ans])) answers
 
-getUsersAorbAndAssoc :: SQL.Connection -> [UserID]
+getUsersAorbIdAndAssoc :: SQL.Connection -> [UserID]
                      -> IO (Map.Map UserID (AorbID, AssociationScheme))
-getUsersAorbAndAssoc conn users = do
+getUsersAorbIdAndAssoc conn users = do
   let placeholders = replicate (length users) "?"
       inClause = T.intercalate "," placeholders
       query = SQL.Query $
@@ -274,9 +344,54 @@ baseAorbsToSubmissions :: SQL.Connection -> IO Submissions
 baseAorbsToSubmissions conn = do
   basedUsers <- getUsersWithAnswers conn [1..100]
   basedUsersAnswers <- getUsersAnswers conn basedUsers
-  basedUsersAorbAssoc <- getUsersAorbAndAssoc conn basedUsers
+  basedUsersAorbIdAssoc <- getUsersAorbIdAndAssoc conn basedUsers
   return $ Map.mapWithKey (\uid (aid, assoc) ->
     let answers =
           maybe [] (map aorbAnswer) $ Map.lookup uid basedUsersAnswers
     in (answers, aid, assoc)
-    ) basedUsersAorbAssoc
+    ) basedUsersAorbIdAssoc
+
+-- ---------------------------------------------------------------------------
+
+getUserAorbAndAssoc :: SQL.Connection -> UserID
+                    -> IO (Maybe (Aorb, AssociationScheme))
+getUserAorbAndAssoc conn uid = do
+  let query = "SELECT aorb_id, assoc FROM users WHERE id = ?"
+  aorbIdAssoc <- SQL.query conn query [uid] :: IO [(AorbID, AssociationScheme)]
+  case aorbIdAssoc of
+    [(aid, assoc)] -> do
+      let aorbQuery = "SELECT * FROM aorb WHERE id = ?"
+      aorb <- SQL.query conn aorbQuery [aid] :: IO [Aorb]
+      case aorb of
+        [aorb'] -> return $ Just (aorb', assoc)
+        _ -> return Nothing
+    [] -> return Nothing
+    _ -> return Nothing
+
+getUserTopXMostCommonplace :: SQL.Connection -> UserID -> Int
+                           -> IO [AorbWithAnswer]
+getUserTopXMostCommonplace conn uid x = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, ans.answer"
+        , "FROM aorb a"
+        , "JOIN aorb_answers ans ON a.id = ans.aorb_id"
+        , "WHERE ans.user_id = ?"
+        , "ORDER BY ABS(CAST(ans.answer AS REAL) - a.mean) ASC"
+        , "LIMIT ?"
+        ]
+  results <- SQL.query conn query (uid, x)
+  return results
+
+getUserTopXMostControversial :: SQL.Connection -> UserID -> Int
+                             -> IO [AorbWithAnswer]
+getUserTopXMostControversial conn uid x = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, ans.answer"
+        , "FROM aorb a"
+        , "JOIN aorb_answers ans ON a.id = ans.aorb_id"
+        , "WHERE ans.user_id = ?"
+        , "ORDER BY ABS(CAST(ans.answer AS REAL) - a.mean) DESC"
+        , "LIMIT ?"
+        ]
+  results <- SQL.query conn query (uid, x)
+  return results

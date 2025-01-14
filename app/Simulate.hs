@@ -9,6 +9,8 @@ import qualified Data.Time.Format as DateTimeFormat
 import qualified Data.Text as T
 import qualified Data.Map as Map
 
+import qualified Text.Printf as Text
+
 import qualified Control.Monad as Monad
 
 import qualified Database.SQLite.Simple as SQL
@@ -18,7 +20,8 @@ import Rank
 import Marry
 
 randomBinaryVector :: Int -> Int -> BinaryVector
-randomBinaryVector seed len = take len $ randomRs (0, 1) $ Random.mkStdGen seed
+randomBinaryVector seed len =
+  take len $ randomRs (AorbAnswer 0, AorbAnswer 1) $ Random.mkStdGen seed
 
 randomRs :: (Random.Random a, Random.RandomGen g) => (a, a) -> g -> [a]
 randomRs range = unfoldr (Just . Random.randomR range)
@@ -157,6 +160,80 @@ mockAorbAnswers conn aorbs users = do
             ++ " answers..."
         return (mockAorbAnswer : accAnswers, nextGen)
         ) ([], g) $ zip [0..] [(u, a) | u <- users, a <- aorbs]
+
+testUserTopAorbs :: Int -> IO ()
+testUserTopAorbs n = do
+
+  now <- Time.getCurrentTime
+  let timestamp = DateTimeFormat.formatTime
+                  DateTimeFormat.defaultTimeLocale
+                  "%Y%m%d%H%M%S"
+                  now
+      dbName = "data/test-anorby-" ++ timestamp ++ ".db"
+
+  putStrLn $ "Creating test database: " ++ dbName
+  conn <- initDB dbName
+
+  putStrLn $ "\nGenerating mock data for " ++ show n ++ " users..."
+  mockBaseAorbAnswers conn n
+
+  putStrLn "Most commonplace A/B choices:"
+  common <- getUserTopXMostCommonplace conn 1 3
+  mapM_ (\awa -> do
+    let aorb = aorbData awa
+        answer = case userAnswer awa of
+          AorbAnswer 0 -> "A: " ++ T.unpack (aorbA aorb)
+          AorbAnswer _ -> "B: " ++ T.unpack (aorbB aorb)
+        percentageText = case userAnswer awa of
+          AorbAnswer 0 ->
+            let percentB = aorbMean aorb * 100
+                percentA = 100 - percentB
+            in Text.printf "%.1f%% of users also chose A" percentA
+          AorbAnswer 1 ->
+            let percentB = aorbMean aorb * 100
+            in Text.printf "%.1f%% of users also chose B" percentB
+          _ -> "unknown"
+    putStrLn $ "  ID: " ++ show (aorbId aorb)
+    putStrLn $ "  Context: " ++ T.unpack (aorbCtx aorb)
+    putStrLn $ "  Subtext: " ++ T.unpack (aorbStx aorb)
+    putStrLn $ "  A: " ++ T.unpack (aorbA aorb)
+    putStrLn $ "  B: " ++ T.unpack (aorbB aorb)
+    putStrLn $ "  Mean: " ++ show (aorbMean aorb)
+    putStrLn $ "  User chose: " ++ answer
+    putStrLn $ "  Agreement: " ++ percentageText
+    putStrLn ""
+    ) common
+
+  putStrLn "Most controversial A/B choices:"
+  controversial <- getUserTopXMostControversial conn 1 3
+  mapM_ (\awa -> do
+    let aorb = aorbData awa
+        answer = case userAnswer awa of
+          AorbAnswer 0 -> "A: " ++ T.unpack (aorbA aorb)
+          AorbAnswer _ -> "B: " ++ T.unpack (aorbB aorb)
+        percentageText = case userAnswer awa of
+          AorbAnswer 0 ->
+            let percentB = aorbMean aorb * 100
+                percentA = 100 - percentB
+            in Text.printf "%.1f%% of users also chose A" percentA
+          AorbAnswer 1 ->
+            let percentB = aorbMean aorb * 100
+            in Text.printf "%.1f%% of users also chose B" percentB
+          _ -> "unknown"
+    putStrLn $ "  ID: " ++ show (aorbId aorb)
+    putStrLn $ "  Context: " ++ T.unpack (aorbCtx aorb)
+    putStrLn $ "  Subtext: " ++ T.unpack (aorbStx aorb)
+    putStrLn $ "  A: " ++ T.unpack (aorbA aorb)
+    putStrLn $ "  B: " ++ T.unpack (aorbB aorb)
+    putStrLn $ "  Mean: " ++ show (aorbMean aorb)
+    putStrLn $ "  User chose: " ++ answer
+    putStrLn $ "  Agreement: " ++ percentageText
+    putStrLn ""
+    ) controversial
+
+  putStrLn "Closing database connection..."
+  SQL.close conn
+  putStrLn "Test complete."
 
 -- ---------------------------------------------------------------------------
 

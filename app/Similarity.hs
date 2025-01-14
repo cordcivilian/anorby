@@ -25,7 +25,7 @@ weightedContingencyTable :: BinaryVector -> BinaryVector -> WeightVector
 weightedContingencyTable xs ys weights =
   List.foldl' count (0,0,0,0) $ zip3 xs ys weights
   where
-    count (a,b,c,d) (x,y,w)
+    count (a,b,c,d) (AorbAnswer x, AorbAnswer y, w)
       | x == 1 && y == 1 = (a+w,b,c,d)
       | x == 1 && y == 0 = (a,b+w,c,d)
       | x == 0 && y == 1 = (a,b,c+w,d)
@@ -33,11 +33,16 @@ weightedContingencyTable xs ys weights =
 
 validateInputs :: BinaryVector -> BinaryVector -> Either String ()
 validateInputs xs ys
-  | length xs /= length ys = Left "binary vectors must have equal length"
-  | not (all isBinary xs) = Left "first vector must contain only 0 and 1"
-  | not (all isBinary ys) = Left "second vector must contain only 0 and 1"
+  | length xs /= length ys =
+    Left "binary vectors must have equal length"
+  | not (all (isBinary . unwrapAorbAnswer) xs) =
+    Left "first vector must contain only 0 and 1"
+  | not (all (isBinary . unwrapAorbAnswer) ys) =
+    Left "second vector must contain only 0 and 1"
   | otherwise = Right ()
   where
+    unwrapAorbAnswer :: AorbAnswer -> Word.Word8
+    unwrapAorbAnswer (AorbAnswer w) = w
     isBinary :: Word.Word8 -> Bool
     isBinary x = x <= 1
 
