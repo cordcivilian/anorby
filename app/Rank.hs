@@ -13,7 +13,7 @@ import Marry
 submissionsToRankings :: Submissions -> Rankings
 submissionsToRankings submissions = Map.fromList rankings
   where
-    userIds = Map.keys submissions 
+    userIds = Map.keys submissions
     rankings = map (makeRanking submissions userIds) userIds
 
 makeRanking :: Submissions -> [UserID] -> UserID -> (UserID, Ranking)

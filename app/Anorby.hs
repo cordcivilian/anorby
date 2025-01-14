@@ -10,6 +10,8 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Aeson as JSON
 import qualified Data.Map as Map
 
+import qualified Control.Monad as Monad
+
 import qualified Database.SQLite.Simple as SQL
 import qualified Database.SQLite.Simple.FromField as SQL
 import qualified Database.SQLite.Simple.ToField as SQL
@@ -57,7 +59,7 @@ data AorbAnswers = AorbAnswers
   , aorbAnswer :: AorbAnswer
   } deriving (Show)
 
-data AssociationScheme = PPPod | Balance | Bipolar 
+data AssociationScheme = PPPod | Balance | Bipolar
   deriving (Eq, Show, Enum, Bounded)
 
 instance Random.Random AssociationScheme where
@@ -111,7 +113,7 @@ instance SQL.FromRow AorbAnswers where
 -- ---------------------------------------------------------------------------
 
 instance SQL.ToRow User where
-  toRow user = 
+  toRow user =
     [ SQL.SQLInteger (fromIntegral $ userId user)
     , SQL.SQLText (userName user)
     , SQL.SQLText (userEmail user)
@@ -149,7 +151,49 @@ instance JSON.FromJSON Aorb where
 -- ---------------------------------------------------------------------------
 
 initDB :: FilePath -> IO SQL.Connection
-initDB db = SQL.open db
+initDB db = do
+  conn <- SQL.open db
+  initSQLitePragmas conn
+  return conn
+
+-- | à la https://briandouglas.ie/sqlite-defaults/
+initSQLitePragmas :: SQL.Connection -> IO ()
+initSQLitePragmas conn = do
+  putStrLn "Initializing SQLite pragmas for performance optimization..."
+  let pragmaSettings =
+        [ "PRAGMA journal_mode = WAL"
+        , "PRAGMA synchronous = NORMAL"
+        , "PRAGMA busy_timeout = 5000"
+        , "PRAGMA cache_size = -20000"
+        , "PRAGMA foreign_keys = ON"
+        , "PRAGMA auto_vacuum = INCREMENTAL"
+        , "PRAGMA temp_store = MEMORY"
+        , "PRAGMA mmap_size = 2147483648"
+        , "PRAGMA page_size = 8192"
+        ]
+  mapM_ (SQL.execute_ conn) pragmaSettings
+
+  putStrLn "Verifying SQLite settings:"
+  let pragmas =
+        [ "journal_mode"     -- TEXT
+        , "synchronous"      -- INTEGER
+        , "busy_timeout"     -- INTEGER
+        , "cache_size"       -- INTEGER
+        , "foreign_keys"     -- INTEGER
+        , "auto_vacuum"      -- INTEGER
+        , "temp_store"       -- INTEGER
+        , "mmap_size"        -- INTEGER
+        , "page_size"        -- INTEGER
+        ]
+  Monad.forM_ pragmas $ \pragma -> do
+    let query = SQL.Query $ "PRAGMA " <> T.pack pragma
+    case pragma of
+      "journal_mode" -> do
+        [SQL.Only value] <- SQL.query_ conn query :: IO [SQL.Only T.Text]
+        putStrLn $ pragma <> " = " <> T.unpack value
+      _ -> do
+        [SQL.Only value] <- SQL.query_ conn query :: IO [SQL.Only Int]
+        putStrLn $ pragma <> " = " <> show value
 
 initTables :: SQL.Connection -> IO ()
 initTables conn = SQL.withTransaction conn $ do
@@ -181,7 +225,7 @@ readBaseAorbs = do
 
 ingestBaseAorbData :: SQL.Connection -> IO ()
 ingestBaseAorbData conn = do
-  base <- readBaseAorbs 
+  base <- readBaseAorbs
   case base of
     Just aorbs -> SQL.withTransaction conn $ SQL.executeMany conn
       "INSERT OR REPLACE INTO aorb (id, context, subtext, a, b) VALUES (?, ?, ?, ?, ?)"
@@ -231,7 +275,7 @@ baseAorbsToSubmissions conn = do
   basedUsers <- getUsersWithAnswers conn [1..100]
   basedUsersAnswers <- getUsersAnswers conn basedUsers
   basedUsersAorbAssoc <- getUsersAorbAndAssoc conn basedUsers
-  return $ Map.mapWithKey (\uid (aid, assoc) -> 
+  return $ Map.mapWithKey (\uid (aid, assoc) ->
     let answers =
           maybe [] (map aorbAnswer) $ Map.lookup uid basedUsersAnswers
     in (answers, aid, assoc)

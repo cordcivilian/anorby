@@ -112,18 +112,26 @@ mockUsers conn n = do
               , userAorbId = mockAorbId
               , userAssoc = mockAssoc
               }
-        Monad.when (rem i 100 == 0) $ 
+        Monad.when (rem i 100 == 0) $
           putStrLn $ "Generated " ++ show i ++ " users..."
         return (user : accUsers, g3)
         ) ([], g) [0..count-1]
 
 mockAorbAnswers :: SQL.Connection -> [Aorb] -> [User] -> IO ()
 mockAorbAnswers conn aorbs users = do
-  putStrLn $ "Getting random seed for " ++ show (length users) ++ " users × " ++ show (length aorbs) ++ " A/B items..."
+  putStrLn $
+    "Getting random seed for "
+    ++ show (length users)
+    ++ " users × "
+    ++ show (length aorbs)
+    ++ " A/B items..."
   gen <- Random.getStdGen
   putStrLn "Generating mock answers..."
   (answers, _) <- generateMockAnswers gen
-  putStrLn $ "Inserting " ++ show (length answers) ++ " answers into database..."
+  putStrLn $
+    "Inserting "
+    ++ show (length answers)
+    ++ " answers into database..."
   SQL.withTransaction conn $ SQL.executeMany conn
     "INSERT OR REPLACE INTO aorb_answers (user_id, aorb_id, answer) VALUES (?, ?, ?)"
     answers
@@ -137,11 +145,16 @@ mockAorbAnswers conn aorbs users = do
         let (answer, nextGen) = Random.random currGen
             mockAorbAnswer = AorbAnswers
               { aorbUserId = userId u
-              , aorbAorbId = aorbId a  
+              , aorbAorbId = aorbId a
               , aorbAnswer = answer
               }
         Monad.when (rem idx (1000 :: Int) == 0) $
-          putStrLn $ "Generated " ++ show idx ++ "/" ++ show total ++ " answers..."
+          putStrLn $
+            "Generated "
+            ++ show idx
+            ++ "/"
+            ++ show total
+            ++ " answers..."
         return (mockAorbAnswer : accAnswers, nextGen)
         ) ([], g) $ zip [0..] [(u, a) | u <- users, a <- aorbs]
 
@@ -152,9 +165,9 @@ testAorbGaleShapley n
   | n <= 1 = putStrLn "number of matching entities must be greater than two"
   | otherwise = do
   now <- Time.getCurrentTime
-  let timestamp = DateTimeFormat.formatTime 
-                  DateTimeFormat.defaultTimeLocale 
-                  "%Y%m%d%H%M%S" 
+  let timestamp = DateTimeFormat.formatTime
+                  DateTimeFormat.defaultTimeLocale
+                  "%Y%m%d%H%M%S"
                   now
       dbName = "data/test-anorby-" ++ timestamp ++ ".db"
   conn <- initDB dbName
@@ -190,9 +203,9 @@ testAorbLocalSearch n maxIterations maxBlockingPercentage batchSize
   | batchSize <= 1 = putStrLn "batch size must be at least one"
   | otherwise = do
   now <- Time.getCurrentTime
-  let timestamp = DateTimeFormat.formatTime 
-                  DateTimeFormat.defaultTimeLocale 
-                  "%Y%m%d%H%M%S" 
+  let timestamp = DateTimeFormat.formatTime
+                  DateTimeFormat.defaultTimeLocale
+                  "%Y%m%d%H%M%S"
                   now
       dbName = "data/test-anorby-" ++ timestamp ++ ".db"
   conn <- initDB dbName
