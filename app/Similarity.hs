@@ -3,6 +3,8 @@ module Similarity where
 import qualified Data.Word as Word
 import qualified Data.List as List
 
+import Anorby
+
 type SimilarityScore = Double
 type BinaryVector = [Word.Word8]
 type Contingency = (Int, Int, Int, Int)
@@ -11,10 +13,6 @@ type WeightedContingency = (Double, Double, Double, Double)
 
 type BinaryVectorSimilarity = BinaryVector -> BinaryVector -> WeightVector
                             -> SimilarityScore
-
-data AssociationScheme = PPPod
-                       | Balance
-                       | Bipolar deriving (Eq, Show)
 
 associate :: AssociationScheme -> (Double , BinaryVectorSimilarity)
 associate scheme =

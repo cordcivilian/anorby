@@ -8,6 +8,7 @@ import qualified Data.Ord as Ord
 
 import Similarity
 import Marry
+import Anorby
 
 type UserSubmission = (BinaryVector, WeightVector, AssociationScheme)
 type Candidates = Map.Map UserID UserSubmission
@@ -19,14 +20,14 @@ candidatesToRankings candidates = Map.fromList rankings
     rankings = map (makeRanking candidates userIds) userIds
 
 makeRanking :: Candidates -> [UserID] -> UserID -> (UserID, Ranking)
-makeRanking candidates allUsers userId = (userId, randomizedRanking)
+makeRanking candidates allUsers uid = (uid, randomizedRanking)
   where
-    (userVector, userWeights, scheme) = candidates Map.! userId
+    (userVector, userWeights, scheme) = candidates Map.! uid
     (baseline, similarityFunc) = associate scheme
 
     similarityScores =
       map (calculateScore candidates userVector userWeights similarityFunc)
-          (filter (/= userId) allUsers)
+          (filter (/= uid) allUsers)
 
     sortedScores =
       List.sortBy (Ord.comparing (abs . (baseline -) . snd)) similarityScores

@@ -4,6 +4,7 @@ import qualified System.Random as Random
 
 import qualified Data.Map as Map
 
+import Anorby
 import Similarity
 import Rank
 import Marry

@@ -80,6 +80,9 @@ executable anorby
         vector,
         sqlite-simple,
         directory,
+        bytestring,
+        aeson,
+        time,
 
     -- Directories containing source files.
     hs-source-dirs:   app
