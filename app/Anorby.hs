@@ -9,6 +9,7 @@ import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Aeson as JSON
 import qualified Data.Map as Map
+import qualified Data.List as List
 
 import qualified Control.Monad as Monad
 
@@ -174,6 +175,24 @@ instance SQL.FromRow AorbWithAnswer where
           <*> SQL.field
           <*> SQL.field
           <*> SQL.field)
+    <*> SQL.field
+
+data MatchingAorbWithAnswer = MatchingAorbWithAnswer
+  { matchingAorbData :: Aorb
+  , mainUserAnswer :: AorbAnswer
+  , otherUserAnswer :: AorbAnswer
+  } deriving (Show)
+
+instance SQL.FromRow MatchingAorbWithAnswer where
+  fromRow = MatchingAorbWithAnswer
+    <$> (Aorb
+          <$> SQL.field
+          <*> SQL.field
+          <*> SQL.field
+          <*> SQL.field
+          <*> SQL.field
+          <*> SQL.field)
+    <*> SQL.field
     <*> SQL.field
 
 -- ---------------------------------------------------------------------------
@@ -390,8 +409,7 @@ getUserTopXMostCommonplace conn uid x = do
         , "ORDER BY ABS(CAST(ans.answer AS REAL) - a.mean) ASC"
         , "LIMIT ?"
         ]
-  results <- SQL.query conn query (uid, x)
-  return results
+  SQL.query conn query (uid, x)
 
 getUserTopXMostControversial :: SQL.Connection -> UserID -> Int
                              -> IO [AorbWithAnswer]
@@ -404,8 +422,7 @@ getUserTopXMostControversial conn uid x = do
         , "ORDER BY ABS(CAST(ans.answer AS REAL) - a.mean) DESC"
         , "LIMIT ?"
         ]
-  results <- SQL.query conn query (uid, x)
-  return results
+  SQL.query conn query (uid, x)
 
 getUserAorbsFromControversialToCommonPlace :: SQL.Connection -> UserID
                                            -> IO [AorbWithAnswer]
@@ -417,5 +434,115 @@ getUserAorbsFromControversialToCommonPlace conn uid = do
         , "WHERE ans.user_id = ?"
         , "ORDER BY ABS(CAST(ans.answer AS REAL) - a.mean) DESC"
         ]
-  results <- SQL.query conn query [uid]
-  return results
+  SQL.query conn query [uid]
+
+getMatchesMainAorbs :: SQL.Connection -> UserID -> UserID
+                    -> IO (Maybe
+                            (MatchingAorbWithAnswer, MatchingAorbWithAnswer)
+                          )
+getMatchesMainAorbs conn uid1 uid2 = do
+  let userQuery = SQL.Query "SELECT aorb_id FROM users WHERE id IN (?, ?)"
+  aorbIds <- SQL.query conn userQuery (uid1, uid2) :: IO [SQL.Only Int]
+  case aorbIds of
+    [SQL.Only aid1, SQL.Only aid2] -> do
+      let aorbQuery = SQL.Query $ T.unwords
+            [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean,"
+            , "ans1.answer as user1_answer,"
+            , "ans2.answer as user2_answer"
+            , "FROM aorb a"
+            , "JOIN aorb_answers ans1"
+            , "ON a.id = ans1.aorb_id AND ans1.user_id = ?"
+            , "JOIN aorb_answers ans2"
+            , "ON a.id = ans2.aorb_id AND ans2.user_id = ?"
+            , "WHERE a.id = ?"
+            ]
+      aorb1s <- SQL.query
+        conn aorbQuery (uid1, uid2, aid1) :: IO [MatchingAorbWithAnswer]
+      aorb2s <- SQL.query
+        conn aorbQuery (uid1, uid2, aid2) :: IO [MatchingAorbWithAnswer]
+      case (aorb1s, aorb2s) of
+        ([a1], [a2]) -> return $ Just (a1, a2)
+        _ -> return Nothing
+    _ -> return Nothing
+
+getMatchesTopXCommonDisagreement :: SQL.Connection -> UserID -> UserID -> Int
+                                 -> IO [MatchingAorbWithAnswer]
+getMatchesTopXCommonDisagreement conn uid1 uid2 x = do
+  let query = SQL.Query $ T.unwords
+        [ "WITH disagreements AS ("
+        , "  SELECT b.id, b.context, b.subtext, b.a, b.b, b.mean,"
+        , "         a1.answer as main_answer, a2.answer as other_answer,"
+        , "         mean * (1 - mean) as variance"
+        , "  FROM aorb_answers a1"
+        , "  JOIN aorb_answers a2 ON a1.aorb_id = a2.aorb_id"
+        , "  JOIN aorb b ON a1.aorb_id = b.id"
+        , "  WHERE a1.user_id = ?"
+        , "  AND a2.user_id = ?"
+        , "  AND a1.answer != a2.answer"
+        , ")"
+        , "SELECT id, context, subtext, a, b, mean, main_answer, other_answer"
+        , "FROM disagreements"
+        , "ORDER BY variance DESC"
+        , "LIMIT ?"
+        ]
+  SQL.query conn query (uid1, uid2, x)
+
+getMatchesTopXUniqueAgreement :: SQL.Connection -> UserID -> UserID -> Int
+                              -> IO [MatchingAorbWithAnswer]
+getMatchesTopXUniqueAgreement conn uid1 uid2 x = do
+  let query = SQL.Query $ T.unwords
+        [ "WITH matching_answers AS ("
+        , "  SELECT b.id, b.context, b.subtext, b.a, b.b, b.mean,"
+        , "         a1.answer as main_answer, a2.answer as other_answer,"
+        , "         ABS(a1.answer - b.mean) as difference"
+        , "  FROM aorb_answers a1"
+        , "  JOIN aorb_answers a2 ON a1.aorb_id = a2.aorb_id"
+        , "  JOIN aorb b ON a1.aorb_id = b.id"
+        , "  WHERE a1.user_id = ?"
+        , "  AND a2.user_id = ?"
+        , "  AND a1.answer = a2.answer"
+        , ")"
+        , "SELECT id, context, subtext, a, b, mean, main_answer, other_answer"
+        , "FROM matching_answers"
+        , "ORDER BY difference DESC"
+        , "LIMIT ?"
+        ]
+  SQL.query conn query (uid1, uid2, x)
+
+getLargestIntersection :: SQL.Connection -> UserID -> UserID -> IO [AorbID]
+getLargestIntersection conn uid1 uid2 = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT aorb_id"
+        , "FROM aorb_answers"
+        , "WHERE user_id = ?"
+        , "INTERSECT"
+        , "SELECT aorb_id"
+        , "FROM aorb_answers"
+        , "WHERE user_id = ?"
+        ]
+  rows <- SQL.query conn query (uid1, uid2) :: IO [SQL.Only AorbID]
+  return $ map SQL.fromOnly rows
+
+getLargestIntersectionAnswers :: SQL.Connection -> UserID -> UserID
+                              -> IO ([AorbAnswer], [AorbAnswer])
+getLargestIntersectionAnswers conn uid1 uid2 = do
+  intersection <- getLargestIntersection conn uid1 uid2
+  if null intersection
+    then return ([], [])
+    else do
+      let query =
+            SQL.Query $ T.unwords
+              [ "SELECT user_id, aorb_id, answer"
+              , "FROM aorb_answers"
+              , "WHERE user_id IN (?, ?)"
+              , "AND aorb_id IN ("
+              , T.intercalate "," (map (T.pack . show) intersection)
+              , ")"
+              , "ORDER BY aorb_id, user_id"
+              ]
+      rows <- SQL.query
+        conn query (uid1, uid2) :: IO [(UserID, AorbID, AorbAnswer)]
+      let (answers1, answers2) =
+            List.partition (\(uid, _, _) -> uid == uid1) rows
+      return (map (\(_, _, ans) -> ans) answers1,
+              map (\(_, _, ans) -> ans) answers2)

@@ -179,88 +179,92 @@ testUserAorbs n = do
 
   putStrLn "Most commonplace A/B choices:"
   common <- getUserTopXMostCommonplace conn 1 3
-  mapM_ (\awa -> do
-    let aorb = aorbData awa
-        answer = case userAnswer awa of
-          AorbAnswer 0 -> "A: " ++ T.unpack (aorbA aorb)
-          AorbAnswer _ -> "B: " ++ T.unpack (aorbB aorb)
-        percentageText = case userAnswer awa of
-          AorbAnswer 0 ->
-            let percentB = aorbMean aorb * 100
-                percentA = 100 - percentB
-            in Text.printf "%.1f%% of users also chose A" percentA
-          AorbAnswer 1 ->
-            let percentB = aorbMean aorb * 100
-            in Text.printf "%.1f%% of users also chose B" percentB
-          _ -> "unknown"
-    putStrLn $ "  ID: " ++ show (aorbId aorb)
-    putStrLn $ "  Context: " ++ T.unpack (aorbCtx aorb)
-    putStrLn $ "  Subtext: " ++ T.unpack (aorbStx aorb)
-    putStrLn $ "  A: " ++ T.unpack (aorbA aorb)
-    putStrLn $ "  B: " ++ T.unpack (aorbB aorb)
-    putStrLn $ "  Mean: " ++ show (aorbMean aorb)
-    putStrLn $ "  User chose: " ++ answer
-    putStrLn $ "  Agreement: " ++ percentageText
-    putStrLn ""
-    ) common
+  mapM_ printAorb common
 
   putStrLn "Most controversial A/B choices:"
   controversial <- getUserTopXMostControversial conn 1 3
-  mapM_ (\awa -> do
-    let aorb = aorbData awa
-        answer = case userAnswer awa of
-          AorbAnswer 0 -> "A: " ++ T.unpack (aorbA aorb)
-          AorbAnswer _ -> "B: " ++ T.unpack (aorbB aorb)
-        percentageText = case userAnswer awa of
-          AorbAnswer 0 ->
-            let percentB = aorbMean aorb * 100
-                percentA = 100 - percentB
-            in Text.printf "%.1f%% of users also chose A" percentA
-          AorbAnswer 1 ->
-            let percentB = aorbMean aorb * 100
-            in Text.printf "%.1f%% of users also chose B" percentB
-          _ -> "unknown"
-    putStrLn $ "  ID: " ++ show (aorbId aorb)
-    putStrLn $ "  Context: " ++ T.unpack (aorbCtx aorb)
-    putStrLn $ "  Subtext: " ++ T.unpack (aorbStx aorb)
-    putStrLn $ "  A: " ++ T.unpack (aorbA aorb)
-    putStrLn $ "  B: " ++ T.unpack (aorbB aorb)
-    putStrLn $ "  Mean: " ++ show (aorbMean aorb)
-    putStrLn $ "  User chose: " ++ answer
-    putStrLn $ "  Agreement: " ++ percentageText
-    putStrLn ""
-    ) controversial
+  mapM_ printAorb controversial
 
   putStrLn "Choices from most controversial to most commonplace:"
   aorbs <- getUserAorbsFromControversialToCommonPlace conn 1
-  mapM_ (\awa -> do
-    let aorb = aorbData awa
-        answer = case userAnswer awa of
-          AorbAnswer 0 -> "A: " ++ T.unpack (aorbA aorb)
-          AorbAnswer _ -> "B: " ++ T.unpack (aorbB aorb)
-        percentageText = case userAnswer awa of
-          AorbAnswer 0 ->
-            let percentB = aorbMean aorb * 100
-                percentA = 100 - percentB
-            in Text.printf "%.1f%% of users also chose A" percentA
-          AorbAnswer 1 ->
-            let percentB = aorbMean aorb * 100
-            in Text.printf "%.1f%% of users also chose B" percentB
-          _ -> "unknown"
-    putStrLn $ "  ID: " ++ show (aorbId aorb)
-    putStrLn $ "  Context: " ++ T.unpack (aorbCtx aorb)
-    putStrLn $ "  Subtext: " ++ T.unpack (aorbStx aorb)
-    putStrLn $ "  A: " ++ T.unpack (aorbA aorb)
-    putStrLn $ "  B: " ++ T.unpack (aorbB aorb)
-    putStrLn $ "  Mean: " ++ show (aorbMean aorb)
-    putStrLn $ "  User chose: " ++ answer
-    putStrLn $ "  Agreement: " ++ percentageText
-    putStrLn ""
-    ) aorbs
+  mapM_ printAorb aorbs
+
+  putStrLn "\nTesting matches between users 1 and 2:"
+
+  putStrLn "\nMain aorbs match:"
+  mainMatch <- getMatchesMainAorbs conn 1 2
+  case mainMatch of
+    Just (a1, a2) -> do
+      putStrLn "User 1's main aorb:"
+      printMatchingAorb 1 2 a1
+      putStrLn "User 2's main aorb:"
+      printMatchingAorb 1 2 a2
+    Nothing -> putStrLn "No main aorbs found"
+
+  putStrLn "\nTop 3 most unique agreements:"
+  similar <- getMatchesTopXUniqueAgreement conn 1 2 3
+  mapM_ (printMatchingAorb 1 2) similar
+
+  putStrLn "\nTop 3 most common disagreements:"
+  different <- getMatchesTopXCommonDisagreement conn 1 2 3
+  mapM_ (printMatchingAorb 1 2) different
 
   putStrLn "Closing database connection..."
   SQL.close conn
   putStrLn "Test complete."
+
+  where
+    printAorb :: AorbWithAnswer -> IO ()
+    printAorb awa = do
+      let aorb = aorbData awa
+          answer =
+            case userAnswer awa of
+              AorbAnswer 0 -> "A: " ++ T.unpack (aorbA aorb)
+              AorbAnswer _ -> "B: " ++ T.unpack (aorbB aorb)
+          percentageText =
+            case userAnswer awa of
+              AorbAnswer 0 ->
+                let percentB = aorbMean aorb * 100
+                    percentA = 100 - percentB
+                in Text.printf "%.1f%% of users also chose A" percentA
+              AorbAnswer 1 ->
+                let percentB = aorbMean aorb * 100
+                in Text.printf "%.1f%% of users also chose B" percentB
+              _ -> "unknown"
+      putStrLn $ "  ID: " ++ show (aorbId aorb)
+      putStrLn $ "  Context: " ++ T.unpack (aorbCtx aorb)
+      putStrLn $ "  Subtext: " ++ T.unpack (aorbStx aorb)
+      putStrLn $ "  A: " ++ T.unpack (aorbA aorb)
+      putStrLn $ "  B: " ++ T.unpack (aorbB aorb)
+      putStrLn $ "  Mean: " ++ show (aorbMean aorb)
+      putStrLn $ "  User chose: " ++ answer
+      putStrLn $ "  Agreement: " ++ percentageText
+      putStrLn ""
+
+    printMatchingAorb :: UserID -> UserID -> MatchingAorbWithAnswer -> IO ()
+    printMatchingAorb uid1 uid2 mawa = do
+      let aorb = matchingAorbData mawa
+          answer1 = case mainUserAnswer mawa of
+            AorbAnswer 0 -> "A: " ++ T.unpack (aorbA aorb)
+            AorbAnswer _ -> "B: " ++ T.unpack (aorbB aorb)
+          answer2 = case otherUserAnswer mawa of
+            AorbAnswer 0 -> "A: " ++ T.unpack (aorbA aorb)
+            AorbAnswer _ -> "B: " ++ T.unpack (aorbB aorb)
+          percentB = aorbMean aorb * 100
+          percentA = 100 - percentB
+
+      putStrLn $ "  ID: " ++ show (aorbId aorb)
+      putStrLn $ "  Context: " ++ T.unpack (aorbCtx aorb)
+      putStrLn $ "  Subtext: " ++ T.unpack (aorbStx aorb)
+      putStrLn $ "  A: " ++ T.unpack (aorbA aorb)
+      putStrLn $ "  B: " ++ T.unpack (aorbB aorb)
+      putStrLn $ "  Mean: " ++ show (aorbMean aorb)
+      putStrLn $ "  User " ++ show uid1 ++ " chose: " ++ answer1
+      putStrLn $ "  User " ++ show uid2 ++ " chose: " ++ answer2
+      putStrLn $
+        "  Overall: "
+        ++ Text.printf "%.1f%% chose A, %.1f%% chose B" percentA percentB
+      putStrLn ""
 
 -- ---------------------------------------------------------------------------
 
