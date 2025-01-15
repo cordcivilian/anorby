@@ -296,7 +296,11 @@ ingestBaseAorbData conn = do
   base <- readBaseAorbs
   case base of
     Just aorbs -> SQL.withTransaction conn $ SQL.executeMany conn
-      "INSERT OR REPLACE INTO aorb (id, context, subtext, a, b) VALUES (?, ?, ?, ?, ?)"
+      (SQL.Query $ T.unwords
+            [ "INSERT OR REPLACE INTO aorb (id, context, subtext, a, b)"
+            , "VALUES (?, ?, ?, ?, ?)"
+            ]
+      )
       (map (\aorb ->
         (aorbId aorb, aorbCtx aorb, aorbStx aorb, aorbA aorb, aorbB aorb)
            ) aorbs)
@@ -308,10 +312,13 @@ getUsersWithAnswers :: SQL.Connection -> [AorbID] -> IO [UserID]
 getUsersWithAnswers conn aorbIds = do
   let placeholders = replicate (length aorbIds) "?"
       inClause = T.intercalate "," placeholders
-      query = SQL.Query $
-        "SELECT user_id FROM aorb_answers WHERE aorb_id IN ("
-        <> inClause <>
-        ") GROUP BY user_id HAVING COUNT(DISTINCT aorb_id) = ?"
+      query = SQL.Query $ T.unwords
+        [ "SELECT user_id"
+        , "FROM aorb_answers"
+        , "WHERE aorb_id IN (" <> inClause <> ")"
+        , "GROUP BY user_id"
+        , "HAVING COUNT(DISTINCT aorb_id) = ?"
+        ]
       params = aorbIds ++ [length aorbIds]
   users <- SQL.query conn query params :: IO [SQL.Only UserID]
   return $ map SQL.fromOnly users
@@ -321,10 +328,11 @@ getUsersAnswers :: SQL.Connection -> [UserID]
 getUsersAnswers conn users = do
   let placeholders = replicate (length users) "?"
       inClause = T.intercalate "," placeholders
-      query = SQL.Query $
-        "SELECT user_id, aorb_id, answer FROM aorb_answers WHERE user_id IN ("
-        <> inClause <>
-        ")"
+      query = SQL.Query $ T.unwords
+        [ "SELECT user_id, aorb_id, answer"
+        , "FROM aorb_answers"
+        , "WHERE user_id IN (" <> inClause <> ")"
+        ]
   answers <- SQL.query conn query users :: IO [AorbAnswers]
   return $
     Map.fromListWith (++) $ map (\ans -> (aorbUserId ans, [ans])) answers
@@ -334,8 +342,11 @@ getUsersAorbIdAndAssoc :: SQL.Connection -> [UserID]
 getUsersAorbIdAndAssoc conn users = do
   let placeholders = replicate (length users) "?"
       inClause = T.intercalate "," placeholders
-      query = SQL.Query $
-        "SELECT id, aorb_id, assoc FROM users WHERE id IN (" <> inClause <> ")"
+      query = SQL.Query $ T.unwords
+        [ "SELECT id, aorb_id, assoc"
+        , "FROM users"
+        , "WHERE id IN (" <> inClause <> ")"
+        ]
   aorbs <- SQL.query
     conn query users :: IO [(UserID, AorbID, AssociationScheme)]
   return $ Map.fromList [(uid, (aid, assoc)) | (uid, aid, assoc) <- aorbs]
