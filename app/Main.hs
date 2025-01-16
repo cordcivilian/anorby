@@ -80,13 +80,14 @@ fullCSS = combineCSS
   , frameCSS
   , linkCSS
   , hrCSS
-  , aorbsContainerCSS
-  , aorbDisplayCSS
   , sorterCSS
   , sortByCSS
   , byDiceTargetCSS
   , byPolarTargetCSS
   , bySidedTargetCSS
+  , aorbsContainerCSS
+  , aorbDisplayCSS
+  , notchCSS
   ]
 
 rootCSS :: T.Text
@@ -120,6 +121,7 @@ frameCSS = cssEntry ".frame"
   , cssProperty "align-content" "center"
   , cssProperty "border" "3px"
   , cssProperty "box-sizing" "border-box"
+  , cssProperty "place-items" "center"
   ]
 
 linkCSS :: T.Text
@@ -140,7 +142,7 @@ sorterCSS :: T.Text
 sorterCSS = cssEntry "#sorter"
   [ cssProperty "display" "grid"
   , cssProperty "grid-template-columns" "1fr"
-  , cssProperty "width" "fit-content"
+  , cssProperty "width" "50vw"
   , cssProperty "margin" "0 auto"
   ]
 
@@ -180,7 +182,7 @@ aorbDisplayCSS = combineCSS
     , cssProperty "margin" "1rem"
     , cssProperty "max-width" "800px"
     , cssProperty "order" "var(--order-dice)"
-    , cssProperty "padding" "1rem"
+    , cssProperty "padding" "1rem 1rem 0.8rem 1rem"
     , cssProperty "width" "100%"
     , cssProperty "text-align" "left"
     ]
@@ -208,6 +210,18 @@ aorbDisplayCSS = combineCSS
     [ cssProperty "color" "gray"
     ]
   ]
+
+notchCSS :: T.Text
+notchCSS = cssEntry ".notch"
+    [ cssProperty "position" "sticky"
+    , cssProperty "top" "95dvh"
+    , cssProperty "transform" "translateX(50%)"
+    , cssProperty "z-index" "1000"
+    , cssProperty "padding" "0.2rem"
+    , cssProperty "border" "2px solid #4169e1"
+    , cssProperty "background" "#4169e1"
+    , cssProperty "border-radius" "10px"
+    ]
 
 -- ---------------------------------------------------------------------------
 
@@ -250,10 +264,12 @@ rootTemplate aorbs = H.docTypeHtml $ H.html $ do
         H.a H.! A.class_ "sort-by" H.! A.href "#by-polar" $ "> most polarizing"
         H.a H.! A.class_ "sort-by" H.! A.href "#by-dice" $ "> random"
     H.span H.! A.id "aorbs" $ ""
-    H.div H.! A.class_ "frame" H.! A.style "padding-top: 20vh;" $ do
+    H.div H.! A.class_ "frame" H.! A.style "padding-top: 10vh;" $ do
       H.div H.! A.id "by-sided" $ mempty
       H.div H.! A.id "by-dice" $ mempty
       H.div H.! A.id "by-polar" $ mempty
+      H.span H.! A.class_ "notch" H.! A.onclick "" $ do
+        H.a H.! A.href "#baseline" $ "backtobasebasebase"
       H.div H.! A.id "aorbs-container" $ do
         let
           aorbDynamicCSS :: Int -> Int -> Int -> I.AttributeValue
@@ -285,27 +301,27 @@ rootTemplate aorbs = H.docTypeHtml $ H.html $ do
                     delta = (abs (mean - 0.5)) * 100
                     formatDelta =
                         T.concat ["(+", T.pack (Text.printf "%.2f" delta), ")"]
-                case compare mean 0.5 of
-                  GT -> do -- b preferred
+                if delta < 0.01
+                  then do
+                    H.div H.! A.class_ "choice" $ do
+                      H.toHtml (aorbA aorb)
+                      H.span H.! A.class_ "neutral" $ H.toHtml $ T.pack " ...?"
+                    H.div H.! A.class_ "choice" $ do
+                      H.toHtml (aorbB aorb)
+                      H.span H.! A.class_ "neutral" $ H.toHtml $ T.pack " ...?"
+                  else if mean > 0.5
+                  then do
                     H.div H.! A.class_ "choice preferred" $ do
                       H.toHtml (aorbB aorb)
                       H.span H.! A.class_ "delta" $ H.toHtml formatDelta
                     H.div H.! A.class_ "choice alternative" $
                       H.toHtml (aorbA aorb)
-                  LT -> do -- a preferred
+                  else do
                     H.div H.! A.class_ "choice preferred" $ do
                       H.toHtml (aorbA aorb)
                       H.span H.! A.class_ "delta" $ H.toHtml formatDelta
                     H.div H.! A.class_ "choice alternative" $
                       H.toHtml (aorbB aorb)
-                  EQ -> do -- equal
-                    H.div H.! A.class_ "choice" $ do
-                      H.toHtml (aorbA aorb)
-                      H.span H.! A.class_ "neutral" $ H.toHtml $ T.pack " (-)"
-                    H.div H.! A.class_ "choice" $ do
-                      H.toHtml (aorbB aorb)
-                      H.span H.! A.class_ "neutral" $ H.toHtml $ T.pack " (-)"
-
 
 notFoundTemplateRoute :: Wai.Request -> Wai.Response
 notFoundTemplateRoute _ = Wai.responseLBS
