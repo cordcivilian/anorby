@@ -10,6 +10,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Aeson as JSON
 import qualified Data.Map as Map
 import qualified Data.List as List
+import qualified Data.Pool as Pool
 
 import qualified Control.Monad as Monad
 
@@ -73,6 +74,9 @@ data Aorb = Aorb
   , aorbB :: T.Text
   , aorbMean :: Double
   } deriving (Show)
+
+instance Eq Aorb where
+    a1 == a2 = aorbId a1 == aorbId a2
 
 data AorbAnswers = AorbAnswers
   { aorbUserId :: UserID
@@ -213,6 +217,13 @@ initDB db = do
   conn <- SQL.open db
   initSQLitePragmas conn
   return conn
+
+initConn :: FilePath -> IO SQL.Connection
+initConn db = SQL.open db
+
+initPool :: FilePath -> IO (Pool.Pool SQL.Connection)
+initPool db = Pool.newPool $
+  Pool.defaultPoolConfig (initConn db) SQL.close 30 10
 
 -- | à la https://briandouglas.ie/sqlite-defaults/
 initSQLitePragmas :: SQL.Connection -> IO ()

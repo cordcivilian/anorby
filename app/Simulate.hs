@@ -98,8 +98,11 @@ mockUsers conn n = do
   (users, _) <- generateMockUsers n gen
   putStrLn $ "Inserting " ++ show (length users) ++ " users into database..."
   SQL.withTransaction conn $ SQL.executeMany conn
-    "INSERT OR REPLACE INTO users (id, name, email, aorb_id, assoc) VALUES (?, ?, ?, ?, ?)"
-    users
+    (SQL.Query $ T.unwords
+      [ "INSERT OR REPLACE INTO users (id, name, email, aorb_id, assoc)"
+      , "VALUES (?, ?, ?, ?, ?)"
+      ]
+    ) users
   putStrLn "User generation complete."
   where
     generateMockUsers :: Int -> Random.StdGen -> IO ([User], Random.StdGen)
@@ -136,8 +139,11 @@ mockAorbAnswers conn aorbs users = do
     ++ show (length answers)
     ++ " answers into database..."
   SQL.withTransaction conn $ SQL.executeMany conn
-    "INSERT OR REPLACE INTO aorb_answers (user_id, aorb_id, answer) VALUES (?, ?, ?)"
-    answers
+    (SQL.Query $ T.unwords
+      [ "INSERT OR REPLACE INTO aorb_answers (user_id, aorb_id, answer)"
+      , "VALUES (?, ?, ?)"
+      ]
+    ) answers
   putStrLn "Answer generation complete."
   where
     generateMockAnswers :: Random.StdGen -> IO ([AorbAnswers], Random.StdGen)
@@ -161,18 +167,21 @@ mockAorbAnswers conn aorbs users = do
         return (mockAorbAnswer : accAnswers, nextGen)
         ) ([], g) $ zip [0..] [(u, a) | u <- users, a <- aorbs]
 
-testUserAorbs :: Int -> IO ()
-testUserAorbs n = do
-
+mockDB :: FilePath -> IO SQL.Connection
+mockDB prefix = do
   now <- Time.getCurrentTime
   let timestamp = DateTimeFormat.formatTime
                   DateTimeFormat.defaultTimeLocale
                   "%Y%m%d%H%M%S"
                   now
-      dbName = "data/test-anorby-" ++ timestamp ++ ".db"
-
+      dbName = "data/" ++ prefix ++ "-anorby-" ++ timestamp ++ ".db"
   putStrLn $ "Creating test database: " ++ dbName
-  conn <- initDB dbName
+  initDB dbName
+
+testUserAorbs :: Int -> IO ()
+testUserAorbs n = do
+
+  conn <- mockDB "test"
 
   putStrLn $ "\nGenerating mock data for " ++ show n ++ " users..."
   mockBaseAorbAnswers conn n

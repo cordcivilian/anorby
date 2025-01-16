@@ -39,5 +39,6 @@ executable anorby
         bytestring,
         blaze-html,
         blaze-markup,
+        resource-pool,
     hs-source-dirs:   app
     default-language: Haskell2010
