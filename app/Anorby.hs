@@ -20,7 +20,7 @@ import qualified Database.SQLite.Simple.ToField as SQL
 import qualified Database.SQLite.Simple.Ok as SQL
 
 -- | AorbAnswer: 0 corresponds to choice A, 1 corresponds to choice B
-newtype AorbAnswer = AorbAnswer Word.Word8 deriving (Show, Eq)
+newtype AorbAnswer = AorbAnswer Word.Word8 deriving (Show, Eq, Ord)
 type BinaryVector = [AorbAnswer]
 type Contingency = (Int, Int, Int, Int)
 type WeightVector = [Double]
@@ -28,10 +28,8 @@ type WeightedContingency = (Double, Double, Double, Double)
 type SimilarityScore = Double
 type BinaryVectorSimilarity =
   BinaryVector -> BinaryVector -> WeightVector -> SimilarityScore
-
 data AssociationScheme = PPPod | Balance | Bipolar
   deriving (Eq, Show, Enum, Bounded)
-
 type AorbID = Int
 type UserID = Int
 type UserSubmission = (BinaryVector, AorbID, AssociationScheme)
@@ -39,50 +37,6 @@ type Submissions = Map.Map UserID UserSubmission
 type Ranking = [UserID]
 type Rankings = Map.Map UserID Ranking
 type Marriages = Map.Map UserID (Maybe UserID)
-
--- ---------------------------------------------------------------------------
-
-instance Random.Random AorbAnswer where
-  random g =
-    case Random.random g of
-      (b, g') -> (if b then AorbAnswer 1 else AorbAnswer 0, g')
-  randomR (_, _) g =
-    case Random.random g of
-      (b, g') -> (if b then AorbAnswer 1 else AorbAnswer 0, g')
-
-instance Random.Random AssociationScheme where
-  random g = Random.randomR (minBound, maxBound) g
-  randomR (a, b) g =
-    case Random.randomR (fromEnum a, fromEnum b) g of
-      (x, g') -> (toEnum x, g')
-
--- ---------------------------------------------------------------------------
-
-data User = User
-  { userId :: UserID
-  , userName :: T.Text
-  , userEmail :: T.Text
-  , userAorbId :: AorbID
-  , userAssoc :: AssociationScheme
-  } deriving (Show)
-
-data Aorb = Aorb
-  { aorbId :: AorbID
-  , aorbCtx :: T.Text
-  , aorbStx :: T.Text
-  , aorbA :: T.Text
-  , aorbB :: T.Text
-  , aorbMean :: Double
-  } deriving (Show)
-
-instance Eq Aorb where
-    a1 == a2 = aorbId a1 == aorbId a2
-
-data AorbAnswers = AorbAnswers
-  { aorbUserId :: UserID
-  , aorbAorbId :: AorbID
-  , aorbAnswer :: AorbAnswer
-  } deriving (Show)
 
 instance SQL.FromField AssociationScheme where
   fromField f = do
@@ -98,17 +52,13 @@ instance SQL.ToField AssociationScheme where
   toField Balance = SQL.SQLInteger 0
   toField Bipolar = SQL.SQLInteger (-1)
 
-instance SQL.FromField AorbAnswer where
-  fromField f = do
-    val <- SQL.fromField f
-    return $ AorbAnswer (if val == (1 :: Int) then 1 else 0 :: Word.Word8)
-
-instance SQL.ToField AorbAnswer where
-  toField (AorbAnswer w) =
-    SQL.SQLInteger $
-      fromIntegral (if w == (1 :: Word.Word8) then 1 else 0 :: Word.Word8)
-
--- ---------------------------------------------------------------------------
+data User = User
+  { userId :: UserID
+  , userName :: T.Text
+  , userEmail :: T.Text
+  , userAorbId :: AorbID
+  , userAssoc :: AssociationScheme
+  } deriving (Show)
 
 instance SQL.FromRow User where
   fromRow =
@@ -118,6 +68,26 @@ instance SQL.FromRow User where
     <*> SQL.field
     <*> SQL.field
     <*> SQL.field
+
+instance SQL.ToRow User where
+  toRow user =
+    [ SQL.SQLInteger (fromIntegral $ userId user)
+    , SQL.SQLText (userName user)
+    , SQL.SQLText (userEmail user)
+    , SQL.SQLInteger (fromIntegral $ userAorbId user)
+    , SQL.toField (userAssoc user)
+    ]
+
+data Aorb = Aorb
+  { aorbId :: AorbID
+  , aorbCtx :: T.Text
+  , aorbStx :: T.Text
+  , aorbA :: T.Text
+  , aorbB :: T.Text
+  , aorbMean :: Double
+  } deriving (Show)
+
+instance Eq Aorb where a1 == a2 = aorbId a1 == aorbId a2
 
 instance SQL.FromRow Aorb where
   fromRow =
@@ -129,24 +99,6 @@ instance SQL.FromRow Aorb where
     <*> SQL.field
     <*> SQL.field
 
-instance SQL.FromRow AorbAnswers where
-  fromRow =
-    AorbAnswers
-    <$> SQL.field
-    <*> SQL.field
-    <*> SQL.field
-
--- ---------------------------------------------------------------------------
-
-instance SQL.ToRow User where
-  toRow user =
-    [ SQL.SQLInteger (fromIntegral $ userId user)
-    , SQL.SQLText (userName user)
-    , SQL.SQLText (userEmail user)
-    , SQL.SQLInteger (fromIntegral $ userAorbId user)
-    , SQL.toField (userAssoc user)
-    ]
-
 instance SQL.ToRow Aorb where
   toRow aorb =
     [ SQL.SQLInteger (fromIntegral $ aorbId aorb)
@@ -156,6 +108,29 @@ instance SQL.ToRow Aorb where
     , SQL.SQLText (aorbB aorb)
     ]
 
+data AorbAnswers = AorbAnswers
+  { aorbUserId :: UserID
+  , aorbAorbId :: AorbID
+  , aorbAnswer :: AorbAnswer
+  } deriving (Show)
+
+instance SQL.FromRow AorbAnswers where
+  fromRow =
+    AorbAnswers
+    <$> SQL.field
+    <*> SQL.field
+    <*> SQL.field
+
+instance SQL.FromField AorbAnswer where
+  fromField f = do
+    val <- SQL.fromField f
+    return $ AorbAnswer (if val == (1 :: Int) then 1 else 0 :: Word.Word8)
+
+instance SQL.ToField AorbAnswer where
+  toField (AorbAnswer w) =
+    SQL.SQLInteger $
+      fromIntegral (if w == (1 :: Word.Word8) then 1 else 0 :: Word.Word8)
+
 instance SQL.ToRow AorbAnswers where
   toRow ans =
     [ SQL.SQLInteger (fromIntegral $ aorbUserId ans)
@@ -163,12 +138,13 @@ instance SQL.ToRow AorbAnswers where
     , SQL.toField (aorbAnswer ans)
     ]
 
--- ---------------------------------------------------------------------------
-
 data AorbWithAnswer = AorbWithAnswer
   { aorbData :: Aorb
   , userAnswer :: AorbAnswer
   } deriving (Show)
+
+instance Eq AorbWithAnswer where
+  a1 == a2 = aorbData a1 == aorbData a2 && userAnswer a1 == userAnswer a2
 
 instance SQL.FromRow AorbWithAnswer where
   fromRow = AorbWithAnswer
@@ -209,6 +185,22 @@ instance JSON.FromJSON Aorb where
     <*> v JSON..: "a"
     <*> v JSON..: "b"
     <*> pure 0.500000000000000
+
+-- ---------------------------------------------------------------------------
+
+instance Random.Random AorbAnswer where
+  random g =
+    case Random.random g of
+      (b, g') -> (if b then AorbAnswer 1 else AorbAnswer 0, g')
+  randomR (_, _) g =
+    case Random.random g of
+      (b, g') -> (if b then AorbAnswer 1 else AorbAnswer 0, g')
+
+instance Random.Random AssociationScheme where
+  random g = Random.randomR (minBound, maxBound) g
+  randomR (a, b) g =
+    case Random.randomR (fromEnum a, fromEnum b) g of
+      (x, g') -> (toEnum x, g')
 
 -- ---------------------------------------------------------------------------
 

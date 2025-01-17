@@ -48,8 +48,11 @@ application _ pool request respond = do
     ("GET", "/") ->
       Pool.withResource pool $ \conn ->
         respond =<< rootTemplateRoute conn request
-    ("GET", "/whoami") -> undefined
+    ("GET", "/whoami") ->
+      Pool.withResource pool $ \conn ->
+        respond =<< profileTemplateRoute conn 1 request
     ("GET", "/whoami/ans") -> undefined
+    ("POST", "/whoami/ans") -> undefined
     ("GET", "/login") -> undefined
     ("GET", "/logout") -> undefined
     _ -> respond $ notFoundTemplateRoute request
@@ -85,6 +88,8 @@ fullCSS = combineCSS
   , byDiceTargetCSS
   , byPolarTargetCSS
   , bySidedTargetCSS
+  , byBasicTargetCSS
+  , byFlakeTargetCSS
   , aorbsContainerCSS
   , aorbDisplayCSS
   , notchCSS
@@ -115,8 +120,7 @@ underlineCSS = cssEntry "span.underline"
 
 frameCSS :: T.Text
 frameCSS = cssEntry ".frame"
-  [ cssProperty "min-height" "100vh"
-  , cssProperty "min-height" "100dvh"
+  [ cssProperty "min-height" "100dvh"
   , cssProperty "text-align" "center"
   , cssProperty "align-content" "center"
   , cssProperty "border" "3px"
@@ -167,6 +171,16 @@ bySidedTargetCSS = cssEntry "#by-sided:target ~ #aorbs-container .aorb"
   [ cssProperty "order" "var(--order-sided) !important"
   ]
 
+byBasicTargetCSS :: T.Text
+byBasicTargetCSS = cssEntry "#by-basic:target ~ #aorbs-container .aorb"
+  [ cssProperty "order" "var(--order-basic) !important"
+  ]
+
+byFlakeTargetCSS :: T.Text
+byFlakeTargetCSS = cssEntry "#by-flake:target ~ #aorbs-container .aorb"
+  [ cssProperty "order" "var(--order-flake) !important"
+  ]
+
 aorbsContainerCSS :: T.Text
 aorbsContainerCSS = cssEntry "#aorbs-container"
   [ cssProperty "margin-top" "4rem"
@@ -202,6 +216,13 @@ aorbDisplayCSS = combineCSS
     [ cssProperty "font-size" "0.9rem"
     , cssProperty "color" "gray"
     ]
+  , cssEntry ".choice.selected"
+    [ cssProperty "color" "#4169e1"
+    ]
+  , cssEntry ".percentage"
+    [ cssProperty "color" "#4169e1"
+    , cssProperty "margin-left" "0.5rem"
+    ]
   , cssEntry ".delta"
     [ cssProperty "color" "orange"
     , cssProperty "margin-left" "0.5rem"
@@ -213,15 +234,15 @@ aorbDisplayCSS = combineCSS
 
 notchCSS :: T.Text
 notchCSS = cssEntry ".notch"
-    [ cssProperty "position" "sticky"
-    , cssProperty "top" "95dvh"
-    , cssProperty "transform" "translateX(50%)"
-    , cssProperty "z-index" "1000"
-    , cssProperty "padding" "0.2rem"
-    , cssProperty "border" "2px solid #4169e1"
-    , cssProperty "background" "#4169e1"
-    , cssProperty "border-radius" "10px"
-    ]
+  [ cssProperty "position" "sticky"
+  , cssProperty "top" "95dvh"
+  , cssProperty "transform" "translateX(50%)"
+  , cssProperty "z-index" "1000"
+  , cssProperty "padding" "0.2rem"
+  , cssProperty "border" "2px solid #4169e1"
+  , cssProperty "background" "#4169e1"
+  , cssProperty "border-radius" "10px"
+  ]
 
 -- ---------------------------------------------------------------------------
 
@@ -234,6 +255,7 @@ rootTemplateRoute conn _ = do
     HTTP.status200
     [(Headers.hContentType, BS.pack "text/html")]
     (R.renderHtml $ rootTemplate shuffledAorbs)
+
 
 rootTemplate :: [Aorb] -> H.Html
 rootTemplate aorbs = H.docTypeHtml $ H.html $ do
@@ -268,60 +290,204 @@ rootTemplate aorbs = H.docTypeHtml $ H.html $ do
       H.div H.! A.id "by-sided" $ mempty
       H.div H.! A.id "by-dice" $ mempty
       H.div H.! A.id "by-polar" $ mempty
-      H.span H.! A.class_ "notch" H.! A.onclick "" $ do
+      H.span H.! A.class_ "notch" $ do
         H.a H.! A.href "#baseline" $ "backtobasebasebase"
-      H.div H.! A.id "aorbs-container" $ do
-        let
-          aorbDynamicCSS :: Int -> Int -> Int -> I.AttributeValue
-          aorbDynamicCSS orderDice orderPolar orderSided =
-            H.preEscapedTextValue $ inlineCSSEntry
-              [ "--order-dice: " <> T.pack (show orderDice)
-              , "--order-polar: " <> T.pack (show orderPolar)
-              , "--order-sided: " <> T.pack (show orderSided)
-              ]
-          withOrders :: [(Int, (Aorb, Int, Int, Int))]
-          withOrders = zip [(1::Int)..] $
-            let byDice = aorbs
-                byPolar = List.sortOn
-                  (\a -> abs (aorbMean a - 0.5)) aorbs
-                bySided = List.sortOn
-                  (Ord.Down . \a -> abs (aorbMean a - 0.5)) aorbs
-                lookupOrder list a = maybe 0 (+1) $ List.elemIndex a list
-            in [ (a
-                 , lookupOrder byDice a
-                 , lookupOrder byPolar a
-                 , lookupOrder bySided a)
-                 | a <- aorbs ]
-        Monad.forM_ withOrders $
-          \(_, (aorb, orderDice, orderPolar, orderSided)) -> do
-            H.div H.! A.class_ "aorb" H.!
-              A.style (aorbDynamicCSS orderDice orderPolar orderSided) $ do
-                H.div H.! A.class_ "context" $ H.toHtml (aorbCtx aorb)
-                let mean = aorbMean aorb
-                    delta = (abs (mean - 0.5)) * 100
-                    formatDelta =
-                        T.concat ["(+", T.pack (Text.printf "%.2f" delta), ")"]
-                if delta < 0.01
-                  then do
-                    H.div H.! A.class_ "choice" $ do
-                      H.toHtml (aorbA aorb)
-                      H.span H.! A.class_ "neutral" $ H.toHtml $ T.pack " ...?"
-                    H.div H.! A.class_ "choice" $ do
-                      H.toHtml (aorbB aorb)
-                      H.span H.! A.class_ "neutral" $ H.toHtml $ T.pack " ...?"
-                  else if mean > 0.5
-                  then do
-                    H.div H.! A.class_ "choice preferred" $ do
-                      H.toHtml (aorbB aorb)
-                      H.span H.! A.class_ "delta" $ H.toHtml formatDelta
-                    H.div H.! A.class_ "choice alternative" $
-                      H.toHtml (aorbA aorb)
-                  else do
-                    H.div H.! A.class_ "choice preferred" $ do
-                      H.toHtml (aorbA aorb)
-                      H.span H.! A.class_ "delta" $ H.toHtml formatDelta
-                    H.div H.! A.class_ "choice alternative" $
-                      H.toHtml (aorbB aorb)
+      aorbsComponent aorbs
+
+aorbsComponent :: [Aorb] -> H.Html
+aorbsComponent aorbs = do
+  H.div H.! A.id "aorbs-container" $ do
+    Monad.forM_ (aorbsWithOrders aorbs) $
+      \(_, (aorb, orderDice, orderPolar, orderSided)) -> do
+        H.div H.! A.class_ "aorb" H.!
+          A.style (aorbDynamicCSS orderDice orderPolar orderSided) $ do
+            H.div H.! A.class_ "context" $ H.toHtml (aorbCtx aorb)
+            let mean = aorbMean aorb
+                delta = (abs (mean - 0.5)) * 100
+                formatDelta =
+                    T.concat ["(+", T.pack (Text.printf "%.2f" delta), ")"]
+            if delta < 0.01
+              then do
+                H.div H.! A.class_ "choice" $ do
+                  H.toHtml (aorbA aorb)
+                  H.span H.! A.class_ "neutral" $ H.toHtml $ T.pack " ...?"
+                H.div H.! A.class_ "choice" $ do
+                  H.toHtml (aorbB aorb)
+                  H.span H.! A.class_ "neutral" $ H.toHtml $ T.pack " ...?"
+              else if mean > 0.5
+              then do
+                H.div H.! A.class_ "choice preferred" $ do
+                  H.toHtml (aorbB aorb)
+                  H.span H.! A.class_ "delta" $ H.toHtml formatDelta
+                H.div H.! A.class_ "choice alternative" $
+                  H.toHtml (aorbA aorb)
+              else do
+                H.div H.! A.class_ "choice preferred" $ do
+                  H.toHtml (aorbA aorb)
+                  H.span H.! A.class_ "delta" $ H.toHtml formatDelta
+                H.div H.! A.class_ "choice alternative" $
+                  H.toHtml (aorbB aorb)
+  where
+    aorbsWithOrders :: [Aorb] -> [(Int, (Aorb, Int, Int, Int))]
+    aorbsWithOrders as = zip [(1::Int)..] $
+      let byDice = as
+          byPolar = List.sortOn
+            (\a -> abs (aorbMean a - 0.5)) as
+          bySided = List.sortOn
+            (Ord.Down . \a -> abs (aorbMean a - 0.5)) as
+          lookupOrder list a = maybe 0 (+1) $ List.elemIndex a list
+      in [ (a
+           , lookupOrder byDice a
+           , lookupOrder byPolar a
+           , lookupOrder bySided a)
+           | a <- as ]
+    aorbDynamicCSS :: Int -> Int -> Int -> I.AttributeValue
+    aorbDynamicCSS orderDice orderPolar orderSided =
+      H.preEscapedTextValue $ inlineCSSEntry
+        [ "--order-dice: " <> T.pack (show orderDice)
+        , "--order-polar: " <> T.pack (show orderPolar)
+        , "--order-sided: " <> T.pack (show orderSided)
+        ]
+
+profileTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
+                     -> IO Wai.Response
+profileTemplateRoute conn uid _ = do
+  userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
+  case userQ of
+    (user:_) -> do
+      myAorbs <- getUserAorbsFromControversialToCommonPlace conn uid
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $ profileTemplate myAorbs $ userAorbId user)
+    [] -> return $ Wai.responseLBS
+      HTTP.status404
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml notFoundTemplate)
+
+profileTemplate :: [AorbWithAnswer] -> AorbID -> H.Html
+profileTemplate aorbs aid = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "whoami"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
+    H.style $ I.preEscapedText fullCSS
+  H.body $ do
+    H.span H.! A.id "top" $ ""
+    H.div H.! A.class_ "frame" $ do
+      H.div $ do
+        H.a H.! A.href "/" $ "home"
+      H.h1 $ do
+        H.text "whoami"
+      H.div $ do
+        H.a H.! A.href "#main" $ "begin"
+
+    H.span H.! A.id "main" $ ""
+    H.div H.! A.class_ "frame" $ do
+      H.h1 "main"
+      mapM_ displayAorbWithAnswerLarge $
+        filter (\awa -> aorbId (aorbData awa) == aid) aorbs
+
+    H.div H.! A.class_ "frame" $ do
+      H.h1 "most commonplace"
+      mapM_ displayAorbWithAnswerLarge (take 3 $ reverse aorbs)
+
+    H.div H.! A.class_ "frame" $ do
+      H.h1 "most controversial"
+      mapM_ displayAorbWithAnswerLarge (take 3 aorbs)
+
+    H.span H.! A.id "all-answers" $ ""
+    H.div H.! A.class_ "frame" $ do
+      H.h1 "all answers"
+      H.div H.! A.id "sorter" $ do
+        H.div H.! A.class_ "sort-by" $ "sort by:"
+        H.a H.! A.class_ "sort-by" H.! A.href "#by-basic" $ "> most commonplace"
+        H.a H.! A.class_ "sort-by" H.! A.href "#by-flake" $ "> most controversial"
+
+    H.div H.! A.class_ "frame" H.! A.style "padding-top: 10vh" $ do
+      H.div H.! A.id "by-basic" $ mempty
+      H.div H.! A.id "by-flake" $ mempty
+      H.span H.! A.class_ "notch" $ do
+        H.a H.! A.href "#all-answers" $ "backtoallanswersss"
+      aorbsWithAnswersComponent aorbs
+
+    H.div H.! A.class_ "frame" $ do
+      H.h1 "share"
+      H.div $ do
+        H.p "Share your profile:"
+        H.input H.! A.type_ "text"
+                H.! A.value "https://anorby.cordcivilian.com/123"
+                H.! A.readonly "readonly"
+
+displayAorbWithAnswerLarge :: AorbWithAnswer -> H.Html
+displayAorbWithAnswerLarge awa = H.div H.! A.class_ "aorb" $ do
+  H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx $ aorbData awa
+  let aorb = aorbData awa
+      ans = userAnswer awa
+      percentage =
+        case ans of
+          AorbAnswer 0 -> 100 * (1 - aorbMean aorb)
+          _ -> 100 * aorbMean aorb
+  H.div H.! A.class_ (if ans == AorbAnswer 0
+                      then "choice selected"
+                      else "choice") $ do
+      H.toHtml $ aorbA aorb
+      Monad.when (ans == AorbAnswer 0) $
+          H.span H.! A.class_ "percentage" $
+              H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
+  H.div H.! A.class_ (if ans == AorbAnswer 1
+                      then "choice selected"
+                      else "choice") $ do
+      H.toHtml $ aorbB aorb
+      Monad.when (ans == AorbAnswer 1) $
+          H.span H.! A.class_ "percentage" $
+              H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
+
+aorbsWithAnswersComponent :: [AorbWithAnswer] -> H.Html
+aorbsWithAnswersComponent aorbs = do
+  H.div H.! A.id "aorbs-container" $ do
+    Monad.forM_ (aorbsWithOrders aorbs) $
+      \(_, (awa, orderBasic, orderFlake)) -> do
+        H.div H.! A.class_ "aorb" H.!
+          A.style (aorbDynamicCSS orderBasic orderFlake) $ do
+            H.div H.! A.class_ "context" $ H.toHtml (aorbCtx $ aorbData awa)
+            let aorb = aorbData awa
+                ans = userAnswer awa
+                percentage =
+                  case ans of
+                    AorbAnswer 0 -> 100 * (1 - aorbMean aorb)
+                    _ -> 100 * aorbMean aorb
+            H.div H.! A.class_ (if ans == AorbAnswer 0
+                              then "choice selected"
+                              else "choice") $ do
+                H.toHtml $ aorbA aorb
+                Monad.when (ans == AorbAnswer 0) $
+                    H.span H.! A.class_ "percentage" $
+                        H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
+            H.div H.! A.class_ (if ans == AorbAnswer 1
+                              then "choice selected"
+                              else "choice") $ do
+                H.toHtml $ aorbB aorb
+                Monad.when (ans == AorbAnswer 1) $
+                    H.span H.! A.class_ "percentage" $
+                        H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
+  where
+    aorbsWithOrders :: [AorbWithAnswer]
+                    -> [(Int, (AorbWithAnswer, Int, Int))]
+    aorbsWithOrders awas = zip [(1::Int)..] $
+      let byBasic = reverse awas
+          byFlake = awas
+          lookupOrder list a = maybe 0 (+1) $ List.elemIndex a list
+      in [ (awa
+         , lookupOrder byBasic awa
+         , lookupOrder byFlake awa)
+         | awa <- awas ]
+    aorbDynamicCSS :: Int -> Int -> I.AttributeValue
+    aorbDynamicCSS orderBasic orderFlake =
+      H.preEscapedTextValue $ inlineCSSEntry
+        [ "--order-basic: " <> T.pack (show orderBasic)
+        , "--order-flake: " <> T.pack (show orderFlake)
+        ]
 
 notFoundTemplateRoute :: Wai.Request -> Wai.Response
 notFoundTemplateRoute _ = Wai.responseLBS
