@@ -116,26 +116,44 @@ cssMediaQuery query rules = T.unlines
   , "}"
   ]
 
-fullCSS :: T.Text
-fullCSS = combineCSS
+baseCSS :: T.Text
+baseCSS = combineCSS
   [ rootCSS
   , bodyHtmlCSS
-  , underlineCSS
   , frameCSS
   , linkCSS
   , hrCSS
+  ]
+
+rootPageCSS :: T.Text
+rootPageCSS = combineCSS
+  [ baseCSS
+  , underlineCSS
+  , navBarCSS
   , sorterCSS
   , sortByCSS
   , byDiceTargetCSS
   , byPolarTargetCSS
   , bySidedTargetCSS
+  , aorbsContainerCSS
+  , aorbDisplayCSS
+  , notchCSS
+  ]
+
+profilePageCSS :: Maybe T.Text -> T.Text
+profilePageCSS maybeUuid = combineCSS
+  [ baseCSS
+  , navBarCSS
+  , sorterCSS
+  , sortByCSS
   , byBasicTargetCSS
   , byFlakeTargetCSS
   , aorbsContainerCSS
   , aorbDisplayCSS
   , notchCSS
-  , navBarCSS
-  , ansPageCSS
+  , case maybeUuid of
+      Just _ -> sharedViewOverrides
+      Nothing -> ""
   ]
 
 rootCSS :: T.Text
@@ -304,7 +322,14 @@ sharedViewOverrides = combineCSS
   ]
 
 ansPageCSS :: T.Text
-ansPageCSS = T.unlines
+ansPageCSS = combineCSS
+  [ baseCSS
+  , navBarCSS
+  , ansComponentsCSS
+  ]
+
+ansComponentsCSS :: T.Text
+ansComponentsCSS = combineCSS
   [ cssEntry ".ans-context"
     [ cssProperty "text-align" "center"
     , cssProperty "padding" "2rem 1rem"
@@ -443,7 +468,7 @@ rootTemplate aorbs = H.docTypeHtml $ H.html $ do
     H.meta H.! A.name "viewport" H.!
         A.content "width=device-width, initial-scale=1.0"
     H.title "anorby"
-    H.style $ H.text fullCSS
+    H.style $ H.text rootPageCSS
   H.body $ do
     H.span H.! A.id "top" $ ""
     H.div H.! A.class_ "frame" $ do
@@ -584,9 +609,7 @@ profileHead maybeUuid = H.head $ do
   H.link H.! A.rel "icon" H.! A.href "data:,"
   H.meta H.! A.name "viewport" H.!
     A.content "width=device-width, initial-scale=1.0"
-  H.style $ I.preEscapedText $ case maybeUuid of
-    Just _ -> fullCSS <> sharedViewOverrides
-    Nothing -> fullCSS
+  H.style $ I.preEscapedText $ profilePageCSS maybeUuid
 
 profileHeadline :: Maybe T.Text -> H.Html -> H.Html
 profileHeadline maybeUuid children = do
@@ -835,7 +858,7 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
       A.content "width=device-width, initial-scale=1.0"
-    H.style $ I.preEscapedText fullCSS
+    H.style $ I.preEscapedText ansPageCSS
   H.body $ do
     H.div H.! A.class_ "frame" $ do
       navBar [ NavLink "/" "home" False
@@ -883,7 +906,7 @@ msgTemplate template = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
       A.content "width=device-width, initial-scale=1.0"
-    H.style $ I.preEscapedText fullCSS
+    H.style $ I.preEscapedText baseCSS
   H.body $ do
     H.div H.! A.class_ "frame" $ do
       H.h1 $ H.toHtml $ messageHeading template
