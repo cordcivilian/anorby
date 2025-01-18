@@ -473,45 +473,53 @@ aorbsComponent aorbs = do
         , "--order-sided: " <> T.pack (show orderSided)
         ]
 
-profileTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
-                     -> IO Wai.Response
+profileTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 profileTemplateRoute conn uid _ = do
   userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
   case userQ of
     (user:_) -> do
-      myAorbs <- getUserAorbsFromControversialToCommonPlace conn uid
-      let shareUrl =
-            Just $ "https://anorby.cordcivilian.com/share/" <> userUuid user
-      return $ Wai.responseLBS
-        HTTP.status200
-        [(Headers.hContentType, BS.pack "text/html")]
-        (R.renderHtml $
-          profileTemplate myAorbs (userAorbId user) Nothing shareUrl)
+      answerCount <- getUserTotalAnswerCount conn uid
+      if answerCount < 10
+        then return $ Wai.responseLBS
+          HTTP.status200
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml $ profileTemplate [] (userAorbId user) Nothing Nothing True)
+        else do
+          myAorbs <- getUserAorbsFromControversialToCommonPlace conn uid
+          let shareUrl = Just $ "https://anorby.cordcivilian.com/share/" <> userUuid user
+          return $ Wai.responseLBS
+            HTTP.status200
+            [(Headers.hContentType, BS.pack "text/html")]
+            (R.renderHtml $ profileTemplate myAorbs (userAorbId user) Nothing shareUrl False)
     [] -> return $ Wai.responseLBS
       HTTP.status404
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml notFoundTemplate)
 
-sharedProfileTemplateRoute :: SQL.Connection -> T.Text -> Wai.Request
-                           -> IO Wai.Response
+sharedProfileTemplateRoute :: SQL.Connection -> T.Text -> Wai.Request -> IO Wai.Response
 sharedProfileTemplateRoute conn uuid _ = do
   maybeUser <- getUserByUuid conn uuid
   case maybeUser of
     Just user -> do
-      myAorbs <- getUserAorbsFromControversialToCommonPlace conn (userId user)
-      return $ Wai.responseLBS
-        HTTP.status200
-        [(Headers.hContentType, BS.pack "text/html")]
-        (R.renderHtml $
-          profileTemplate myAorbs (userAorbId user) (Just uuid) Nothing)
+      answerCount <- getUserTotalAnswerCount conn (userId user)
+      if answerCount < 10
+        then return $ Wai.responseLBS
+          HTTP.status200
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml $ profileTemplate [] (userAorbId user) (Just uuid) Nothing True)
+        else do
+          myAorbs <- getUserAorbsFromControversialToCommonPlace conn (userId user)
+          return $ Wai.responseLBS
+            HTTP.status200
+            [(Headers.hContentType, BS.pack "text/html")]
+            (R.renderHtml $ profileTemplate myAorbs (userAorbId user) (Just uuid) Nothing False)
     Nothing -> return $ Wai.responseLBS
       HTTP.status404
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml notFoundTemplate)
 
-profileTemplate :: [AorbWithAnswer] -> AorbID -> Maybe T.Text -> Maybe T.Text
-                -> H.Html
-profileTemplate aorbs aid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
+profileTemplate :: [AorbWithAnswer] -> AorbID -> Maybe T.Text -> Maybe T.Text -> Bool -> H.Html
+profileTemplate aorbs aid maybeUuid shareUrl showMinimal = H.docTypeHtml $ H.html $ do
   H.head $ do
     H.title $ case maybeUuid of
       Just uuid -> H.text $ "share/" <> uuid
@@ -533,8 +541,13 @@ profileTemplate aorbs aid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
       H.h1 $ case maybeUuid of
         Just uuid -> H.text $ "#" <> uuid
         Nothing -> "whoami"
-      H.div $ do
-        H.a H.! A.href "#main" $ "begin"
+      if showMinimal
+        then H.div $ do
+          H.p "Your profile will be activated after answering 10 questions."
+          H.div $ do
+            H.a H.! A.href "/ans" $ "answer questions"
+        else H.div $ do
+          H.a H.! A.href "#main" $ "begin"
 
     H.span H.! A.id "main" $ ""
     H.div H.! A.class_ "frame" $ do
@@ -854,21 +867,14 @@ dailyLimitTemplate :: T.Text -> H.Html
 dailyLimitTemplate timeLeft = msgTemplate MessageTemplate
   { messageTitle = "daily limit"
   , messageHeading = "daily answer limit reached, come back in " <> timeLeft
-  , messageLink = ("/", "back to profile")
+  , messageLink = ("/whoami", "back to profile")
   }
 
 noMoreQuestionsTemplate :: H.Html
 noMoreQuestionsTemplate = msgTemplate MessageTemplate
   { messageTitle = "no more questions"
   , messageHeading = "no more questions"
-  , messageLink = ("/", "back to profile")
-  }
-
-invalidTokenTemplate :: H.Html
-invalidTokenTemplate = msgTemplate MessageTemplate
-  { messageTitle = "invalid token"
-  , messageHeading = "403 - invalid or expired token"
-  , messageLink = ("/ans", "try again")
+  , messageLink = ("/whoami", "back to profile")
   }
 
 alreadyAnsweredTemplate :: H.Html
@@ -876,6 +882,13 @@ alreadyAnsweredTemplate = msgTemplate MessageTemplate
   { messageTitle = "already answered"
   , messageHeading = "403 - question already answered"
   , messageLink = ("/ans", "next question")
+  }
+
+invalidTokenTemplate :: H.Html
+invalidTokenTemplate = msgTemplate MessageTemplate
+  { messageTitle = "invalid token"
+  , messageHeading = "403 - invalid or expired token"
+  , messageLink = ("/ans", "try again")
   }
 
 invalidSubmissionTemplate :: H.Html

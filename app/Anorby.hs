@@ -463,6 +463,18 @@ getDailyAnswerCount conn uid = do
     (count:_) -> return $ SQL.fromOnly count
     [] -> return 0
 
+getUserTotalAnswerCount :: SQL.Connection -> UserID -> IO Int
+getUserTotalAnswerCount conn uid = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT COUNT(*)"
+        , "FROM aorb_answers"
+        , "WHERE user_id = ?"
+        ]
+  counts <- SQL.query conn query [uid] :: IO [SQL.Only Int]
+  case counts of
+    (count:_) -> return $ SQL.fromOnly count
+    [] -> return 0
+
 getUserAorbAndAssoc :: SQL.Connection -> UserID
                     -> IO (Maybe (Aorb, AssociationScheme))
 getUserAorbAndAssoc conn uid = do
