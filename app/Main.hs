@@ -22,6 +22,7 @@ import qualified Data.Time.LocalTime as LocalTime
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.Time.Clock as Clock
 import qualified Data.Aeson as JSON
+import qualified Data.Maybe as Maybe
 
 import qualified Text.Printf as Text
 import qualified Text.Read as Read
@@ -473,7 +474,8 @@ aorbsComponent aorbs = do
         , "--order-sided: " <> T.pack (show orderSided)
         ]
 
-profileTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+profileTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
+                     -> IO Wai.Response
 profileTemplateRoute conn uid _ = do
   userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
   case userQ of
@@ -483,111 +485,144 @@ profileTemplateRoute conn uid _ = do
         then return $ Wai.responseLBS
           HTTP.status200
           [(Headers.hContentType, BS.pack "text/html")]
-          (R.renderHtml $ profileTemplate [] (userAorbId user) Nothing Nothing True)
+          (R.renderHtml $ profileTemplate [] Nothing Nothing Nothing True)
         else do
           myAorbs <- getUserAorbsFromControversialToCommonPlace conn uid
-          let shareUrl = Just $ "https://anorby.cordcivilian.com/share/" <> userUuid user
+          let shareUrl =
+                Just $
+                "https://anorby.cordcivilian.com/share/" <> userUuid user
           return $ Wai.responseLBS
             HTTP.status200
             [(Headers.hContentType, BS.pack "text/html")]
-            (R.renderHtml $ profileTemplate myAorbs (userAorbId user) Nothing shareUrl False)
+            (R.renderHtml $
+              profileTemplate myAorbs (userAorbId user) Nothing shareUrl False)
     [] -> return $ Wai.responseLBS
       HTTP.status404
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml notFoundTemplate)
 
-sharedProfileTemplateRoute :: SQL.Connection -> T.Text -> Wai.Request -> IO Wai.Response
+sharedProfileTemplateRoute :: SQL.Connection -> T.Text -> Wai.Request
+                           -> IO Wai.Response
 sharedProfileTemplateRoute conn uuid _ = do
   maybeUser <- getUserByUuid conn uuid
   case maybeUser of
     Just user -> do
-      answerCount <- getUserTotalAnswerCount conn (userId user)
-      if answerCount < 10
-        then return $ Wai.responseLBS
-          HTTP.status200
-          [(Headers.hContentType, BS.pack "text/html")]
-          (R.renderHtml $ profileTemplate [] (userAorbId user) (Just uuid) Nothing True)
-        else do
-          myAorbs <- getUserAorbsFromControversialToCommonPlace conn (userId user)
-          return $ Wai.responseLBS
-            HTTP.status200
-            [(Headers.hContentType, BS.pack "text/html")]
-            (R.renderHtml $ profileTemplate myAorbs (userAorbId user) (Just uuid) Nothing False)
+      myAorbs <- getUserAorbsFromControversialToCommonPlace conn (userId user)
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $
+          profileTemplate myAorbs (userAorbId user) (Just uuid) Nothing False)
     Nothing -> return $ Wai.responseLBS
       HTTP.status404
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml notFoundTemplate)
 
-profileTemplate :: [AorbWithAnswer] -> AorbID -> Maybe T.Text -> Maybe T.Text -> Bool -> H.Html
-profileTemplate aorbs aid maybeUuid shareUrl showMinimal = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title $ case maybeUuid of
-      Just uuid -> H.text $ "share/" <> uuid
-      Nothing -> "whoami"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.!
-      A.content "width=device-width, initial-scale=1.0"
-    H.style $ I.preEscapedText $ case maybeUuid of
-      Just _ -> fullCSS <> sharedViewOverrides
-      Nothing -> fullCSS
-  H.body $ do
-    H.span H.! A.id "top" $ ""
-    H.div H.! A.class_ "frame" $ do
-      navBar [ NavLink "/" "home" False
-             , NavLink "/whoami" "whoami"
-                (case maybeUuid of Just _ -> False ; _ -> True)
-             , NavLink "/ans" "answer" False
-             ]
-      H.h1 $ case maybeUuid of
-        Just uuid -> H.text $ "#" <> uuid
-        Nothing -> "whoami"
-      if showMinimal
-        then H.div $ do
-          H.p "Your profile will be activated after answering 10 questions."
-          H.div $ do
-            H.a H.! A.href "/ans" $ "answer questions"
-        else H.div $ do
-          H.a H.! A.href "#main" $ "begin"
+profileHead :: Maybe T.Text -> H.Html
+profileHead maybeUuid = H.head $ do
+  H.title $ case maybeUuid of
+    Just uuid -> H.text $ "share/" <> uuid
+    Nothing -> "whoami"
+  H.link H.! A.rel "icon" H.! A.href "data:,"
+  H.meta H.! A.name "viewport" H.!
+    A.content "width=device-width, initial-scale=1.0"
+  H.style $ I.preEscapedText $ case maybeUuid of
+    Just _ -> fullCSS <> sharedViewOverrides
+    Nothing -> fullCSS
 
+profileHeadline :: Maybe T.Text -> H.Html -> H.Html
+profileHeadline maybeUuid children = do
+  H.span H.! A.id "top" $ ""
+  H.div H.! A.class_ "frame" $ do
+    navBar [ NavLink "/" "home" False
+           , NavLink "/whoami" "whoami"
+              (case maybeUuid of Just _ -> False ; _ -> True)
+           , NavLink "/ans" "answer" False
+           ]
+    H.h1 $ case maybeUuid of
+      Just uuid -> H.text $ "#" <> uuid
+      Nothing -> "whoami"
+    children
+
+profileNotYetActive :: H.Html
+profileNotYetActive = H.div $ do
+  H.p "your profile will be activated after answering 10 questions"
+  H.div $ do
+    H.a H.! A.href "/ans" $ "begin"
+
+profileMainAorb :: Maybe AorbID -> [AorbWithAnswer] -> H.Html
+profileMainAorb mAid aorbs = case mAid of
+  Just aid -> do
     H.span H.! A.id "main" $ ""
     H.div H.! A.class_ "frame" $ do
       H.h1 "main"
       H.div H.! A.class_ "aorbs-container" $ do
         mapM_ displayAorbWithAnswerLarge $
           filter (\awa -> aorbId (aorbData awa) == aid) aorbs
+  Nothing -> mempty
 
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "most commonplace"
-      H.div H.! A.class_ "aorbs-container" $ do
-        mapM_ displayAorbWithAnswerLarge (take 3 $ reverse aorbs)
+profileCommonplaceAorbs :: [AorbWithAnswer] -> H.Html
+profileCommonplaceAorbs aorbs = H.div H.! A.class_ "frame" $ do
+  H.h1 "most commonplace"
+  H.div H.! A.class_ "aorbs-container" $ do
+    mapM_ displayAorbWithAnswerLarge (take 3 $ reverse aorbs)
 
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "most controversial"
-      H.div H.! A.class_ "aorbs-container" $ do
-        mapM_ displayAorbWithAnswerLarge (take 3 aorbs)
+profileControversialAorbs:: [AorbWithAnswer] -> H.Html
+profileControversialAorbs aorbs = H.div H.! A.class_ "frame" $ do
+  H.h1 "most controversial"
+  H.div H.! A.class_ "aorbs-container" $ do
+    mapM_ displayAorbWithAnswerLarge (take 3 aorbs)
 
-    H.span H.! A.id "all-answers" $ ""
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "all answers"
-      H.div H.! A.id "sorter" $ do
-        H.div H.! A.class_ "sort-by" $ "sort by:"
-        H.a H.! A.class_ "sort-by" H.!
-          A.href "#by-basic" $ "> most commonplace"
-        H.a H.! A.class_ "sort-by" H.!
-          A.href "#by-flake" $ "> most controversial"
+profileAllAnswers :: [AorbWithAnswer] -> H.Html
+profileAllAnswers aorbs = do
+  H.span H.! A.id "all-answers" $ ""
+  H.div H.! A.class_ "frame" $ do
+    H.h1 "all answers"
+    H.div H.! A.id "sorter" $ do
+      H.div H.! A.class_ "sort-by" $ "sort by:"
+      H.a H.! A.class_ "sort-by" H.!
+        A.href "#by-basic" $ "> most commonplace"
+      H.a H.! A.class_ "sort-by" H.!
+        A.href "#by-flake" $ "> most controversial"
+  H.div H.! A.class_ "frame" H.! A.style "padding-top: 10vh" $ do
+    H.div H.! A.id "by-basic" $ mempty
+    H.div H.! A.id "by-flake" $ mempty
+    H.span H.! A.class_ "notch" $ do
+      H.a H.! A.href "#all-answers" $ "backtoallanswersss"
+    aorbsWithAnswersComponent aorbs
 
-    H.div H.! A.class_ "frame" H.! A.style "padding-top: 10vh" $ do
-      H.div H.! A.id "by-basic" $ mempty
-      H.div H.! A.id "by-flake" $ mempty
-      H.span H.! A.class_ "notch" $ do
-        H.a H.! A.href "#all-answers" $ "backtoallanswersss"
-      aorbsWithAnswersComponent aorbs
+profileSharer :: Maybe T.Text -> Maybe T.Text -> H.Html
+profileSharer maybeUuid shareUrl = case (maybeUuid, shareUrl) of
+  (Nothing, Just url) -> H.div H.! A.class_ "frame" $ do
+    H.h1 "share"
+    H.div $ H.text url
+  _ -> mempty
 
-    case (maybeUuid, shareUrl) of
-      (Nothing, Just url) -> H.div H.! A.class_ "frame" $ do
-        H.h1 "share"
-        H.div $ H.text url
-      _ -> mempty
+profileFullView :: Maybe AorbID -> [AorbWithAnswer]
+                -> Maybe T.Text -> Maybe T.Text
+                -> H.Html
+profileFullView mAid aorbs maybeUuid shareUrl = do
+  profileMainAorb mAid aorbs
+  Monad.when (Maybe.isNothing mAid) $ H.span H.! A.id "main" $ ""
+  profileCommonplaceAorbs aorbs
+  profileControversialAorbs aorbs
+  profileAllAnswers aorbs
+  profileSharer maybeUuid shareUrl
+
+profileTemplate :: [AorbWithAnswer] -> Maybe AorbID
+                -> Maybe T.Text -> Maybe T.Text -> Bool
+                -> H.Html
+profileTemplate aorbs mAid maybeUuid shareUrl showMinimal =
+  H.docTypeHtml $ H.html $ do
+    profileHead maybeUuid
+    H.body $ do
+      profileHeadline maybeUuid $
+        if showMinimal
+          then profileNotYetActive
+          else H.div $ do H.a H.! A.href "#main" $ "begin"
+      if showMinimal
+         then mempty
+         else profileFullView mAid aorbs maybeUuid shareUrl
 
 displayAorbWithAnswerLarge :: AorbWithAnswer -> H.Html
 displayAorbWithAnswerLarge awa = H.div H.! A.class_ "aorb" $ do

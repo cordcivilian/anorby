@@ -71,8 +71,8 @@ data User = User
   , userName :: T.Text
   , userEmail :: T.Text
   , userUuid :: T.Text
-  , userAorbId :: AorbID
-  , userAssoc :: AssociationScheme
+  , userAorbId :: Maybe AorbID
+  , userAssoc :: Maybe AssociationScheme
   } deriving (Show)
 
 instance SQL.FromRow User where
@@ -91,8 +91,8 @@ instance SQL.ToRow User where
     , SQL.SQLText (userName user)
     , SQL.SQLText (userEmail user)
     , SQL.SQLText (userUuid user)
-    , SQL.SQLInteger (fromIntegral $ userAorbId user)
-    , SQL.toField (userAssoc user)
+    , maybe SQL.SQLNull (SQL.SQLInteger . fromIntegral) (userAorbId user)
+    , maybe SQL.SQLNull SQL.toField (userAssoc user)
     ]
 
 data Aorb = Aorb
@@ -296,8 +296,8 @@ initUserTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
  , "name TEXT NOT NULL,"
  , "email TEXT NOT NULL,"
  , "uuid TEXT NOT NULL,"
- , "aorb_id INTEGER NOT NULL,"
- , "assoc INTEGER NOT NULL,"
+ , "aorb_id INTEGER,"
+ , "assoc INTEGER,"
  , "UNIQUE(email),"
  , "UNIQUE(uuid))"
  ]

@@ -136,20 +136,22 @@ mockUsers conn n = do
     generateMockUsers count g = do
       putStrLn "Starting user generation loop..."
       Monad.foldM (\(accUsers, currGen) i -> do
-        let (mockAssoc, g2) = Random.random currGen
-            (mockAorbId, g3) = Random.randomR (1, 100) g2
+        let (hasAssoc, g2) = Random.random currGen
+            (hasAorbId, g3) = Random.random g2
+            (rawAssoc, g4) = Random.random g3
+            (rawAorbId, g5) = Random.randomR (1, 100) g4
         mockUuid <- UUID.toString <$> UUID.nextRandom
         let user = User
               { userId = i + 1
               , userName = T.pack $ "User" ++ show (i + 1)
               , userEmail = T.pack $ "user" ++ show (i + 1) ++ "@example.com"
               , userUuid = T.pack mockUuid
-              , userAorbId = mockAorbId
-              , userAssoc = mockAssoc
+              , userAorbId = if hasAorbId then Just rawAorbId else Nothing
+              , userAssoc = if hasAssoc then Just rawAssoc else Nothing
               }
         Monad.when (rem i 100 == 0) $
           putStrLn $ "Generated " ++ show i ++ " users..."
-        return (user : accUsers, g3)
+        return (user : accUsers, g5)
         ) ([], g) [0..count-1]
 
 mockAorbAnswers :: SQL.Connection -> [Aorb] -> [User] -> IO ()
