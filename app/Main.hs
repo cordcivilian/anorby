@@ -45,6 +45,10 @@ application _ pool request respond = do
   let request_method = BS.unpack $ Wai.requestMethod request
       request_path = BS.unpack $ Wai.rawPathInfo request
   case (request_method, request_path) of
+    ("GET", path)
+      | Just uuid <- List.stripPrefix "/share/" path ->
+        Pool.withResource pool $ \conn ->
+          respond =<< sharedProfileTemplateRoute conn (T.pack uuid) request
     ("GET", "/") ->
       Pool.withResource pool $ \conn ->
         respond =<< rootTemplateRoute conn request
@@ -247,6 +251,19 @@ notchCSS = cssEntry ".notch"
   , cssProperty "border-radius" "10px"
   ]
 
+sharedViewOverrides :: T.Text
+sharedViewOverrides = combineCSS
+  [ cssEntry ".percentage"
+    [ cssProperty "color" "orange"
+    ]
+  , cssEntry ".delta"
+    [ cssProperty "color" "orange"
+    ]
+  , cssEntry ".choice.selected"
+    [ cssProperty "color" "orange"
+    ]
+  ]
+
 -- ---------------------------------------------------------------------------
 
 rootTemplateRoute :: SQL.Connection -> Wai.Request -> IO Wai.Response
@@ -359,29 +376,56 @@ profileTemplateRoute conn uid _ = do
   case userQ of
     (user:_) -> do
       myAorbs <- getUserAorbsFromControversialToCommonPlace conn uid
+      let shareUrl =
+            Just $ "https://anorby.cordcivilian.com/share/" <> userUuid user
       return $ Wai.responseLBS
         HTTP.status200
         [(Headers.hContentType, BS.pack "text/html")]
-        (R.renderHtml $ profileTemplate myAorbs $ userAorbId user)
+        (R.renderHtml $
+          profileTemplate myAorbs (userAorbId user) Nothing shareUrl)
     [] -> return $ Wai.responseLBS
       HTTP.status404
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml notFoundTemplate)
 
-profileTemplate :: [AorbWithAnswer] -> AorbID -> H.Html
-profileTemplate aorbs aid = H.docTypeHtml $ H.html $ do
+sharedProfileTemplateRoute :: SQL.Connection -> T.Text -> Wai.Request
+                           -> IO Wai.Response
+sharedProfileTemplateRoute conn uuid _ = do
+  maybeUser <- getUserByUuid conn uuid
+  case maybeUser of
+    Just user -> do
+      myAorbs <- getUserAorbsFromControversialToCommonPlace conn (userId user)
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $
+          profileTemplate myAorbs (userAorbId user) (Just uuid) Nothing)
+    Nothing -> return $ Wai.responseLBS
+      HTTP.status404
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml notFoundTemplate)
+
+profileTemplate :: [AorbWithAnswer] -> AorbID -> Maybe T.Text -> Maybe T.Text
+                -> H.Html
+profileTemplate aorbs aid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
   H.head $ do
-    H.title "whoami"
+    H.title $ case maybeUuid of
+      Just uuid -> H.text $ "share/" <> uuid
+      Nothing -> "whoami"
     H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.style $ I.preEscapedText fullCSS
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ I.preEscapedText $ case maybeUuid of
+      Just _ -> fullCSS <> sharedViewOverrides
+      Nothing -> fullCSS
   H.body $ do
     H.span H.! A.id "top" $ ""
     H.div H.! A.class_ "frame" $ do
       H.div $ do
         H.a H.! A.href "/" $ "home"
-      H.h1 $ do
-        H.text "whoami"
+      H.h1 $ case maybeUuid of
+        Just uuid -> H.text $ "#" <> uuid
+        Nothing -> "whoami"
       H.div $ do
         H.a H.! A.href "#main" $ "begin"
 
@@ -407,8 +451,10 @@ profileTemplate aorbs aid = H.docTypeHtml $ H.html $ do
       H.h1 "all answers"
       H.div H.! A.id "sorter" $ do
         H.div H.! A.class_ "sort-by" $ "sort by:"
-        H.a H.! A.class_ "sort-by" H.! A.href "#by-basic" $ "> most commonplace"
-        H.a H.! A.class_ "sort-by" H.! A.href "#by-flake" $ "> most controversial"
+        H.a H.! A.class_ "sort-by" H.!
+          A.href "#by-basic" $ "> most commonplace"
+        H.a H.! A.class_ "sort-by" H.!
+          A.href "#by-flake" $ "> most controversial"
 
     H.div H.! A.class_ "frame" H.! A.style "padding-top: 10vh" $ do
       H.div H.! A.id "by-basic" $ mempty
@@ -417,13 +463,11 @@ profileTemplate aorbs aid = H.docTypeHtml $ H.html $ do
         H.a H.! A.href "#all-answers" $ "backtoallanswersss"
       aorbsWithAnswersComponent aorbs
 
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "share"
-      H.div $ do
-        H.p "Share your profile:"
-        H.input H.! A.type_ "text"
-                H.! A.value "https://anorby.cordcivilian.com/123"
-                H.! A.readonly "readonly"
+    case (maybeUuid, shareUrl) of
+      (Nothing, Just url) -> H.div H.! A.class_ "frame" $ do
+        H.h1 "share"
+        H.div $ H.text url
+      _ -> mempty
 
 displayAorbWithAnswerLarge :: AorbWithAnswer -> H.Html
 displayAorbWithAnswerLarge awa = H.div H.! A.class_ "aorb" $ do
@@ -468,15 +512,15 @@ aorbsWithAnswersComponent aorbs = do
                               else "choice") $ do
                 H.toHtml $ aorbA aorb
                 Monad.when (ans == AorbAnswer 0) $
-                    H.span H.! A.class_ "percentage" $
-                        H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
+                  H.span H.! A.class_ "percentage" $
+                    H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
             H.div H.! A.class_ (if ans == AorbAnswer 1
                               then "choice selected"
                               else "choice") $ do
                 H.toHtml $ aorbB aorb
                 Monad.when (ans == AorbAnswer 1) $
-                    H.span H.! A.class_ "percentage" $
-                        H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
+                  H.span H.! A.class_ "percentage" $
+                    H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
   where
     aorbsWithOrders :: [AorbWithAnswer]
                     -> [(Int, (AorbWithAnswer, Int, Int))]
@@ -516,7 +560,7 @@ notFoundTemplate = H.docTypeHtml $ H.html $ do
 
 main :: IO ()
 main = do
-  pool <- initPool "data/mock-anorby-20250116095627.db"
+  pool <- initPool "data/mock-anorby-20250118114756.db"
   maybePort <- Env.lookupEnv "PORT"
   let autoPort = 5001
       port = maybe autoPort read maybePort

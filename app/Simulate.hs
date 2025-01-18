@@ -8,6 +8,8 @@ import qualified Data.Time as Time
 import qualified Data.Time.Format as DateTimeFormat
 import qualified Data.Text as T
 import qualified Data.Map as Map
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
 
 import qualified Text.Printf as Text
 
@@ -72,6 +74,23 @@ randomRankings gen n =
 
 -- ---------------------------------------------------------------------------
 
+mockery :: Int -> IO ()
+mockery n = do
+  conn <- mockDB "mock"
+  mockBaseAorbAnswers conn n
+  SQL.close conn
+
+mockDB :: FilePath -> IO SQL.Connection
+mockDB prefix = do
+  now <- Time.getCurrentTime
+  let timestamp = DateTimeFormat.formatTime
+                  DateTimeFormat.defaultTimeLocale
+                  "%Y%m%d%H%M%S"
+                  now
+      dbName = "data/" ++ prefix ++ "-anorby-" ++ timestamp ++ ".db"
+  putStrLn $ "Creating test database: " ++ dbName
+  initDB dbName
+
 mockBaseAorbAnswers :: SQL.Connection -> Int -> IO ()
 mockBaseAorbAnswers conn n = do
   putStrLn $ "Initializing tables for " ++ show n ++ " users..."
@@ -99,8 +118,9 @@ mockUsers conn n = do
   putStrLn $ "Inserting " ++ show (length users) ++ " users into database..."
   SQL.withTransaction conn $ SQL.executeMany conn
     (SQL.Query $ T.unwords
-      [ "INSERT OR REPLACE INTO users (id, name, email, aorb_id, assoc)"
-      , "VALUES (?, ?, ?, ?, ?)"
+      [ "INSERT OR REPLACE INTO"
+      , "users (id, name, email, uuid, aorb_id, assoc)"
+      , "VALUES (?, ?, ?, ?, ?, ?)"
       ]
     ) users
   putStrLn "User generation complete."
@@ -111,10 +131,12 @@ mockUsers conn n = do
       Monad.foldM (\(accUsers, currGen) i -> do
         let (mockAssoc, g2) = Random.random currGen
             (mockAorbId, g3) = Random.randomR (1, 100) g2
-            user = User
+        mockUuid <- UUID.toString <$> UUID.nextRandom
+        let user = User
               { userId = i + 1
               , userName = T.pack $ "User" ++ show (i + 1)
               , userEmail = T.pack $ "user" ++ show (i + 1) ++ "@example.com"
+              , userUuid = T.pack mockUuid
               , userAorbId = mockAorbId
               , userAssoc = mockAssoc
               }
@@ -132,22 +154,25 @@ mockAorbAnswers conn aorbs users = do
     ++ show (length aorbs)
     ++ " A/B items..."
   gen <- Random.getStdGen
+  now <- Time.getCurrentTime
   putStrLn "Generating mock answers..."
-  (answers, _) <- generateMockAnswers gen
+  (answers, _) <- generateMockAnswers gen now
   putStrLn $
     "Inserting "
     ++ show (length answers)
     ++ " answers into database..."
   SQL.withTransaction conn $ SQL.executeMany conn
     (SQL.Query $ T.unwords
-      [ "INSERT OR REPLACE INTO aorb_answers (user_id, aorb_id, answer)"
-      , "VALUES (?, ?, ?)"
+      [ "INSERT OR REPLACE INTO aorb_answers"
+      , "(user_id, aorb_id, answer, answered_on)"
+      , "VALUES (?, ?, ?, ?)"
       ]
     ) answers
   putStrLn "Answer generation complete."
   where
-    generateMockAnswers :: Random.StdGen -> IO ([AorbAnswers], Random.StdGen)
-    generateMockAnswers g = do
+    generateMockAnswers :: Random.StdGen -> Time.UTCTime
+                       -> IO ([AorbAnswers], Random.StdGen)
+    generateMockAnswers g currentTime = do
       putStrLn "Starting answer generation loop..."
       let total = length users * length aorbs
       Monad.foldM (\(accAnswers, currGen) (idx, (u, a)) -> do
@@ -156,6 +181,7 @@ mockAorbAnswers conn aorbs users = do
               { aorbUserId = userId u
               , aorbAorbId = aorbId a
               , aorbAnswer = answer
+              , aorbAnsweredOn = currentTime
               }
         Monad.when (rem idx (1000 :: Int) == 0) $
           putStrLn $
@@ -166,17 +192,6 @@ mockAorbAnswers conn aorbs users = do
             ++ " answers..."
         return (mockAorbAnswer : accAnswers, nextGen)
         ) ([], g) $ zip [0..] [(u, a) | u <- users, a <- aorbs]
-
-mockDB :: FilePath -> IO SQL.Connection
-mockDB prefix = do
-  now <- Time.getCurrentTime
-  let timestamp = DateTimeFormat.formatTime
-                  DateTimeFormat.defaultTimeLocale
-                  "%Y%m%d%H%M%S"
-                  now
-      dbName = "data/" ++ prefix ++ "-anorby-" ++ timestamp ++ ".db"
-  putStrLn $ "Creating test database: " ++ dbName
-  initDB dbName
 
 testUserAorbs :: Int -> IO ()
 testUserAorbs n = do

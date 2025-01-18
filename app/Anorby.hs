@@ -11,6 +11,7 @@ import qualified Data.Aeson as JSON
 import qualified Data.Map as Map
 import qualified Data.List as List
 import qualified Data.Pool as Pool
+import qualified Data.Time as Time
 
 import qualified Control.Monad as Monad
 
@@ -56,6 +57,7 @@ data User = User
   { userId :: UserID
   , userName :: T.Text
   , userEmail :: T.Text
+  , userUuid :: T.Text
   , userAorbId :: AorbID
   , userAssoc :: AssociationScheme
   } deriving (Show)
@@ -68,12 +70,14 @@ instance SQL.FromRow User where
     <*> SQL.field
     <*> SQL.field
     <*> SQL.field
+    <*> SQL.field
 
 instance SQL.ToRow User where
   toRow user =
     [ SQL.SQLInteger (fromIntegral $ userId user)
     , SQL.SQLText (userName user)
     , SQL.SQLText (userEmail user)
+    , SQL.SQLText (userUuid user)
     , SQL.SQLInteger (fromIntegral $ userAorbId user)
     , SQL.toField (userAssoc user)
     ]
@@ -112,6 +116,7 @@ data AorbAnswers = AorbAnswers
   { aorbUserId :: UserID
   , aorbAorbId :: AorbID
   , aorbAnswer :: AorbAnswer
+  , aorbAnsweredOn :: Time.UTCTime
   } deriving (Show)
 
 instance SQL.FromRow AorbAnswers where
@@ -120,6 +125,15 @@ instance SQL.FromRow AorbAnswers where
     <$> SQL.field
     <*> SQL.field
     <*> SQL.field
+    <*> SQL.field
+
+instance SQL.ToRow AorbAnswers where
+  toRow ans =
+    [ SQL.SQLInteger (fromIntegral $ aorbUserId ans)
+    , SQL.SQLInteger (fromIntegral $ aorbAorbId ans)
+    , SQL.toField (aorbAnswer ans)
+    , SQL.SQLText (T.pack $ show $ aorbAnsweredOn ans)
+    ]
 
 instance SQL.FromField AorbAnswer where
   fromField f = do
@@ -130,13 +144,6 @@ instance SQL.ToField AorbAnswer where
   toField (AorbAnswer w) =
     SQL.SQLInteger $
       fromIntegral (if w == (1 :: Word.Word8) then 1 else 0 :: Word.Word8)
-
-instance SQL.ToRow AorbAnswers where
-  toRow ans =
-    [ SQL.SQLInteger (fromIntegral $ aorbUserId ans)
-    , SQL.SQLInteger (fromIntegral $ aorbAorbId ans)
-    , SQL.toField (aorbAnswer ans)
-    ]
 
 data AorbWithAnswer = AorbWithAnswer
   { aorbData :: Aorb
@@ -269,9 +276,11 @@ initUserTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
  , "(id INTEGER PRIMARY KEY,"
  , "name TEXT NOT NULL,"
  , "email TEXT NOT NULL,"
+ , "uuid TEXT NOT NULL,"
  , "aorb_id INTEGER NOT NULL,"
  , "assoc INTEGER NOT NULL,"
- , "UNIQUE(email))"
+ , "UNIQUE(email),"
+ , "UNIQUE(uuid))"
  ]
 
 initAorbTable :: SQL.Connection -> IO()
@@ -291,6 +300,7 @@ initAorbAnswersTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
  , "(user_id INTEGER NOT NULL,"
  , "aorb_id INTEGER NOT NULL,"
  , "answer INTEGER NOT NULL,"
+ , "answered_on TEXT NOT NULL,"
  , "FOREIGN KEY (user_id) REFERENCES users(id),"
  , "FOREIGN KEY (aorb_id) REFERENCES aorb(id),"
  , "UNIQUE(user_id, aorb_id))"
@@ -386,6 +396,22 @@ baseAorbsToSubmissions conn = do
 
 -- ---------------------------------------------------------------------------
 
+getUserByUuid :: SQL.Connection -> T.Text -> IO (Maybe User)
+getUserByUuid conn uuid = do
+  users <- SQL.query
+      conn "SELECT * FROM users WHERE uuid = ?" (SQL.Only uuid) :: IO [User]
+  return $ case users of
+    [user] -> Just user
+    _ -> Nothing
+
+getUserUuidById :: SQL.Connection -> UserID -> IO (Maybe T.Text)
+getUserUuidById conn uid = do
+  let query = "SELECT uuid FROM users WHERE id = ?"
+  results <- SQL.query conn query (SQL.Only uid) :: IO [SQL.Only T.Text]
+  return $ case results of
+    [SQL.Only uuid] -> Just uuid
+    _ -> Nothing
+
 getUserAorbAndAssoc :: SQL.Connection -> UserID
                     -> IO (Maybe (Aorb, AssociationScheme))
 getUserAorbAndAssoc conn uid = do
@@ -393,7 +419,11 @@ getUserAorbAndAssoc conn uid = do
   aorbIdAssoc <- SQL.query conn query [uid] :: IO [(AorbID, AssociationScheme)]
   case aorbIdAssoc of
     [(aid, assoc)] -> do
-      let aorbQuery = "SELECT * FROM aorb WHERE id = ?"
+      let aorbQuery = SQL.Query $ T.unwords
+                    [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean"
+                    , "FROM aorb"
+                    , "WHERE id = ?"
+                    ]
       aorb <- SQL.query conn aorbQuery [aid] :: IO [Aorb]
       case aorb of
         [aorb'] -> return $ Just (aorb', assoc)

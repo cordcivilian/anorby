@@ -285,13 +285,17 @@ localSearchRound group1Rankings group2Rankings marriages
           putStrLn "Achieved target blocking pairs percentage. Terminating..."
           return marriages
         else do
-          blockingPairs <- findMultipleBlockingPairs gen group1Rankings group2Rankings marriages batchSize
+          blockingPairs <- findMultipleBlockingPairs
+            gen group1Rankings group2Rankings marriages batchSize
           case blockingPairs of
             [] -> do
               putStrLn "No blocking pairs found. Solution is stable!"
               return marriages
             pairs -> do
-              putStrLn $ "Found " ++ show (length pairs) ++ " blocking pairs to resolve"
+              putStrLn $
+                "Found "
+                ++ show (length pairs)
+                ++ " blocking pairs to resolve"
               let newMarriages = resolveMultipleBlockingPairs marriages pairs
               let (newGen, _) = Random.split gen
               localSearchRound
@@ -359,7 +363,8 @@ localSearch
   group1Rankings group2Rankings
   maxIterations maxBlockingPercentage batchSize = do
   gen <- Random.getStdGen
-  let initialMatching = randomInitialMarriages gen group1Rankings group2Rankings
+  let initialMatching =
+        randomInitialMarriages gen group1Rankings group2Rankings
 
   putStrLn
     "Starting Local Search Algorithm..."
