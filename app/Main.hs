@@ -8,6 +8,7 @@ import qualified System.Random as Random
 import qualified Control.Monad as Monad
 
 import qualified Data.Binary.Builder as Builder
+import qualified Data.Word as Word
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Digest.Pure.SHA as SHA
@@ -134,6 +135,7 @@ fullCSS = combineCSS
   , aorbDisplayCSS
   , notchCSS
   , navBarCSS
+  , ansPageCSS
   ]
 
 rootCSS :: T.Text
@@ -298,6 +300,62 @@ sharedViewOverrides = combineCSS
     ]
   , cssEntry ".choice.selected"
     [ cssProperty "color" "orange"
+    ]
+  ]
+
+ansPageCSS :: T.Text
+ansPageCSS = T.unlines
+  [ cssEntry ".ans-context"
+    [ cssProperty "text-align" "center"
+    , cssProperty "padding" "2rem 1rem"
+    , cssProperty "font-style" "italic"
+    , cssProperty "color" "gray"
+    ]
+  , cssEntry ".ans-choices"
+    [ cssProperty "display" "grid"
+    , cssProperty "grid-template-columns" "1fr"
+    , cssProperty "grid-auto-rows" "1fr"
+    , cssProperty "gap" "5rem"
+    , cssProperty "padding" "1rem"
+    , cssProperty "max-width" "1200px"
+    , cssProperty "margin" "0 auto"
+    , cssProperty "width" "80vw"
+    ]
+  , cssEntry ".ans-choice"
+    [ cssProperty "border" "1px solid #ddd"
+    , cssProperty "padding" "2rem"
+    , cssProperty "border-radius" "0.5rem"
+    , cssProperty "min-height" "160px"
+    , cssProperty "text-align" "center"
+    , cssProperty "cursor" "pointer"
+    , cssProperty "outline" "2px solid #ddd"
+    , cssProperty "outline-offset" "2px"
+    , cssProperty "transition" "background-color 0.2s, outline-color 0.2s"
+    ]
+  , cssEntry ".ans-choice:hover"
+    [ cssProperty "background-color" "#f5f5f5"
+    , cssProperty "outline-color" "#aaa"
+    ]
+  , cssEntry "button.ans-choice"
+    [ cssProperty "width" "100%"
+    , cssProperty "height" "100%"
+    , cssProperty "border" "none"
+    , cssProperty "font" "inherit"
+    ]
+  , cssMediaQuery "(min-width: 1200px)"
+    [ cssEntry ".ans-choices"
+      [ cssProperty "grid-template-columns" "1fr 1fr"
+      ]
+    ]
+  , cssMediaQuery "(prefers-color-scheme: dark)"
+    [ cssEntry ".ans-choice"
+      [ cssProperty "border-color" "#333"
+      , cssProperty "outline-color" "#333"
+      ]
+    , cssEntry ".ans-choice:hover"
+      [ cssProperty "background-color" "#2a2a2a"
+      , cssProperty "outline-color" "#444"
+      ]
     ]
   ]
 
@@ -694,32 +752,6 @@ aorbsWithAnswersComponent aorbs = do
         , "--order-flake: " <> T.pack (show orderFlake)
         ]
 
-ansTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-ansTemplateRoute conn uid _ = do
-  answerCount <- getDailyAnswerCount conn uid
-  if answerCount >= 10
-    then do
-      timeLeft <- getTimeUntilNextMidnight
-      return $ Wai.responseLBS
-        HTTP.status200
-        [(Headers.hContentType, BS.pack "text/html")]
-        (R.renderHtml $ dailyLimitTemplate timeLeft)
-    else do
-      maybeNext <- getNextUnansweredAorb conn uid
-      case maybeNext of
-        Nothing -> return $ Wai.responseLBS
-          HTTP.status200
-          [(Headers.hContentType, BS.pack "text/html")]
-          (R.renderHtml $ noMoreQuestionsTemplate)
-        Just aorb -> do
-          gen <- Random.getStdGen
-          let (shouldSwap, _) = Random.random gen
-          token <- generateAnswerToken uid (aorbId aorb)
-          return $ Wai.responseLBS
-            HTTP.status200
-            [(Headers.hContentType, BS.pack "text/html")]
-            (R.renderHtml $ ansTemplate aorb shouldSwap token)
-
 submitAnswerRoute :: SQL.Connection -> UserID -> AorbID -> AorbAnswer -> T.Text
                   -> Wai.Request -> IO Wai.Response
 submitAnswerRoute conn uid aid answer token _ = do
@@ -770,6 +802,32 @@ submitAnswerRoute conn uid aid answer token _ = do
                   JSON.object ["status" JSON..= ("success" :: T.Text)]
                 )
 
+ansTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+ansTemplateRoute conn uid _ = do
+  answerCount <- getDailyAnswerCount conn uid
+  if answerCount >= 10
+    then do
+      timeLeft <- getTimeUntilNextMidnight
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $ dailyLimitTemplate timeLeft)
+    else do
+      maybeNext <- getNextUnansweredAorb conn uid
+      case maybeNext of
+        Nothing -> return $ Wai.responseLBS
+          HTTP.status200
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml $ noMoreQuestionsTemplate)
+        Just aorb -> do
+          gen <- Random.getStdGen
+          let (shouldSwap, _) = Random.random gen
+          token <- generateAnswerToken uid (aorbId aorb)
+          return $ Wai.responseLBS
+            HTTP.status200
+            [(Headers.hContentType, BS.pack "text/html")]
+            (R.renderHtml $ ansTemplate aorb shouldSwap token)
+
 ansTemplate :: Aorb -> Bool -> T.Text -> H.Html
 ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
   H.head $ do
@@ -777,105 +835,40 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
       A.content "width=device-width, initial-scale=1.0"
-    H.style $ I.preEscapedText $ fullCSS <> "\n" <> T.unlines
-      [ "button.choice {"
-      , "  background: none;"
-      , "  border: none;"
-      , "  padding: 0;"
-      , "  font: inherit;"
-      , "  cursor: pointer;"
-      , "  text-align: left;"
-      , "  width: 100%;"
-      , "}"
-      ]
+    H.style $ I.preEscapedText fullCSS
   H.body $ do
     H.div H.! A.class_ "frame" $ do
       navBar [ NavLink "/" "home" False
              , NavLink "/whoami" "whoami" False
              , NavLink "/ans" "answer" True
              ]
-      H.div H.! A.class_ "context" $ H.toHtml (aorbCtx aorb)
-      if shouldSwap
-        then do
-          H.form H.!
-            A.method "POST" H.!
-            A.action "/ans/submit" $ do
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "aorb_id" H.!
-                A.value (H.toValue $ show $ aorbId aorb)
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "token" H.!
-                A.value (H.textValue token)
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "choice" H.!
-                A.value "1"
-              H.button H.!
-                A.class_ "choice" H.!
-                A.type_ "submit" $
-                H.toHtml (aorbB aorb)
-          H.br
-          H.form H.!
-            A.method "POST" H.!
-            A.action "/ans/submit" $ do
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "aorb_id" H.!
-                A.value (H.toValue $ show $ aorbId aorb)
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "token" H.!
-                A.value (H.textValue token)
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "choice" H.!
-                A.value "0"
-              H.button H.!
-                A.class_ "choice" H.!
-                A.type_ "submit" $
-                H.toHtml (aorbA aorb)
-        else do
-          H.form H.!
-            A.method "POST" H.!
-            A.action "/ans/submit" $ do
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "aorb_id" H.!
-                A.value (H.toValue $ show $ aorbId aorb)
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "token" H.!
-                A.value (H.textValue token)
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "choice" H.!
-                A.value "0"
-              H.button H.!
-                A.class_ "choice" H.!
-                A.type_ "submit" $
-                H.toHtml (aorbA aorb)
-          H.br
-          H.form H.!
-            A.method "POST" H.!
-            A.action "/ans/submit" $ do
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "aorb_id" H.!
-                A.value (H.toValue $ show $ aorbId aorb)
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "token" H.!
-                A.value (H.textValue token)
-              H.input H.!
-                A.type_ "hidden" H.!
-                A.name "choice" H.!
-                A.value "1"
-              H.button H.!
-                A.class_ "choice" H.!
-                A.type_ "submit" $
-                H.toHtml (aorbB aorb)
+      H.div H.! A.class_ "ans-context" $
+        H.toHtml (aorbCtx aorb)
+      H.div H.! A.class_ "ans-choices" $ do
+        if shouldSwap
+          then do
+            makeChoice aorb token (aorbB aorb) 1
+            makeChoice aorb token (aorbA aorb) 0
+          else do
+            makeChoice aorb token (aorbA aorb) 0
+            makeChoice aorb token (aorbB aorb) 1
+  where
+    makeChoice :: Aorb -> T.Text -> T.Text -> Word.Word8 -> H.Html
+    makeChoice a t choice value = do
+      H.form H.! A.method "POST" H.! A.action "/ans/submit" $ do
+        H.input H.! A.type_ "hidden" H.!
+          A.name "aorb_id" H.!
+          A.value (H.toValue $ show $ aorbId a)
+        H.input H.! A.type_ "hidden" H.!
+          A.name "token" H.!
+          A.value (H.textValue t)
+        H.input H.! A.type_ "hidden" H.!
+          A.name "choice" H.!
+          A.value (H.toValue $ show value)
+        H.button H.!
+          A.type_ "submit" H.!
+          A.class_ "ans-choice" $
+          H.toHtml choice
 
 data MessageTemplate = MessageTemplate
   { messageTitle :: T.Text
