@@ -344,8 +344,10 @@ clickableAorbCSS = combineCSS
     ]
   , cssEntry ".aorb-clickable:hover"
     [ cssProperty "transform" "translateY(-2px)"
-    -- , cssProperty "background-color" "#f5f5f5"
     , cssProperty "outline-color" "#aaa"
+    ]
+  , cssEntry ".aorb:hover"
+    [ cssProperty "background-color" "#f5f5f5"
     ]
   , cssEntry ".aorb-favorite"
     [ cssProperty "border-color" "orange"
