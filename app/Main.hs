@@ -526,7 +526,8 @@ profileTemplate aorbs aid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
     H.span H.! A.id "top" $ ""
     H.div H.! A.class_ "frame" $ do
       navBar [ NavLink "/" "home" False
-             , NavLink "/whoami" "whoami" True
+             , NavLink "/whoami" "whoami"
+                (case maybeUuid of Just _ -> False ; _ -> True)
              , NavLink "/ans" "answer" False
              ]
       H.h1 $ case maybeUuid of
@@ -828,93 +829,74 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
                 A.type_ "submit" $
                 H.toHtml (aorbB aorb)
 
-dailyLimitTemplate :: T.Text -> H.Html
-dailyLimitTemplate timeLeft = H.docTypeHtml $ H.html $ do
+data MessageTemplate = MessageTemplate
+  { messageTitle :: T.Text
+  , messageHeading :: T.Text
+  , messageLink :: (T.Text, T.Text)
+  }
+
+msgTemplate :: MessageTemplate -> H.Html
+msgTemplate template = H.docTypeHtml $ H.html $ do
   H.head $ do
-    H.title "daily limit"
+    H.title $ H.toHtml $ messageTitle template
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
       A.content "width=device-width, initial-scale=1.0"
     H.style $ I.preEscapedText fullCSS
   H.body $ do
     H.div H.! A.class_ "frame" $ do
-      H.h1 $ H.toHtml $
-        "daily answer limit reached, come back in " <> timeLeft
+      H.h1 $ H.toHtml $ messageHeading template
       H.div $ do
-        H.a H.! A.href "/" $ "home"
+        H.a H.! A.href (H.textValue $ fst $ messageLink template) $
+          H.toHtml $ snd $ messageLink template
+
+dailyLimitTemplate :: T.Text -> H.Html
+dailyLimitTemplate timeLeft = msgTemplate MessageTemplate
+  { messageTitle = "daily limit"
+  , messageHeading = "daily answer limit reached, come back in " <> timeLeft
+  , messageLink = ("/", "back to profile")
+  }
 
 noMoreQuestionsTemplate :: H.Html
-noMoreQuestionsTemplate = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "no more questions"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.!
-      A.content "width=device-width, initial-scale=1.0"
-    H.style $ I.preEscapedText fullCSS
-  H.body $ do
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "no more questions"
-      H.div $ do
-        H.a H.! A.href "/" $ "home"
+noMoreQuestionsTemplate = msgTemplate MessageTemplate
+  { messageTitle = "no more questions"
+  , messageHeading = "no more questions"
+  , messageLink = ("/", "back to profile")
+  }
 
 invalidTokenTemplate :: H.Html
-invalidTokenTemplate = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "invalid token"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.!
-      A.content "width=device-width, initial-scale=1.0"
-    H.style $ I.preEscapedText fullCSS
-  H.body $ do
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "invalid or expired token"
-      H.div $ do
-        H.a H.! A.href "/ans" $ "try again"
+invalidTokenTemplate = msgTemplate MessageTemplate
+  { messageTitle = "invalid token"
+  , messageHeading = "403 - invalid or expired token"
+  , messageLink = ("/ans", "try again")
+  }
 
 alreadyAnsweredTemplate :: H.Html
-alreadyAnsweredTemplate = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "already answered"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.!
-      A.content "width=device-width, initial-scale=1.0"
-    H.style $ I.preEscapedText fullCSS
-  H.body $ do
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "question already answered"
-      H.div $ do
-        H.a H.! A.href "/ans" $ "next question"
+alreadyAnsweredTemplate = msgTemplate MessageTemplate
+  { messageTitle = "already answered"
+  , messageHeading = "403 - question already answered"
+  , messageLink = ("/ans", "next question")
+  }
 
 invalidSubmissionTemplate :: H.Html
-invalidSubmissionTemplate = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "invalid submission"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.!
-      A.content "width=device-width, initial-scale=1.0"
-    H.style $ I.preEscapedText fullCSS
-  H.body $ do
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "invalid submission format"
-      H.div $ do
-        H.a H.! A.href "/ans" $ "try again"
+invalidSubmissionTemplate = msgTemplate MessageTemplate
+  { messageTitle = "invalid submission"
+  , messageHeading = "400 - invalid submission format"
+  , messageLink = ("/ans", "try again")
+  }
+
+notFoundTemplate :: H.Html
+notFoundTemplate = msgTemplate MessageTemplate
+  { messageTitle = "error"
+  , messageHeading = "404 - not found"
+  , messageLink = ("/", "go home")
+  }
 
 notFoundTemplateRoute :: Wai.Request -> Wai.Response
 notFoundTemplateRoute _ = Wai.responseLBS
   HTTP.status404
   [(Headers.hContentType, BS.pack "text/html")]
   (R.renderHtml notFoundTemplate)
-
-notFoundTemplate :: H.Html
-notFoundTemplate = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "error"
-    H.style $ I.preEscapedText fullCSS
-  H.body $ do
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "404 - not found"
-      H.h1 $ do
-        H.a H.! A.class_ "link" H.! A.href "/" $ "home"
 
 -- ---------------------------------------------------------------------------
 
