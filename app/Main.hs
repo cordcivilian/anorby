@@ -263,12 +263,14 @@ bySidedTargetCSS = cssEntry "#by-sided:target ~ #aorbs-container .aorb"
   ]
 
 byBasicTargetCSS :: T.Text
-byBasicTargetCSS = cssEntry "#by-basic:target ~ #aorbs-container .aorb"
+byBasicTargetCSS =
+  cssEntry "#by-basic:target ~ #aorbs-container .aorb-clickable"
   [ cssProperty "order" "var(--order-basic) !important"
   ]
 
 byFlakeTargetCSS :: T.Text
-byFlakeTargetCSS = cssEntry "#by-flake:target ~ #aorbs-container .aorb"
+byFlakeTargetCSS =
+  cssEntry "#by-flake:target ~ #aorbs-container .aorb-clickable"
   [ cssProperty "order" "var(--order-flake) !important"
   ]
 
@@ -279,13 +281,13 @@ aorbsContainerCSS = cssEntry "#aorbs-container, .aorbs-container"
   , cssProperty "place-items" "center"
   , cssProperty "justify-content" "stretch"
   , cssProperty "width" "80vw"
+  , cssProperty "gap" "2rem"
   ]
 
 aorbDisplayCSS :: T.Text
 aorbDisplayCSS = combineCSS
   [ cssEntry ".aorb"
     [ cssProperty "border" "1px solid #ddd"
-    , cssProperty "margin" "1rem"
     , cssProperty "max-width" "800px"
     , cssProperty "order" "var(--order-dice)"
     , cssProperty "padding" "1rem 1rem 0.8rem 1rem"
@@ -336,11 +338,13 @@ clickableAorbCSS = combineCSS
     , cssProperty "transition" "all 0.2s ease-in-out"
     , cssProperty "display" "block"
     , cssProperty "text-decoration" "none"
+    , cssProperty "width" "95%"
+    , cssProperty "place-items" "center"
+    , cssProperty "order" "var(--order-flake)"
     ]
   , cssEntry ".aorb-clickable:hover"
     [ cssProperty "transform" "translateY(-2px)"
-    , cssProperty "box-shadow" "0 4px 6px rgba(0, 0, 0, 0.1)"
-    , cssProperty "background-color" "#f5f5f5"
+    -- , cssProperty "background-color" "#f5f5f5"
     , cssProperty "outline-color" "#aaa"
     ]
   , cssEntry ".aorb-favorite"
@@ -620,15 +624,15 @@ rootTemplate aorbs = H.docTypeHtml $ H.html $ do
       H.div H.! A.id "by-polar" $ mempty
       H.span H.! A.class_ "notch" $ do
         H.a H.! A.href "#baseline" $ "backtobasebasebase"
-      aorbsComponent aorbs
+      publicAorbs aorbs
 
-aorbsComponent :: [Aorb] -> H.Html
-aorbsComponent aorbs = do
+publicAorbs :: [Aorb] -> H.Html
+publicAorbs aorbs = do
   H.div H.! A.id "aorbs-container" $ do
-    Monad.forM_ (aorbsWithOrders aorbs) $
-      \(_, (aorb, orderDice, orderPolar, orderSided)) -> do
+    Monad.forM_ (aorbWithOrders aorbs) $
+      \(_, (aorb, orders)) -> do
         H.div H.! A.class_ "aorb" H.!
-          A.style (aorbDynamicCSS orderDice orderPolar orderSided) $ do
+          A.style (aorbDynamicCSS (zip ["dice", "polar", "sided"] orders)) $ do
             H.div H.! A.class_ "context" $ H.toHtml (aorbCtx aorb)
             let mean = aorbMean aorb
                 delta = (abs (mean - 0.5)) * 100
@@ -655,27 +659,6 @@ aorbsComponent aorbs = do
                   H.span H.! A.class_ "delta" $ H.toHtml formatDelta
                 H.div H.! A.class_ "choice alternative" $
                   H.toHtml (aorbB aorb)
-  where
-    aorbsWithOrders :: [Aorb] -> [(Int, (Aorb, Int, Int, Int))]
-    aorbsWithOrders as = zip [(1::Int)..] $
-      let byDice = as
-          byPolar = List.sortOn
-            (\a -> abs (aorbMean a - 0.5)) as
-          bySided = List.sortOn
-            (Ord.Down . \a -> abs (aorbMean a - 0.5)) as
-          lookupOrder list a = maybe 0 (+1) $ List.elemIndex a list
-      in [ (a
-           , lookupOrder byDice a
-           , lookupOrder byPolar a
-           , lookupOrder bySided a)
-           | a <- as ]
-    aorbDynamicCSS :: Int -> Int -> Int -> I.AttributeValue
-    aorbDynamicCSS orderDice orderPolar orderSided =
-      H.preEscapedTextValue $ inlineCSSEntry
-        [ "--order-dice: " <> T.pack (show orderDice)
-        , "--order-polar: " <> T.pack (show orderPolar)
-        , "--order-sided: " <> T.pack (show orderSided)
-        ]
 
 profileTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
                      -> IO Wai.Response
@@ -758,7 +741,7 @@ profileMainAorb mAid aorbs = case mAid of
     H.div H.! A.class_ "frame" $ do
       H.h1 "main"
       H.div H.! A.class_ "aorbs-container" $ do
-        mapM_ (\awa -> displayAorbWithAnswerLarge awa mAid) $
+        mapM_ (\awa -> profileAorb awa mAid Nothing) $
           filter (\awa -> aorbId (aorbData awa) == aid) aorbs
   Nothing -> mempty
 
@@ -767,31 +750,31 @@ profileCommonplaceAorbs mAid aorbs = H.div H.! A.class_ "frame" $ do
   H.h1 "most commonplace"
   H.div H.! A.class_ "aorbs-container" $ do
     mapM_
-      (\awa -> displayAorbWithAnswerLarge awa mAid) (take 3 $ reverse aorbs)
+      (\awa -> profileAorb awa mAid Nothing) (take 3 $ reverse aorbs)
 
 profileControversialAorbs :: Maybe AorbID -> [AorbWithAnswer] -> H.Html
 profileControversialAorbs mAid aorbs = H.div H.! A.class_ "frame" $ do
   H.h1 "most controversial"
   H.div H.! A.class_ "aorbs-container" $ do
-    mapM_ (\awa -> displayAorbWithAnswerLarge awa mAid) (take 3 aorbs)
+    mapM_ (\awa -> profileAorb awa mAid Nothing) (take 3 aorbs)
 
-profileAllAnswers :: [AorbWithAnswer] -> H.Html
-profileAllAnswers aorbs = do
+profileAllAnswers :: Maybe AorbID -> [AorbWithAnswer] -> H.Html
+profileAllAnswers mAid aorbs = do
   H.span H.! A.id "all-answers" $ ""
   H.div H.! A.class_ "frame" $ do
     H.h1 "all answers"
     H.div H.! A.id "sorter" $ do
       H.div H.! A.class_ "sort-by" $ "sort by:"
       H.a H.! A.class_ "sort-by" H.!
-        A.href "#by-basic" $ "> most commonplace"
-      H.a H.! A.class_ "sort-by" H.!
         A.href "#by-flake" $ "> most controversial"
+      H.a H.! A.class_ "sort-by" H.!
+        A.href "#by-basic" $ "> most commonplace"
   H.div H.! A.class_ "frame" H.! A.style "padding-top: 10vh" $ do
     H.div H.! A.id "by-basic" $ mempty
     H.div H.! A.id "by-flake" $ mempty
     H.span H.! A.class_ "notch" $ do
       H.a H.! A.href "#all-answers" $ "backtoallanswersss"
-    aorbsWithAnswersComponent aorbs
+    profileOrdinaryAorbs mAid aorbs
 
 profileSharer :: Maybe T.Text -> Maybe T.Text -> H.Html
 profileSharer maybeUuid shareUrl = case (maybeUuid, shareUrl) of
@@ -808,7 +791,7 @@ profileFullView mAid aorbs maybeUuid shareUrl = do
   Monad.when (Maybe.isNothing mAid) $ H.span H.! A.id "main" $ ""
   profileCommonplaceAorbs mAid aorbs
   profileControversialAorbs mAid aorbs
-  profileAllAnswers aorbs
+  profileAllAnswers mAid aorbs
   profileSharer maybeUuid shareUrl
 
 profileTemplate :: [AorbWithAnswer] -> Maybe AorbID
@@ -826,8 +809,8 @@ profileTemplate aorbs mAid maybeUuid shareUrl showMinimal =
          then mempty
          else profileFullView mAid aorbs maybeUuid shareUrl
 
-displayAorbWithAnswerLarge :: AorbWithAnswer -> Maybe AorbID -> H.Html
-displayAorbWithAnswerLarge awa mFavoriteId = do
+profileAorb :: AorbWithAnswer -> Maybe AorbID -> Maybe [Int] -> H.Html
+profileAorb awa mFavoriteId mOrders = do
   let aorb = aorbData awa
       ans = userAnswer awa
       aid = aorbId aorb
@@ -837,71 +820,68 @@ displayAorbWithAnswerLarge awa mFavoriteId = do
           AorbAnswer 0 -> 100 * (1 - aorbMean aorb)
           _ -> 100 * aorbMean aorb
       favoriteClass = if isFavorite then " aorb-favorite" else ""
+      dynamicStyle = case mOrders of
+        Just orders ->
+          (H.! A.style (aorbDynamicCSS (zip ["basic", "flake"] orders)))
+        Nothing -> id
+  dynamicStyle $ H.a H.! A.href (H.toValue $ "/ans/" ++ show aid)
+    H.! A.class_ "aorb-clickable" $ do
+      H.div H.! A.class_ (H.textValue $ "aorb" <> favoriteClass) $ do
+        H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
+        H.div H.! A.class_ (if ans == AorbAnswer 0
+                            then "choice selected"
+                            else "choice") $ do
+          H.toHtml $ aorbA aorb
+          Monad.when (ans == AorbAnswer 0) $
+            H.span H.! A.class_ "percentage" $
+              H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
+        H.div H.! A.class_ (if ans == AorbAnswer 1
+                            then "choice selected"
+                            else "choice") $ do
+          H.toHtml $ aorbB aorb
+          Monad.when (ans == AorbAnswer 1) $
+            H.span H.! A.class_ "percentage" $
+              H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
 
-  H.div H.! A.class_ (H.textValue $ "aorb" <> favoriteClass) $ do
-    H.a H.! A.href (H.toValue $ "/ans/" ++ show aid)
-       H.! A.class_ "aorb-clickable" $ do
-      H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
-      H.div H.! A.class_ (if ans == AorbAnswer 0
-                          then "choice selected"
-                          else "choice") $ do
-        H.toHtml $ aorbA aorb
-        Monad.when (ans == AorbAnswer 0) $
-          H.span H.! A.class_ "percentage" $
-            H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
-      H.div H.! A.class_ (if ans == AorbAnswer 1
-                          then "choice selected"
-                          else "choice") $ do
-        H.toHtml $ aorbB aorb
-        Monad.when (ans == AorbAnswer 1) $
-          H.span H.! A.class_ "percentage" $
-            H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
-
-aorbsWithAnswersComponent :: [AorbWithAnswer] -> H.Html
-aorbsWithAnswersComponent aorbs = do
+profileOrdinaryAorbs :: Maybe AorbID -> [AorbWithAnswer] -> H.Html
+profileOrdinaryAorbs mAid aorbs = do
   H.div H.! A.id "aorbs-container" $ do
-    Monad.forM_ (aorbsWithOrders aorbs) $
-      \(_, (awa, orderBasic, orderFlake)) -> do
-        H.div H.! A.class_ "aorb" H.!
-          A.style (aorbDynamicCSS orderBasic orderFlake) $ do
-            H.div H.! A.class_ "context" $ H.toHtml (aorbCtx $ aorbData awa)
-            let aorb = aorbData awa
-                ans = userAnswer awa
-                percentage =
-                  case ans of
-                    AorbAnswer 0 -> 100 * (1 - aorbMean aorb)
-                    _ -> 100 * aorbMean aorb
-            H.div H.! A.class_ (if ans == AorbAnswer 0
-                              then "choice selected"
-                              else "choice") $ do
-                H.toHtml $ aorbA aorb
-                Monad.when (ans == AorbAnswer 0) $
-                  H.span H.! A.class_ "percentage" $
-                    H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
-            H.div H.! A.class_ (if ans == AorbAnswer 1
-                              then "choice selected"
-                              else "choice") $ do
-                H.toHtml $ aorbB aorb
-                Monad.when (ans == AorbAnswer 1) $
-                  H.span H.! A.class_ "percentage" $
-                    H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
-  where
-    aorbsWithOrders :: [AorbWithAnswer]
-                    -> [(Int, (AorbWithAnswer, Int, Int))]
-    aorbsWithOrders awas = zip [(1::Int)..] $
-      let byBasic = reverse awas
-          byFlake = awas
-          lookupOrder list a = maybe 0 (+1) $ List.elemIndex a list
-      in [ (awa
-         , lookupOrder byBasic awa
-         , lookupOrder byFlake awa)
-         | awa <- awas ]
-    aorbDynamicCSS :: Int -> Int -> I.AttributeValue
-    aorbDynamicCSS orderBasic orderFlake =
-      H.preEscapedTextValue $ inlineCSSEntry
-        [ "--order-basic: " <> T.pack (show orderBasic)
-        , "--order-flake: " <> T.pack (show orderFlake)
-        ]
+    Monad.forM_ (aorbWithAnswerWithOrders aorbs) $
+      \(_, (awa, orders)) -> profileAorb awa mAid (Just orders)
+
+type OrderingFunction a = [a] -> [a]
+aorbsWithOrders :: (Eq a) => [a] -> [OrderingFunction a] -> [(Int, (a, [Int]))]
+aorbsWithOrders as orderingFuncs = zip [(1::Int)..] $
+  let orderedLists = map (\f -> f as) orderingFuncs
+      lookupOrder list a = maybe 0 (+1) $ List.elemIndex a list
+  in [ (a, map (\orderedList -> lookupOrder orderedList a) orderedLists)
+     | a <- as ]
+
+aorbWithOrders :: [Aorb] -> [(Int, (Aorb, [Int]))]
+aorbWithOrders as = aorbsWithOrders as aorbOrderings
+
+aorbWithAnswerWithOrders :: [AorbWithAnswer]
+                         -> [(Int, (AorbWithAnswer, [Int]))]
+aorbWithAnswerWithOrders awas = aorbsWithOrders awas aorbWithAnswerOrderings
+
+aorbDynamicCSS :: [(String, Int)] -> H.AttributeValue
+aorbDynamicCSS orderPairs =
+  H.preEscapedTextValue $ inlineCSSEntry
+    [ "--order-" <> T.pack name <> ": " <> T.pack (show order)
+    | (name, order) <- orderPairs ]
+
+aorbOrderings :: [OrderingFunction Aorb]
+aorbOrderings =
+  [ id  -- byDice
+  , List.sortOn (\a -> abs (aorbMean a - 0.5))  -- byPolar
+  , List.sortOn (Ord.Down . \a -> abs (aorbMean a - 0.5))  -- bySided
+  ]
+
+aorbWithAnswerOrderings :: [OrderingFunction AorbWithAnswer]
+aorbWithAnswerOrderings =
+  [ reverse  -- byBasic
+  , id  -- byFlake
+  ]
 
 setFavoriteAorbRoute :: SQL.Connection -> UserID -> AorbID -> Wai.Request
                     -> IO Wai.Response
@@ -1231,9 +1211,10 @@ getTimeUntilNextMidnight = do
       nextMidnightUTC = LocalTime.localTimeToUTC LocalTime.utc nextMidnight
       diffSeconds = round $ Clock.diffUTCTime nextMidnightUTC now
       hours = div diffSeconds 3600
-      minutes = div (rem diffSeconds  3600) 60
-  return $ if (hours :: Int) > 0
-    then T.pack $ show hours <> " hours"
+      minutes = div (rem diffSeconds 3600) 60
+      roundedHours = if minutes > 30 then hours + 1 else hours :: Int
+  return $ if roundedHours > 0
+    then T.pack $ show roundedHours <> " hours"
     else T.pack $ show minutes <> " minutes"
 
 generateAnswerToken :: UserID -> AorbID -> IO T.Text
