@@ -107,6 +107,13 @@ inlineCSSEntry properties = T.intercalate "; " properties
 cssProperty :: T.Text -> T.Text -> T.Text
 cssProperty property value = T.intercalate ": " [property, value]
 
+cssMediaQuery :: T.Text -> [T.Text] -> T.Text
+cssMediaQuery query rules = T.unlines
+  [ "@media " <> query <> " {"
+  , T.unlines $ map ("  " <>) rules
+  , "}"
+  ]
+
 fullCSS :: T.Text
 fullCSS = combineCSS
   [ rootCSS
@@ -125,6 +132,7 @@ fullCSS = combineCSS
   , aorbsContainerCSS
   , aorbDisplayCSS
   , notchCSS
+  , navBarCSS
   ]
 
 rootCSS :: T.Text
@@ -292,6 +300,70 @@ sharedViewOverrides = combineCSS
     ]
   ]
 
+cssMaxWidth :: Int -> [T.Text] -> T.Text
+cssMaxWidth width = cssMediaQuery
+  ("only screen and (max-width: " <> T.pack (show width) <> "px)")
+
+-- ---------------------------------------------------------------------------
+
+data NavLink = NavLink
+  { linkPath :: T.Text
+  , linkText :: T.Text
+  , linkActive :: Bool
+  }
+
+navBarCSS :: T.Text
+navBarCSS = T.unlines
+  [ cssEntry ".nav-bar"
+    [ cssProperty "display" "flex"
+    , cssProperty "justify-content" "center"
+    , cssProperty "gap" "0.75rem"
+    , cssProperty "margin-bottom" "1rem"
+    , cssProperty "flex-wrap" "wrap"
+    , cssProperty "align-items" "center"
+    ]
+  , cssEntry ".nav-bar-row"
+    [ cssProperty "display" "flex"
+    , cssProperty "gap" "0.75rem"
+    , cssProperty "align-items" "center"
+    ]
+  , cssEntry ".nav-separator"
+    [ cssProperty "color" "gray"
+    ]
+  , cssEntry ".nav-link.active"
+    [ cssProperty "color" "orange"
+    ]
+  , cssMaxWidth 350
+    [ cssEntry ".nav-bar"
+        [ cssProperty "flex-direction" "column"
+        ]
+    , cssEntry ".nav-bar-row"
+        [ cssProperty "flex-direction" "column"
+        ]
+    , cssEntry ".nav-separator"
+        [ cssProperty "display" "none"
+        ]
+    ]
+  ]
+
+navBar :: [NavLink] -> H.Html
+navBar links = H.div H.! A.class_ "nav-bar" $ do
+  let separator = H.span H.! A.class_ "nav-separator" $ "///"
+      withSeparators [] = return ()
+      withSeparators [x] = navLink x
+      withSeparators (x:xs) = H.div H.! A.class_ "nav-bar-row" $ do
+        navLink x
+        separator
+        withSeparators xs
+      navLink link =
+        if linkActive link
+          then H.span H.! A.class_ "nav-link active" $
+            H.toHtml $ linkText link
+          else H.a H.! A.class_ "nav-link"
+               H.! A.href (H.textValue $ linkPath link) $
+            H.toHtml $ linkText link
+  withSeparators links
+
 -- ---------------------------------------------------------------------------
 
 rootTemplateRoute :: SQL.Connection -> Wai.Request -> IO Wai.Response
@@ -316,6 +388,10 @@ rootTemplate aorbs = H.docTypeHtml $ H.html $ do
   H.body $ do
     H.span H.! A.id "top" $ ""
     H.div H.! A.class_ "frame" $ do
+      navBar [ NavLink "/" "home" True
+             , NavLink "/whoami" "whoami" False
+             , NavLink "/ans" "answer" False
+             ]
       H.h1 $ do
         H.span H.! A.class_ "underline" $ "a"
         H.text "n"
@@ -449,8 +525,10 @@ profileTemplate aorbs aid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
   H.body $ do
     H.span H.! A.id "top" $ ""
     H.div H.! A.class_ "frame" $ do
-      H.div $ do
-        H.a H.! A.href "/" $ "home"
+      navBar [ NavLink "/" "home" False
+             , NavLink "/whoami" "whoami" True
+             , NavLink "/ans" "answer" False
+             ]
       H.h1 $ case maybeUuid of
         Just uuid -> H.text $ "#" <> uuid
         Nothing -> "whoami"
@@ -628,7 +706,7 @@ submitAnswerRoute conn uid aid answer token _ = do
                     , aorbAnswer = answer
                     , aorbAnsweredOn = now
                     }
-                  query = SQL.Query $ T.concat
+                  query = SQL.Query $ T.unwords
                     [ "INSERT INTO aorb_answers"
                     , "(user_id, aorb_id, answer, answered_on)"
                     , "VALUES (?, ?, ?, ?)"
@@ -663,8 +741,10 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
       ]
   H.body $ do
     H.div H.! A.class_ "frame" $ do
-      H.div $ do
-        H.a H.! A.href "/" $ "home"
+      navBar [ NavLink "/" "home" False
+             , NavLink "/whoami" "whoami" False
+             , NavLink "/ans" "answer" True
+             ]
       H.div H.! A.class_ "context" $ H.toHtml (aorbCtx aorb)
       if shouldSwap
         then do
@@ -760,6 +840,8 @@ dailyLimitTemplate timeLeft = H.docTypeHtml $ H.html $ do
     H.div H.! A.class_ "frame" $ do
       H.h1 $ H.toHtml $
         "daily answer limit reached, come back in " <> timeLeft
+      H.div $ do
+        H.a H.! A.href "/" $ "home"
 
 noMoreQuestionsTemplate :: H.Html
 noMoreQuestionsTemplate = H.docTypeHtml $ H.html $ do
@@ -802,6 +884,20 @@ alreadyAnsweredTemplate = H.docTypeHtml $ H.html $ do
       H.h1 "question already answered"
       H.div $ do
         H.a H.! A.href "/ans" $ "next question"
+
+invalidSubmissionTemplate :: H.Html
+invalidSubmissionTemplate = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "invalid submission"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ I.preEscapedText fullCSS
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      H.h1 "invalid submission format"
+      H.div $ do
+        H.a H.! A.href "/ans" $ "try again"
 
 notFoundTemplateRoute :: Wai.Request -> Wai.Response
 notFoundTemplateRoute _ = Wai.responseLBS
@@ -889,20 +985,6 @@ validateAnswerToken token expectedUid expectedAid = do
                 return $ signature == T.pack expectedSignature
         _ -> return False
     _ -> return False
-
-invalidSubmissionTemplate :: H.Html
-invalidSubmissionTemplate = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "invalid submission"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.!
-      A.content "width=device-width, initial-scale=1.0"
-    H.style $ I.preEscapedText fullCSS
-  H.body $ do
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "invalid submission format"
-      H.div $ do
-        H.a H.! A.href "/ans" $ "try again"
 
 -- ---------------------------------------------------------------------------
 
