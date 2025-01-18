@@ -7,14 +7,24 @@ import qualified System.Random as Random
 
 import qualified Control.Monad as Monad
 
-import qualified Data.Ord as Ord
-import qualified Data.List as List
+import qualified Data.Binary.Builder as Builder
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Digest.Pure.SHA as SHA
+import qualified Data.List as List
+import qualified Data.Ord as Ord
 import qualified Data.Pool as Pool
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import qualified Data.Text.IO as TIO
+import qualified Data.Time.Clock.POSIX as POSIXTime
+import qualified Data.Time.LocalTime as LocalTime
+import qualified Data.Time.Calendar as Calendar
+import qualified Data.Time.Clock as Clock
+import qualified Data.Aeson as JSON
 
 import qualified Text.Printf as Text
+import qualified Text.Read as Read
 
 import qualified Database.SQLite.Simple as SQL
 
@@ -55,8 +65,26 @@ application _ pool request respond = do
     ("GET", "/whoami") ->
       Pool.withResource pool $ \conn ->
         respond =<< profileTemplateRoute conn 1 request
-    ("GET", "/whoami/ans") -> undefined
-    ("POST", "/whoami/ans") -> undefined
+    ("GET", "/ans") ->
+      Pool.withResource pool $ \conn ->
+        respond =<< ansTemplateRoute conn 1 request
+    ("POST", "/ans/submit") -> do
+      body <- Wai.strictRequestBody request
+      let params = HTTP.parseQueryText $ BSL.toStrict body
+          maybeAorbId = (Read.readMaybe . T.unpack)
+            =<< Monad.join (lookup "aorb_id" params)
+          maybeChoice = (Read.readMaybe . T.unpack)
+            =<< Monad.join (lookup "choice" params)
+          maybeToken = Monad.join (lookup "token" params)
+      case (maybeAorbId, maybeChoice, maybeToken) of
+        (Just aid, Just choice, Just token) ->
+          Pool.withResource pool $ \conn ->
+            respond =<< submitAnswerRoute
+                        conn 1 aid (AorbAnswer choice) token request
+        _ -> respond $ Wai.responseLBS
+          HTTP.status400
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml $ invalidSubmissionTemplate)
     ("GET", "/login") -> undefined
     ("GET", "/logout") -> undefined
     _ -> respond $ notFoundTemplateRoute request
@@ -539,6 +567,242 @@ aorbsWithAnswersComponent aorbs = do
         , "--order-flake: " <> T.pack (show orderFlake)
         ]
 
+ansTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+ansTemplateRoute conn uid _ = do
+  answerCount <- getDailyAnswerCount conn uid
+  if answerCount >= 10
+    then do
+      timeLeft <- getTimeUntilNextMidnight
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $ dailyLimitTemplate timeLeft)
+    else do
+      maybeNext <- getNextUnansweredAorb conn uid
+      case maybeNext of
+        Nothing -> return $ Wai.responseLBS
+          HTTP.status200
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml $ noMoreQuestionsTemplate)
+        Just aorb -> do
+          gen <- Random.getStdGen
+          let (shouldSwap, _) = Random.random gen
+          token <- generateAnswerToken uid (aorbId aorb)
+          return $ Wai.responseLBS
+            HTTP.status200
+            [(Headers.hContentType, BS.pack "text/html")]
+            (R.renderHtml $ ansTemplate aorb shouldSwap token)
+
+submitAnswerRoute :: SQL.Connection -> UserID -> AorbID -> AorbAnswer -> T.Text
+                  -> Wai.Request -> IO Wai.Response
+submitAnswerRoute conn uid aid answer token _ = do
+  answerCount <- getDailyAnswerCount conn uid
+  if answerCount >= 10
+    then do
+      timeLeft <- getTimeUntilNextMidnight
+      return $ Wai.responseLBS
+        HTTP.status403
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $ dailyLimitTemplate timeLeft)
+    else do
+      isValid <- validateAnswerToken token uid aid
+      if not isValid
+        then return $ Wai.responseLBS
+          HTTP.status403
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml $ invalidTokenTemplate)
+        else do
+          existing <- SQL.query conn
+            "SELECT 1 FROM aorb_answers WHERE user_id = ? AND aorb_id = ?"
+            (uid, aid) :: IO [SQL.Only Int]
+          case existing of
+            (_:_) -> return $ Wai.responseLBS
+              HTTP.status403
+              [(Headers.hContentType, BS.pack "text/html")]
+              (R.renderHtml $ alreadyAnsweredTemplate)
+            [] -> do
+              now <- POSIXTime.getCurrentTime
+              let ans = AorbAnswers
+                    { aorbUserId = uid
+                    , aorbAorbId = aid
+                    , aorbAnswer = answer
+                    , aorbAnsweredOn = now
+                    }
+                  query = SQL.Query $ T.concat
+                    [ "INSERT INTO aorb_answers"
+                    , "(user_id, aorb_id, answer, answered_on)"
+                    , "VALUES (?, ?, ?, ?)"
+                    ]
+              SQL.execute conn query ans
+              return $ Wai.responseLBS
+                HTTP.status303
+                [ (Headers.hLocation, BS.pack "/ans")
+                , (Headers.hContentType, BS.pack "application/json")
+                ]
+                (JSON.encode $
+                  JSON.object ["status" JSON..= ("success" :: T.Text)]
+                )
+
+ansTemplate :: Aorb -> Bool -> T.Text -> H.Html
+ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "answer"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ I.preEscapedText $ fullCSS <> "\n" <> T.unlines
+      [ "button.choice {"
+      , "  background: none;"
+      , "  border: none;"
+      , "  padding: 0;"
+      , "  font: inherit;"
+      , "  cursor: pointer;"
+      , "  text-align: left;"
+      , "  width: 100%;"
+      , "}"
+      ]
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      H.div $ do
+        H.a H.! A.href "/" $ "home"
+      H.div H.! A.class_ "context" $ H.toHtml (aorbCtx aorb)
+      if shouldSwap
+        then do
+          H.form H.!
+            A.method "POST" H.!
+            A.action "/ans/submit" $ do
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "aorb_id" H.!
+                A.value (H.toValue $ show $ aorbId aorb)
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "token" H.!
+                A.value (H.textValue token)
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "choice" H.!
+                A.value "1"
+              H.button H.!
+                A.class_ "choice" H.!
+                A.type_ "submit" $
+                H.toHtml (aorbB aorb)
+          H.br
+          H.form H.!
+            A.method "POST" H.!
+            A.action "/ans/submit" $ do
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "aorb_id" H.!
+                A.value (H.toValue $ show $ aorbId aorb)
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "token" H.!
+                A.value (H.textValue token)
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "choice" H.!
+                A.value "0"
+              H.button H.!
+                A.class_ "choice" H.!
+                A.type_ "submit" $
+                H.toHtml (aorbA aorb)
+        else do
+          H.form H.!
+            A.method "POST" H.!
+            A.action "/ans/submit" $ do
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "aorb_id" H.!
+                A.value (H.toValue $ show $ aorbId aorb)
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "token" H.!
+                A.value (H.textValue token)
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "choice" H.!
+                A.value "0"
+              H.button H.!
+                A.class_ "choice" H.!
+                A.type_ "submit" $
+                H.toHtml (aorbA aorb)
+          H.br
+          H.form H.!
+            A.method "POST" H.!
+            A.action "/ans/submit" $ do
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "aorb_id" H.!
+                A.value (H.toValue $ show $ aorbId aorb)
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "token" H.!
+                A.value (H.textValue token)
+              H.input H.!
+                A.type_ "hidden" H.!
+                A.name "choice" H.!
+                A.value "1"
+              H.button H.!
+                A.class_ "choice" H.!
+                A.type_ "submit" $
+                H.toHtml (aorbB aorb)
+
+dailyLimitTemplate :: T.Text -> H.Html
+dailyLimitTemplate timeLeft = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "daily limit"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ I.preEscapedText fullCSS
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      H.h1 $ H.toHtml $
+        "daily answer limit reached, come back in " <> timeLeft
+
+noMoreQuestionsTemplate :: H.Html
+noMoreQuestionsTemplate = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "no more questions"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ I.preEscapedText fullCSS
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      H.h1 "no more questions"
+      H.div $ do
+        H.a H.! A.href "/" $ "home"
+
+invalidTokenTemplate :: H.Html
+invalidTokenTemplate = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "invalid token"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ I.preEscapedText fullCSS
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      H.h1 "invalid or expired token"
+      H.div $ do
+        H.a H.! A.href "/ans" $ "try again"
+
+alreadyAnsweredTemplate :: H.Html
+alreadyAnsweredTemplate = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "already answered"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ I.preEscapedText fullCSS
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      H.h1 "question already answered"
+      H.div $ do
+        H.a H.! A.href "/ans" $ "next question"
+
 notFoundTemplateRoute :: Wai.Request -> Wai.Response
 notFoundTemplateRoute _ = Wai.responseLBS
   HTTP.status404
@@ -555,6 +819,90 @@ notFoundTemplate = H.docTypeHtml $ H.html $ do
       H.h1 "404 - not found"
       H.h1 $ do
         H.a H.! A.class_ "link" H.! A.href "/" $ "home"
+
+-- ---------------------------------------------------------------------------
+
+getTimeUntilNextMidnight :: IO T.Text
+getTimeUntilNextMidnight = do
+  now <- Clock.getCurrentTime
+  let utcTime = LocalTime.utcToLocalTime LocalTime.utc now
+      currentDay = LocalTime.localDay utcTime
+      nextDay = Calendar.addDays 1 currentDay
+      nextMidnight = LocalTime.LocalTime nextDay (LocalTime.TimeOfDay 0 0 0)
+      nextMidnightUTC = LocalTime.localTimeToUTC LocalTime.utc nextMidnight
+      diffSeconds = round $ Clock.diffUTCTime nextMidnightUTC now
+      hours = div diffSeconds 3600
+      minutes = div (rem diffSeconds  3600) 60
+  return $ if (hours :: Int) > 0
+    then T.pack $ show hours <> " hours"
+    else T.pack $ show minutes <> " minutes"
+
+generateAnswerToken :: UserID -> AorbID -> IO T.Text
+generateAnswerToken uid aid = do
+  maybeSecret <- Env.lookupEnv "ANORBY"
+  now <- POSIXTime.getPOSIXTime
+  let expiry = now + 300
+      tokenData = BSL.concat
+        [ Builder.toLazyByteString $ Builder.putWord64host $ fromIntegral uid
+        , Builder.toLazyByteString $ Builder.putWord64host $ fromIntegral aid
+        , Builder.toLazyByteString $ Builder.putWord64host $ truncate expiry
+        ]
+      secret = BSL.fromStrict $ TE.encodeUtf8 $
+        T.pack $ maybe "no-secret" id maybeSecret
+      signature = SHA.showDigest $ SHA.hmacSha256 secret tokenData
+  return $ T.pack $
+    show uid ++ "." ++
+    show aid ++ "." ++
+    show (floor expiry :: Integer) ++ "." ++
+    signature
+
+validateAnswerToken :: T.Text -> UserID -> AorbID -> IO Bool
+validateAnswerToken token expectedUid expectedAid = do
+  maybeSecret <- Env.lookupEnv "ANORBY"
+  now <- POSIXTime.getPOSIXTime
+  let parts = T.splitOn "." token
+  case parts of
+    [uidStr, aidStr, expiryStr, signature] -> do
+      case
+        ( Read.readMaybe (T.unpack uidStr) :: Maybe Int
+        , Read.readMaybe (T.unpack aidStr) :: Maybe Int
+        , Read.readMaybe (T.unpack expiryStr) :: Maybe Integer
+        ) of
+        (Just uid, Just aid, Just expiry) ->
+          if fromIntegral uid /= expectedUid || fromIntegral aid /= expectedAid
+            then return False
+            else if fromIntegral expiry < now
+              then return False
+              else do
+                let tokenData = BSL.concat
+                      [ Builder.toLazyByteString $
+                        Builder.putWord64host $ fromIntegral uid
+                      , Builder.toLazyByteString $
+                        Builder.putWord64host $ fromIntegral aid
+                      , Builder.toLazyByteString $
+                        Builder.putWord64host $ fromIntegral expiry
+                      ]
+                    secret = BSL.fromStrict $ TE.encodeUtf8 $
+                      T.pack $ maybe "no-secret" id maybeSecret
+                    expectedSignature =
+                      SHA.showDigest $ SHA.hmacSha256 secret tokenData
+                return $ signature == T.pack expectedSignature
+        _ -> return False
+    _ -> return False
+
+invalidSubmissionTemplate :: H.Html
+invalidSubmissionTemplate = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "invalid submission"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ I.preEscapedText fullCSS
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      H.h1 "invalid submission format"
+      H.div $ do
+        H.a H.! A.href "/ans" $ "try again"
 
 -- ---------------------------------------------------------------------------
 

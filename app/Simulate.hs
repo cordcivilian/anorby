@@ -74,10 +74,12 @@ randomRankings gen n =
 
 -- ---------------------------------------------------------------------------
 
-mockery :: Int -> IO ()
-mockery n = do
+mockery :: Int -> Bool -> IO ()
+mockery n answers = do
   conn <- mockDB "mock"
-  mockBaseAorbAnswers conn n
+  case answers of
+    True -> mockBaseAorbAnswers conn n
+    False -> mockBase conn n
   SQL.close conn
 
 mockDB :: FilePath -> IO SQL.Connection
@@ -91,14 +93,19 @@ mockDB prefix = do
   putStrLn $ "Creating test database: " ++ dbName
   initDB dbName
 
-mockBaseAorbAnswers :: SQL.Connection -> Int -> IO ()
-mockBaseAorbAnswers conn n = do
+mockBase :: SQL.Connection -> Int -> IO ()
+mockBase conn n = do
   putStrLn $ "Initializing tables for " ++ show n ++ " users..."
   initTables conn
   putStrLn "Generating mock users..."
   mockUsers conn n
   putStrLn "Ingesting base A/B data..."
   ingestBaseAorbData conn
+  putStrLn "Mock base generation complete."
+
+mockBaseAorbAnswers :: SQL.Connection -> Int -> IO ()
+mockBaseAorbAnswers conn n = do
+  mockBase conn n
   putStrLn "Fetching generated users..."
   users <- SQL.query_ conn "SELECT * FROM users" :: IO [User]
   putStrLn $ "Found " ++ show (length users) ++ " users"

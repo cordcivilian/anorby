@@ -12,6 +12,7 @@ import qualified Data.Map as Map
 import qualified Data.List as List
 import qualified Data.Pool as Pool
 import qualified Data.Time as Time
+import qualified Data.Time.Clock.POSIX as POSIXTime
 
 import qualified Control.Monad as Monad
 
@@ -38,6 +39,18 @@ type Submissions = Map.Map UserID UserSubmission
 type Ranking = [UserID]
 type Rankings = Map.Map UserID Ranking
 type Marriages = Map.Map UserID (Maybe UserID)
+
+data AnswerToken = AnswerToken
+  { tokenUserId :: UserID
+  , tokenAorbId :: AorbID
+  , tokenExpiry :: POSIXTime.POSIXTime
+  } deriving (Show)
+
+data SubmitAnswer = SubmitAnswer
+  { submitAorbId :: AorbID
+  , submitChoice :: Word.Word8
+  , submitToken :: T.Text
+  } deriving (Show)
 
 instance SQL.FromField AssociationScheme where
   fromField f = do
@@ -192,6 +205,12 @@ instance JSON.FromJSON Aorb where
     <*> v JSON..: "a"
     <*> v JSON..: "b"
     <*> pure 0.500000000000000
+
+instance JSON.FromJSON SubmitAnswer where
+  parseJSON = JSON.withObject "SubmitAnswer" $ \v -> SubmitAnswer
+    <$> v JSON..: "aorb_id"
+    <*> v JSON..: "choice"
+    <*> v JSON..: "token"
 
 -- ---------------------------------------------------------------------------
 
@@ -411,6 +430,38 @@ getUserUuidById conn uid = do
   return $ case results of
     [SQL.Only uuid] -> Just uuid
     _ -> Nothing
+
+getNextUnansweredAorb :: SQL.Connection -> UserID -> IO (Maybe Aorb)
+getNextUnansweredAorb conn uid = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT a.*"
+        , "FROM aorb a"
+        , "WHERE NOT EXISTS ("
+        , "  SELECT 1"
+        , "  FROM aorb_answers ans"
+        , "  WHERE ans.aorb_id = a.id"
+        , "  AND ans.user_id = ?"
+        , ")"
+        , "ORDER BY RANDOM()"
+        , "LIMIT 1"
+        ]
+  results <- SQL.query conn query [uid] :: IO [Aorb]
+  return $ case results of
+    (x:_) -> Just x
+    [] -> Nothing
+
+getDailyAnswerCount :: SQL.Connection -> UserID -> IO Int
+getDailyAnswerCount conn uid = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT COUNT(*)"
+        , "FROM aorb_answers"
+        , "WHERE user_id = ?"
+        , "AND date(substr(answered_on, 1, 10)) = date('now')"
+        ]
+  counts <- SQL.query conn query [uid] :: IO [SQL.Only Int]
+  case counts of
+    (count:_) -> return $ SQL.fromOnly count
+    [] -> return 0
 
 getUserAorbAndAssoc :: SQL.Connection -> UserID
                     -> IO (Maybe (Aorb, AssociationScheme))
