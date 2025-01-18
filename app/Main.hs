@@ -61,6 +61,14 @@ application _ pool request respond = do
       | Just uuid <- List.stripPrefix "/share/" path ->
         Pool.withResource pool $ \conn ->
           respond =<< sharedProfileTemplateRoute conn (T.pack uuid) request
+      | Just aid <- Read.readMaybe =<< List.stripPrefix "/ans/" path ->
+          Pool.withResource pool $ \conn ->
+            respond =<< existingAnswerTemplateRoute conn 1 aid request
+    ("POST", path)
+      | Just aid <-
+        Read.readMaybe =<< List.stripPrefix "/aorb/favorite/" path ->
+          Pool.withResource pool $ \conn ->
+            respond =<< setFavoriteAorbRoute conn 1 aid request
     ("GET", "/") ->
       Pool.withResource pool $ \conn ->
         respond =<< rootTemplateRoute conn request
@@ -83,6 +91,25 @@ application _ pool request respond = do
           Pool.withResource pool $ \conn ->
             respond =<< submitAnswerRoute
                         conn 1 aid (AorbAnswer choice) token request
+        _ -> respond $ Wai.responseLBS
+          HTTP.status400
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml $ invalidSubmissionTemplate)
+    ("POST", "/ans/edit") -> do
+      body <- Wai.strictRequestBody request
+      let params = HTTP.parseQueryText $ BSL.toStrict body
+          maybeAorbId =
+            (Read.readMaybe . T.unpack) =<<
+              Monad.join (lookup "aorb_id" params)
+          maybeChoice =
+            (Read.readMaybe . T.unpack) =<<
+              Monad.join (lookup "choice" params)
+          maybeToken = Monad.join (lookup "token" params)
+      case (maybeAorbId, maybeChoice, maybeToken) of
+        (Just aid, Just choice, Just token) ->
+          Pool.withResource pool $ \conn ->
+            respond =<< editAnswerRoute
+              conn 1 aid (AorbAnswer choice) token request
         _ -> respond $ Wai.responseLBS
           HTTP.status400
           [(Headers.hContentType, BS.pack "text/html")]
@@ -150,6 +177,7 @@ profilePageCSS maybeUuid = combineCSS
   , byFlakeTargetCSS
   , aorbsContainerCSS
   , aorbDisplayCSS
+  , clickableAorbCSS
   , notchCSS
   , case maybeUuid of
       Just _ -> sharedViewOverrides
@@ -256,13 +284,17 @@ aorbsContainerCSS = cssEntry "#aorbs-container, .aorbs-container"
 aorbDisplayCSS :: T.Text
 aorbDisplayCSS = combineCSS
   [ cssEntry ".aorb"
-    [ cssProperty "border" "1px solid"
+    [ cssProperty "border" "1px solid #ddd"
     , cssProperty "margin" "1rem"
     , cssProperty "max-width" "800px"
     , cssProperty "order" "var(--order-dice)"
     , cssProperty "padding" "1rem 1rem 0.8rem 1rem"
     , cssProperty "width" "100%"
     , cssProperty "text-align" "left"
+    , cssProperty "border-radius" "0.5rem"
+    , cssProperty "outline" "2px solid #ddd"
+    , cssProperty "outline-offset" "2px"
+    , cssProperty "transition" "background-color 0.2s, outline-color 0.2s"
     ]
   , cssEntry ".context"
     [ cssProperty "font-style" "italic"
@@ -293,6 +325,53 @@ aorbDisplayCSS = combineCSS
     ]
   , cssEntry ".neutral"
     [ cssProperty "color" "gray"
+    ]
+  ]
+
+clickableAorbCSS :: T.Text
+clickableAorbCSS = combineCSS
+  [ cssEntry ".aorb-clickable"
+    [ cssProperty "color" "inherit"
+    , cssProperty "cursor" "pointer"
+    , cssProperty "transition" "all 0.2s ease-in-out"
+    , cssProperty "display" "block"
+    , cssProperty "text-decoration" "none"
+    ]
+  , cssEntry ".aorb-clickable:hover"
+    [ cssProperty "transform" "translateY(-2px)"
+    , cssProperty "box-shadow" "0 4px 6px rgba(0, 0, 0, 0.1)"
+    , cssProperty "background-color" "#f5f5f5"
+    , cssProperty "outline-color" "#aaa"
+    ]
+  , cssEntry ".aorb-favorite"
+    [ cssProperty "border-color" "orange"
+    , cssProperty "outline" "2px solid orange"
+    , cssProperty "outline-offset" "2px"
+    ]
+  , cssEntry ".aorb-favorite:hover"
+    [ cssProperty "background-color" "rgba(255, 165, 0, 0.05)"
+    , cssProperty "outline-color" "orange"
+    ]
+  , cssEntry ".favorite-button"
+    [ cssProperty "margin-top" "1rem"
+    , cssProperty "padding" "0.5rem 1rem"
+    , cssProperty "border" "2px solid #ddd"
+    , cssProperty "background" "transparent"
+    , cssProperty "cursor" "pointer"
+    , cssProperty "font-family" "inherit"
+    , cssProperty "font-size" "0.9rem"
+    , cssProperty "transition" "all 0.2s"
+    , cssProperty "display" "block"
+    , cssProperty "width" "100%"
+    ]
+  , cssEntry ".favorite-button:hover"
+    [ cssProperty "border-color" "orange"
+    , cssProperty "color" "orange"
+    ]
+  , cssEntry ".favorite-button.active"
+    [ cssProperty "border-color" "orange"
+    , cssProperty "color" "orange"
+    , cssProperty "background-color" "rgba(255, 165, 0, 0.1)"
     ]
   ]
 
@@ -361,11 +440,52 @@ ansComponentsCSS = combineCSS
     [ cssProperty "background-color" "#f5f5f5"
     , cssProperty "outline-color" "#aaa"
     ]
+  , cssEntry ".ans-choice.selected"
+    [ cssProperty "border-color" "#4169e1"
+    , cssProperty "outline-color" "#4169e1"
+    , cssProperty "color" "#4169e1"
+    , cssProperty "background-color" "rgba(65, 105, 225, 0.05)"
+    ]
+  , cssEntry ".ans-choice.selected:hover"
+    [ cssProperty "background-color" "rgba(65, 105, 225, 0.1)"
+    ]
+  , cssEntry ".ans-choice.selected.favorite"
+    [ cssProperty "border-color" "orange"
+    , cssProperty "outline-color" "orange"
+    , cssProperty "color" "orange"
+    , cssProperty "background-color" "rgba(255, 165, 0, 0.05)"
+    ]
+  , cssEntry ".ans-choice.selected.favorite:hover"
+    [ cssProperty "background-color" "rgba(255, 165, 0, 0.1)"
+    ]
   , cssEntry "button.ans-choice"
     [ cssProperty "width" "100%"
     , cssProperty "height" "100%"
     , cssProperty "border" "none"
     , cssProperty "font" "inherit"
+    ]
+  , cssEntry ".favorite-section"
+    [ cssProperty "margin-top" "3rem"
+    , cssProperty "text-align" "center"
+    ]
+  , cssEntry ".favorite-button"
+    [ cssProperty "padding" "1rem 2rem"
+    , cssProperty "border" "2px solid #ddd"
+    , cssProperty "background" "transparent"
+    , cssProperty "cursor" "pointer"
+    , cssProperty "font-family" "inherit"
+    , cssProperty "font-size" "1rem"
+    , cssProperty "transition" "all 0.2s"
+    , cssProperty "border-radius" "0.5rem"
+    ]
+  , cssEntry ".favorite-button:hover"
+    [ cssProperty "border-color" "orange"
+    , cssProperty "color" "orange"
+    ]
+  , cssEntry ".favorite-button.active"
+    [ cssProperty "border-color" "orange"
+    , cssProperty "color" "orange"
+    , cssProperty "background-color" "rgba(255, 165, 0, 0.1)"
     ]
   , cssMediaQuery "(min-width: 1200px)"
     [ cssEntry ".ans-choices"
@@ -638,21 +758,22 @@ profileMainAorb mAid aorbs = case mAid of
     H.div H.! A.class_ "frame" $ do
       H.h1 "main"
       H.div H.! A.class_ "aorbs-container" $ do
-        mapM_ displayAorbWithAnswerLarge $
+        mapM_ (\awa -> displayAorbWithAnswerLarge awa mAid) $
           filter (\awa -> aorbId (aorbData awa) == aid) aorbs
   Nothing -> mempty
 
-profileCommonplaceAorbs :: [AorbWithAnswer] -> H.Html
-profileCommonplaceAorbs aorbs = H.div H.! A.class_ "frame" $ do
+profileCommonplaceAorbs :: Maybe AorbID -> [AorbWithAnswer] -> H.Html
+profileCommonplaceAorbs mAid aorbs = H.div H.! A.class_ "frame" $ do
   H.h1 "most commonplace"
   H.div H.! A.class_ "aorbs-container" $ do
-    mapM_ displayAorbWithAnswerLarge (take 3 $ reverse aorbs)
+    mapM_
+      (\awa -> displayAorbWithAnswerLarge awa mAid) (take 3 $ reverse aorbs)
 
-profileControversialAorbs:: [AorbWithAnswer] -> H.Html
-profileControversialAorbs aorbs = H.div H.! A.class_ "frame" $ do
+profileControversialAorbs :: Maybe AorbID -> [AorbWithAnswer] -> H.Html
+profileControversialAorbs mAid aorbs = H.div H.! A.class_ "frame" $ do
   H.h1 "most controversial"
   H.div H.! A.class_ "aorbs-container" $ do
-    mapM_ displayAorbWithAnswerLarge (take 3 aorbs)
+    mapM_ (\awa -> displayAorbWithAnswerLarge awa mAid) (take 3 aorbs)
 
 profileAllAnswers :: [AorbWithAnswer] -> H.Html
 profileAllAnswers aorbs = do
@@ -685,8 +806,8 @@ profileFullView :: Maybe AorbID -> [AorbWithAnswer]
 profileFullView mAid aorbs maybeUuid shareUrl = do
   profileMainAorb mAid aorbs
   Monad.when (Maybe.isNothing mAid) $ H.span H.! A.id "main" $ ""
-  profileCommonplaceAorbs aorbs
-  profileControversialAorbs aorbs
+  profileCommonplaceAorbs mAid aorbs
+  profileControversialAorbs mAid aorbs
   profileAllAnswers aorbs
   profileSharer maybeUuid shareUrl
 
@@ -705,29 +826,36 @@ profileTemplate aorbs mAid maybeUuid shareUrl showMinimal =
          then mempty
          else profileFullView mAid aorbs maybeUuid shareUrl
 
-displayAorbWithAnswerLarge :: AorbWithAnswer -> H.Html
-displayAorbWithAnswerLarge awa = H.div H.! A.class_ "aorb" $ do
-  H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx $ aorbData awa
+displayAorbWithAnswerLarge :: AorbWithAnswer -> Maybe AorbID -> H.Html
+displayAorbWithAnswerLarge awa mFavoriteId = do
   let aorb = aorbData awa
       ans = userAnswer awa
+      aid = aorbId aorb
+      isFavorite = maybe False (== aid) mFavoriteId
       percentage =
         case ans of
           AorbAnswer 0 -> 100 * (1 - aorbMean aorb)
           _ -> 100 * aorbMean aorb
-  H.div H.! A.class_ (if ans == AorbAnswer 0
-                      then "choice selected"
-                      else "choice") $ do
-      H.toHtml $ aorbA aorb
-      Monad.when (ans == AorbAnswer 0) $
+      favoriteClass = if isFavorite then " aorb-favorite" else ""
+
+  H.div H.! A.class_ (H.textValue $ "aorb" <> favoriteClass) $ do
+    H.a H.! A.href (H.toValue $ "/ans/" ++ show aid)
+       H.! A.class_ "aorb-clickable" $ do
+      H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
+      H.div H.! A.class_ (if ans == AorbAnswer 0
+                          then "choice selected"
+                          else "choice") $ do
+        H.toHtml $ aorbA aorb
+        Monad.when (ans == AorbAnswer 0) $
           H.span H.! A.class_ "percentage" $
-              H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
-  H.div H.! A.class_ (if ans == AorbAnswer 1
-                      then "choice selected"
-                      else "choice") $ do
-      H.toHtml $ aorbB aorb
-      Monad.when (ans == AorbAnswer 1) $
+            H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
+      H.div H.! A.class_ (if ans == AorbAnswer 1
+                          then "choice selected"
+                          else "choice") $ do
+        H.toHtml $ aorbB aorb
+        Monad.when (ans == AorbAnswer 1) $
           H.span H.! A.class_ "percentage" $
-              H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
+            H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
 
 aorbsWithAnswersComponent :: [AorbWithAnswer] -> H.Html
 aorbsWithAnswersComponent aorbs = do
@@ -774,6 +902,135 @@ aorbsWithAnswersComponent aorbs = do
         [ "--order-basic: " <> T.pack (show orderBasic)
         , "--order-flake: " <> T.pack (show orderFlake)
         ]
+
+setFavoriteAorbRoute :: SQL.Connection -> UserID -> AorbID -> Wai.Request
+                    -> IO Wai.Response
+setFavoriteAorbRoute conn uid aid _ = do
+  SQL.execute conn "UPDATE users SET aorb_id = ? WHERE id = ?" (aid, uid)
+  return $ Wai.responseLBS
+    HTTP.status303
+    [ (Headers.hLocation, BS.pack $ "/ans/" ++ show aid)
+    , (Headers.hContentType, BS.pack "text/html")
+    ]
+    ""
+
+editAnswerRoute :: SQL.Connection -> UserID -> AorbID -> AorbAnswer -> T.Text
+                -> Wai.Request -> IO Wai.Response
+editAnswerRoute conn uid aid answer token _ = do
+  isValid <- validateAnswerToken token uid aid
+  if not isValid
+    then return $ Wai.responseLBS
+      HTTP.status403
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml $ invalidTokenTemplate)
+    else do
+      now <- POSIXTime.getCurrentTime
+      let ans = AorbAnswers
+            { aorbUserId = uid
+            , aorbAorbId = aid
+            , aorbAnswer = answer
+            , aorbAnsweredOn = now
+            }
+          query = SQL.Query $ T.unwords
+            [ "UPDATE aorb_answers"
+            , "SET answer = ?, answered_on = ?"
+            , "WHERE user_id = ? AND aorb_id = ?"
+            ]
+      SQL.execute conn query
+        (aorbAnswer ans, aorbAnsweredOn ans, aorbUserId ans, aorbAorbId ans)
+      return $ Wai.responseLBS
+        HTTP.status303
+        [ (Headers.hLocation, BS.pack $ "/ans/" ++ show aid)
+        , (Headers.hContentType, BS.pack "text/html")
+        ]
+        ""
+
+existingAnswerTemplateRoute :: SQL.Connection -> UserID -> AorbID
+                            -> Wai.Request
+                            -> IO Wai.Response
+existingAnswerTemplateRoute conn uid aid _ = do
+  aorbResults <- SQL.query conn
+    "SELECT * FROM aorb WHERE id = ?" (SQL.Only aid) :: IO [Aorb]
+  case aorbResults of
+    [aorb] -> do
+      answerResults <- SQL.query conn
+        "SELECT answer FROM aorb_answers WHERE user_id = ? AND aorb_id = ?"
+        (uid, aid) :: IO [SQL.Only AorbAnswer]
+      let currentAnswer = case answerResults of
+            [SQL.Only ans] -> Just ans
+            _ -> Nothing
+      token <- generateAnswerToken uid aid
+      userResults <- SQL.query conn
+        "SELECT * FROM users WHERE id = ?" (SQL.Only uid) :: IO [User]
+      let isFavorite = case userResults of
+            [user] -> userAorbId user == Just aid
+            _ -> False
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $
+          existingAnswerTemplate aorb currentAnswer isFavorite token)
+    _ -> return $ notFoundTemplateRoute undefined
+
+existingAnswerTemplate :: Aorb -> Maybe AorbAnswer -> Bool -> T.Text -> H.Html
+existingAnswerTemplate aorb mCurrentAnswer isFavorite token =
+  H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "answer"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ I.preEscapedText $ combineCSS
+      [ baseCSS
+      , navBarCSS
+      , ansComponentsCSS
+      , clickableAorbCSS
+      ]
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      navBar [ NavLink "/" "home" False
+             , NavLink "/whoami" "whoami" False
+             , NavLink "/ans" "answer" True
+             ]
+      H.div H.! A.class_ "ans-context" $
+        H.toHtml (aorbCtx aorb)
+      H.div H.! A.class_ "ans-choices" $ do
+        makeExistingChoice aorb token (aorbA aorb) 0
+          (mCurrentAnswer == Just (AorbAnswer 0)) isFavorite
+        makeExistingChoice aorb token (aorbB aorb) 1
+          (mCurrentAnswer == Just (AorbAnswer 1)) isFavorite
+      if isFavorite
+        then mempty
+        else
+          H.div H.! A.class_ "favorite-section" $ do
+            H.form H.! A.method "POST"
+                   H.! A.action
+                     (H.toValue $ "/aorb/favorite/" ++ show (aorbId aorb)) $ do
+              H.button
+                H.! A.type_ "submit"
+                H.! A.class_ (H.textValue $ "favorite-button active") $
+                  "Set as Favorite Question"
+
+makeExistingChoice :: Aorb -> T.Text -> T.Text -> Word.Word8 -> Bool -> Bool
+                   -> H.Html
+makeExistingChoice aorb token choice value isSelected isFavorite = do
+  H.form H.! A.method "POST" H.! A.action "/ans/edit" $ do
+    H.input H.! A.type_ "hidden" H.!
+      A.name "aorb_id" H.!
+      A.value (H.toValue $ show $ aorbId aorb)
+    H.input H.! A.type_ "hidden" H.!
+      A.name "token" H.!
+      A.value (H.textValue token)
+    H.input H.! A.type_ "hidden" H.!
+      A.name "choice" H.!
+      A.value (H.toValue $ show value)
+    H.button H.!
+      A.type_ "submit" H.!
+      A.class_ (H.textValue $ "ans-choice" <>
+                if isSelected
+                then " selected" <> if isFavorite then " favorite" else ""
+                else "") $
+      H.toHtml choice
 
 submitAnswerRoute :: SQL.Connection -> UserID -> AorbID -> AorbAnswer -> T.Text
                   -> Wai.Request -> IO Wai.Response
