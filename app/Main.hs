@@ -103,10 +103,10 @@ rootCSS = cssEntry ":root"
 bodyHtmlCSS :: T.Text
 bodyHtmlCSS = cssEntry "body, html"
   [ cssProperty "margin" "0 auto"
-  , cssProperty "padding" "0 50px"
   , cssProperty "font-family" "'Lucida Console', monospace"
   , cssProperty "font-size" "20px"
   , cssProperty "max-width" "1280px"
+  , cssProperty "width" "95vw"
   ]
 
 underlineCSS :: T.Text
@@ -126,6 +126,7 @@ frameCSS = cssEntry ".frame"
   , cssProperty "border" "3px"
   , cssProperty "box-sizing" "border-box"
   , cssProperty "place-items" "center"
+  , cssProperty "width" "100%"
   ]
 
 linkCSS :: T.Text
@@ -146,7 +147,8 @@ sorterCSS :: T.Text
 sorterCSS = cssEntry "#sorter"
   [ cssProperty "display" "grid"
   , cssProperty "grid-template-columns" "1fr"
-  , cssProperty "width" "50vw"
+  , cssProperty "width" "80vw"
+  , cssProperty "max-width" "400px"
   , cssProperty "margin" "0 auto"
   ]
 
@@ -182,11 +184,12 @@ byFlakeTargetCSS = cssEntry "#by-flake:target ~ #aorbs-container .aorb"
   ]
 
 aorbsContainerCSS :: T.Text
-aorbsContainerCSS = cssEntry "#aorbs-container"
+aorbsContainerCSS = cssEntry "#aorbs-container, .aorbs-container"
   [ cssProperty "margin-top" "4rem"
   , cssProperty "display" "grid"
   , cssProperty "place-items" "center"
   , cssProperty "justify-content" "stretch"
+  , cssProperty "width" "80vw"
   ]
 
 aorbDisplayCSS :: T.Text
@@ -385,16 +388,19 @@ profileTemplate aorbs aid = H.docTypeHtml $ H.html $ do
     H.span H.! A.id "main" $ ""
     H.div H.! A.class_ "frame" $ do
       H.h1 "main"
-      mapM_ displayAorbWithAnswerLarge $
-        filter (\awa -> aorbId (aorbData awa) == aid) aorbs
+      H.div H.! A.class_ "aorbs-container" $ do
+        mapM_ displayAorbWithAnswerLarge $
+          filter (\awa -> aorbId (aorbData awa) == aid) aorbs
 
     H.div H.! A.class_ "frame" $ do
       H.h1 "most commonplace"
-      mapM_ displayAorbWithAnswerLarge (take 3 $ reverse aorbs)
+      H.div H.! A.class_ "aorbs-container" $ do
+        mapM_ displayAorbWithAnswerLarge (take 3 $ reverse aorbs)
 
     H.div H.! A.class_ "frame" $ do
       H.h1 "most controversial"
-      mapM_ displayAorbWithAnswerLarge (take 3 aorbs)
+      H.div H.! A.class_ "aorbs-container" $ do
+        mapM_ displayAorbWithAnswerLarge (take 3 aorbs)
 
     H.span H.! A.id "all-answers" $ ""
     H.div H.! A.class_ "frame" $ do
@@ -510,7 +516,7 @@ notFoundTemplate = H.docTypeHtml $ H.html $ do
 
 main :: IO ()
 main = do
-  pool <- initPool ""
+  pool <- initPool "data/mock-anorby-20250116095627.db"
   maybePort <- Env.lookupEnv "PORT"
   let autoPort = 5001
       port = maybe autoPort read maybePort
