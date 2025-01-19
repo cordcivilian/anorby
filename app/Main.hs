@@ -100,20 +100,38 @@ application _ state request respond = do
       pool = appPool state
 
   case (method, path) of
+
     ("GET", "/") ->
       runHandlerWithConn (rootTemplateRoute state)
 
-    ("GET", "/login") ->
-      runHandlerWithConn loginGetRoute
+    ("GET", "/login") -> runHandlerWithConn loginGetRoute
 
-    ("POST", "/login") ->
-      runHandlerWithConn loginPostRoute
+    ("POST", "/login") -> runHandlerWithConn loginPostRoute
 
-    ("GET", "/register") ->
-      runHandlerWithConn registerGetRoute
+    ("GET", "/register") -> runHandlerWithConn registerGetRoute
 
-    ("POST", "/register") ->
-      runHandlerWithConn registerPostRoute
+    ("POST", "/register") -> runHandlerWithConn registerPostRoute
+
+    ("GET", "/account") ->
+      runProtectedHandlerWithConn accountTemplateRoute
+
+    ("GET", "/logout") ->
+      runProtectedHandlerWithConn logoutGetRoute
+
+    ("GET", "/logout/confirm") ->
+      runProtectedHandlerWithConn logoutConfirmRoute
+
+    ("POST", "/logout/confirm") ->
+      runProtectedHandlerWithConn logoutConfirmPostRoute
+
+    ("GET", "/delete") ->
+      runProtectedHandlerWithConn deleteGetRoute
+
+    ("GET", "/delete/confirm") ->
+      runProtectedHandlerWithConn deleteConfirmRoute
+
+    ("POST", "/delete/confirm") ->
+      runProtectedHandlerWithConn deleteConfirmPostRoute
 
     ("GET", p) | Just h <- List.stripPrefix "/auth/" p ->
       runHandlerWithConn (\conn -> authHashRoute conn (T.pack h))
@@ -602,6 +620,54 @@ authPageCSS = combineCSS
     ]
   ]
 
+accountPageCSS :: T.Text
+accountPageCSS = combineCSS
+  [ baseCSS
+  , navBarCSS
+  , cssEntry ".account-section"
+    [ cssProperty "margin" "2rem auto"
+    , cssProperty "max-width" "600px"
+    , cssProperty "text-align" "left"
+    ]
+  , cssEntry ".account-heading"
+    [ cssProperty "border-bottom" "2px solid #ddd"
+    , cssProperty "padding-bottom" "0.5rem"
+    , cssProperty "margin-bottom" "1rem"
+    ]
+  , cssEntry ".danger-zone"
+    [ cssProperty "margin-top" "3rem"
+    , cssProperty "padding" "1rem"
+    , cssProperty "border" "2px solid #ff6b6b"
+    , cssProperty "border-radius" "4px"
+    ]
+  , cssEntry ".danger-heading"
+    [ cssProperty "color" "#ff6b6b"
+    , cssProperty "margin-top" "0"
+    ]
+  , cssEntry ".confirm-button"
+    [ cssProperty "background-color" "#ff6b6b"
+    , cssProperty "color" "white"
+    , cssProperty "border" "none"
+    , cssProperty "padding" "0.5rem 1rem"
+    , cssProperty "border-radius" "4px"
+    , cssProperty "cursor" "pointer"
+    , cssProperty "font-family" "inherit"
+    , cssProperty "font-size" "1rem"
+    , cssProperty "margin-top" "1rem"
+    ]
+  , cssEntry ".cancel-button"
+    [ cssProperty "display" "block"
+    , cssProperty "background-color" "transparent"
+    , cssProperty "color" "inherit"
+    , cssProperty "border" "1px solid #ddd"
+    , cssProperty "padding" "0.5rem 1rem"
+    , cssProperty "border-radius" "4px"
+    , cssProperty "cursor" "pointer"
+    , cssProperty "font-family" "inherit"
+    , cssProperty "font-size" "1rem"
+    ]
+  ]
+
 cssMaxWidth :: Int -> [T.Text] -> T.Text
 cssMaxWidth width = cssMediaQuery
   ("only screen and (max-width: " <> T.pack (show width) <> "px)")
@@ -886,6 +952,14 @@ profileSharer maybeUuid shareUrl = case (maybeUuid, shareUrl) of
     H.div $ H.text url
   _ -> mempty
 
+accountManager :: Maybe T.Text -> H.Html
+accountManager maybeUuid =
+  case maybeUuid of
+    Nothing ->
+      H.div H.! A.class_ "frame" $ do
+        H.div $ do H.a H.! A.href "/account" $ "manage my account"
+    _ -> mempty
+
 profileFullView :: Maybe AorbID -> [AorbWithAnswer]
                 -> Maybe T.Text -> Maybe T.Text
                 -> H.Html
@@ -896,6 +970,7 @@ profileFullView mAid aorbs maybeUuid shareUrl = do
   profileControversialAorbs mAid aorbs
   profileAllAnswers mAid aorbs
   profileSharer maybeUuid shareUrl
+  accountManager maybeUuid
 
 profileTemplate :: [AorbWithAnswer] -> Maybe AorbID
                 -> Maybe T.Text -> Maybe T.Text -> Bool
@@ -1294,7 +1369,8 @@ loginPostRoute conn req = do
               hash <- generateAuthHash (TE.decodeUtf8 email)
               now <- POSIXTime.getCurrentTime
               SQL.execute conn query
-                ( userId user, hash:: T.Text
+                ( userId user
+                , hash:: T.Text
                 , show now :: String
                 , show now :: String
                 )
@@ -1382,8 +1458,9 @@ registerPostRoute conn req = do
                         ]
                   hash <- generateAuthHash (userEmail newUser)
                   SQL.execute conn query
-                    ( userId user, hash :: T.Text
-                    ,  show now :: String
+                    ( userId user
+                    , hash :: T.Text
+                    , show now :: String
                     , show now :: String
                     )
                   emailConfig <- getEmailConfig
@@ -1476,6 +1553,230 @@ authHashRoute conn hash _ = do
         , (Headers.hContentType, "text/html")
         ]
         ""
+
+accountTemplate :: User -> H.Html
+accountTemplate user = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "account"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ I.preEscapedText accountPageCSS
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      navBar [ NavLink "/" "home" False
+             , NavLink "/whoami" "whoami" False
+             , NavLink "/ans" "answer" False
+             ]
+      H.div H.! A.class_ "account-section" $ do
+        H.h2 H.! A.class_ "account-heading" $ "Account Information"
+        H.p $ do
+          H.text "Email: "
+          H.toHtml $ userEmail user
+
+        H.div H.! A.class_ "danger-zone" $ do
+          H.h3 H.! A.class_ "danger-heading" $ "Danger Zone"
+          H.p $ do
+            H.text "logout from all devices: "
+            H.a H.! A.href "/logout" $ "confirm via email"
+          H.p $ do
+            H.text "delete account and all data: "
+            H.a H.! A.href "/delete" $ "confirm via email"
+
+accountTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
+                    -> IO Wai.Response
+accountTemplateRoute conn uid _ = do
+  userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
+  case userQ of
+    (user:_) -> do
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $ accountTemplate user)
+    [] -> return $ Wai.responseLBS
+      HTTP.status404
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml notFoundTemplate)
+
+confirmTemplate :: T.Text -> T.Text -> T.Text -> T.Text -> T.Text -> T.Text
+                -> H.Html
+confirmTemplate title warning action token actionText cancelUrl =
+  H.docTypeHtml $ H.html $ do
+    H.head $ do
+      H.title $ H.toHtml title
+      H.link H.! A.rel "icon" H.! A.href "data:,"
+      H.meta H.! A.name "viewport" H.!
+        A.content "width=device-width, initial-scale=1.0"
+      H.style $ I.preEscapedText accountPageCSS
+    H.body $ do
+      H.div H.! A.class_ "frame" $ do
+        H.form H.! A.method "POST" H.! A.action (H.textValue action) $ do
+          H.input H.! A.type_ "hidden"
+                 H.! A.name "token"
+                 H.! A.value (H.textValue token)
+          H.button H.! A.type_ "submit" H.! A.class_ "confirm-button" $
+            H.toHtml actionText
+        H.h1 $ H.toHtml title
+        H.p $ H.toHtml warning
+        H.a H.! A.href (H.textValue cancelUrl) H.! A.class_ "cancel-button" $
+          "Cancel"
+
+logoutGetRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+logoutGetRoute conn uid _ = do
+  userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
+  case userQ of
+    (user:_) -> do
+      token <- generateAnswerToken uid (-1)
+      emailConfig <- getEmailConfig
+      sendLogoutConfirmEmail emailConfig (userEmail user) token
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $ emailSentTemplate)
+    [] -> return $ Wai.responseLBS
+      HTTP.status404
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml notFoundTemplate)
+
+logoutConfirmRoute :: SQL.Connection -> UserID -> Wai.Request
+                   -> IO Wai.Response
+logoutConfirmRoute _ uid req = do
+  let params = HTTP.parseQueryText $ Wai.rawQueryString req
+  case Monad.join $ lookup "token" params of
+    Just token -> do
+      isValid <- validateAnswerToken token uid (-1)
+      if isValid
+        then return $ Wai.responseLBS
+          HTTP.status200
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml $ confirmTemplate
+            "confirm logout"
+            "are you sure you want to logout from all devices?"
+            "/logout/confirm"
+            token
+            "logout"
+            "/account")
+        else return $ Wai.responseLBS
+          HTTP.status403
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml invalidTokenTemplate)
+    Nothing -> return $ Wai.responseLBS
+      HTTP.status400
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml invalidSubmissionTemplate)
+
+logoutConfirmPostRoute :: SQL.Connection -> UserID -> Wai.Request
+                       -> IO Wai.Response
+logoutConfirmPostRoute conn uid req = do
+  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  case lookup "token" params of
+    Just tokenBS -> do
+      let token = TE.decodeUtf8 tokenBS
+      isValid <- validateAnswerToken token uid (-1)
+      if isValid
+        then do
+          SQL.execute conn
+            "DELETE FROM auth WHERE user_id = ?"
+            (SQL.Only uid)
+          return $ Wai.responseLBS
+            HTTP.status303
+            [ (Headers.hLocation, BS.pack "/")
+            , (Headers.hContentType, BS.pack "text/html")
+            , ("Set-Cookie",
+               "X-Auth-Hash=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+            ]
+            ""
+        else return $ Wai.responseLBS
+          HTTP.status403
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml invalidTokenTemplate)
+    Nothing -> return $ Wai.responseLBS
+      HTTP.status400
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml invalidSubmissionTemplate)
+
+deleteGetRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+deleteGetRoute conn uid _ = do
+  userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
+  case userQ of
+    (user:_) -> do
+      token <- generateAnswerToken uid (-1)
+      emailConfig <- getEmailConfig
+      sendDeleteConfirmEmail emailConfig (userEmail user) token
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $ emailSentTemplate)
+    [] -> return $ Wai.responseLBS
+      HTTP.status404
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml notFoundTemplate)
+
+deleteConfirmRoute :: SQL.Connection -> UserID -> Wai.Request
+                   -> IO Wai.Response
+deleteConfirmRoute _ uid req = do
+  let params = HTTP.parseQueryText $ Wai.rawQueryString req
+  case Monad.join $ lookup "token" params of
+    Just token -> do
+      isValid <- validateAnswerToken token uid (-1)
+      if isValid
+        then return $ Wai.responseLBS
+          HTTP.status200
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml $ confirmTemplate
+            "confirm account deletion"
+            (  "warning: this action cannot be undone. "
+            <> "all your data will be permanently deleted."
+            )
+            "/delete/confirm"
+            token
+            "delete account"
+            "/account")
+        else return $ Wai.responseLBS
+          HTTP.status403
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml invalidTokenTemplate)
+    Nothing -> return $ Wai.responseLBS
+      HTTP.status400
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml invalidSubmissionTemplate)
+
+deleteConfirmPostRoute :: SQL.Connection -> UserID -> Wai.Request
+                       -> IO Wai.Response
+deleteConfirmPostRoute conn uid req = do
+  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  case lookup "token" params of
+    Just tokenBS -> do
+      let token = TE.decodeUtf8 tokenBS
+      isValid <- validateAnswerToken token uid (-1)
+      if isValid
+        then do
+          SQL.withTransaction conn $ do
+            SQL.execute conn
+              "DELETE FROM aorb_answers WHERE user_id = ?"
+              (SQL.Only uid)
+            SQL.execute conn
+              "DELETE FROM auth WHERE user_id = ?"
+              (SQL.Only uid)
+            SQL.execute conn
+              "DELETE FROM users WHERE id = ?"
+              (SQL.Only uid)
+          return $ Wai.responseLBS
+            HTTP.status303
+            [ (Headers.hLocation, BS.pack "/")
+            , (Headers.hContentType, BS.pack "text/html")
+            , ("Set-Cookie",
+               "X-Auth-Hash=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+            ]
+            ""
+        else return $ Wai.responseLBS
+          HTTP.status403
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml invalidTokenTemplate)
+    Nothing -> return $ Wai.responseLBS
+      HTTP.status400
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml invalidSubmissionTemplate)
 
 data MessageTemplate = MessageTemplate
   { messageTitle :: T.Text
@@ -1731,6 +2032,68 @@ sendAuthEmail config toEmail hash = do
         ++ T.unpack toEmail
         ++ ": "
         ++ T.unpack authUrl
+
+sendLogoutConfirmEmail :: EmailConfig -> T.Text -> T.Text -> IO ()
+sendLogoutConfirmEmail config toEmail token = do
+  let subject = "Confirm Anorby Logout"
+      confirmUrl = emailBaseUrl config <> "/logout/confirm?token=" <> token
+      textBody = TL.fromStrict $
+                 "Click this link to confirm logout from all devices: "
+                 <> confirmUrl
+      htmlBody = TL.fromStrict $
+                 "<p>Click this link to confirm logout from all devices: \
+                 \<a href=\"" <> confirmUrl <> "\">"
+                 <> confirmUrl <> "</a></p>"
+
+      from = Mail.Address (Just "anorby") (emailFrom config)
+      to = Mail.Address Nothing toEmail
+
+  if emailSend config
+    then do
+      mail <- Mail.simpleMail from to "" "" subject
+        [(TL.toStrict textBody, "plain"), (TL.toStrict htmlBody, "html")]
+      SMTP.sendMailWithLogin
+        (emailHost config)
+        (emailUser config)
+        (emailPass config)
+        mail
+    else do
+      putStrLn $
+        "logout confirm url for "
+        ++ T.unpack toEmail
+        ++ ": "
+        ++ T.unpack confirmUrl
+
+sendDeleteConfirmEmail :: EmailConfig -> T.Text -> T.Text -> IO ()
+sendDeleteConfirmEmail config toEmail token = do
+  let subject = "Confirm Anorby Account Deletion"
+      confirmUrl = emailBaseUrl config <> "/delete/confirm?token=" <> token
+      textBody = TL.fromStrict $
+                 "Click this link to permanently delete your account: "
+                 <> confirmUrl
+      htmlBody = TL.fromStrict $
+                 "<p>Click this link to permanently delete your account: \
+                 \<a href=\"" <> confirmUrl <> "\">"
+                 <> confirmUrl <> "</a></p>"
+
+      from = Mail.Address (Just "anorby") (emailFrom config)
+      to = Mail.Address Nothing toEmail
+
+  if emailSend config
+    then do
+      mail <- Mail.simpleMail from to "" "" subject
+        [(TL.toStrict textBody, "plain"), (TL.toStrict htmlBody, "html")]
+      SMTP.sendMailWithLogin
+        (emailHost config)
+        (emailUser config)
+        (emailPass config)
+        mail
+    else do
+      putStrLn $
+        "delete confirm url for "
+        ++ T.unpack toEmail
+        ++ ": "
+        ++ T.unpack confirmUrl
 
 -- ---------------------------------------------------------------------------
 
