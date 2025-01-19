@@ -91,7 +91,7 @@ mockDB prefix = do
                   now
       dbName = "data/" ++ prefix ++ "-anorby-" ++ timestamp ++ ".db"
   putStrLn $ "Creating test database: " ++ dbName
-  initDB dbName
+  initDB dbName False
 
 mockBase :: SQL.Connection -> Int -> IO ()
 mockBase conn n = do
@@ -114,6 +114,9 @@ mockBaseAorbAnswers conn n = do
   putStrLn $ "Found " ++ show (length aorbs) ++ " A/B items"
   putStrLn "Generating mock A/B answers..."
   mockAorbAnswers conn aorbs users
+  putStrLn "Setting main aorbs and association schemes..."
+  mockMainAorbs conn users
+  mockAssociations conn users
   putStrLn "Mock data generation complete."
 
 mockUsers :: SQL.Connection -> Int -> IO ()
@@ -136,23 +139,46 @@ mockUsers conn n = do
     generateMockUsers count g = do
       putStrLn "Starting user generation loop..."
       Monad.foldM (\(accUsers, currGen) i -> do
-        let (hasAssoc, g2) = Random.random currGen
-            (hasAorbId, g3) = Random.random g2
-            (rawAssoc, g4) = Random.random g3
-            (rawAorbId, g5) = Random.randomR (1, 100) g4
         mockUuid <- UUID.toString <$> UUID.nextRandom
         let user = User
               { userId = i + 1
               , userName = T.pack $ "User" ++ show (i + 1)
               , userEmail = T.pack $ "user" ++ show (i + 1) ++ "@example.com"
               , userUuid = T.pack mockUuid
-              , userAorbId = if hasAorbId then Just rawAorbId else Nothing
-              , userAssoc = if hasAssoc then Just rawAssoc else Nothing
+              , userAorbId = Nothing
+              , userAssoc = Nothing
               }
         Monad.when (rem i 100 == 0) $
           putStrLn $ "Generated " ++ show i ++ " users..."
-        return (user : accUsers, g5)
+        return (user : accUsers, currGen)
         ) ([], g) [0..count-1]
+
+mockMainAorbs :: SQL.Connection -> [User] -> IO ()
+mockMainAorbs conn users = do
+  gen <- Random.getStdGen
+  Monad.forM_ users $ \user -> do
+    answeredAorbs <- SQL.query conn
+      "SELECT DISTINCT aorb_id FROM aorb_answers WHERE user_id = ?"
+      (SQL.Only $ userId user) :: IO [SQL.Only Int]
+    Monad.unless (null answeredAorbs) $ do
+      let (shouldSetMain, g2) = Random.random gen
+      Monad.when (shouldSetMain && (length answeredAorbs > 0)) $ do
+        let (idx, _) = Random.randomR (0, length answeredAorbs - 1) g2
+            SQL.Only favoriteId = answeredAorbs !! idx
+        SQL.execute conn
+          "UPDATE users SET aorb_id = ? WHERE id = ?"
+          (favoriteId, userId user)
+
+mockAssociations :: SQL.Connection -> [User] -> IO ()
+mockAssociations conn users = do
+  gen <- Random.getStdGen
+  Monad.forM_ users $ \user -> do
+    let (shouldSetAssoc, g2) = Random.random gen
+        (assocScheme, _) = Random.random g2
+    Monad.when shouldSetAssoc $ do
+      SQL.execute conn
+        "UPDATE users SET assoc = ? WHERE id = ?"
+        (assocScheme :: AssociationScheme, userId user)
 
 mockAorbAnswers :: SQL.Connection -> [Aorb] -> [User] -> IO ()
 mockAorbAnswers conn aorbs users = do
@@ -311,7 +337,7 @@ testAorbGaleShapley n
                   "%Y%m%d%H%M%S"
                   now
       dbName = "data/test-anorby-" ++ timestamp ++ ".db"
-  conn <- initDB dbName
+  conn <- initDB dbName False
   mockBaseAorbAnswers conn n
   submissions <- baseAorbsToSubmissions conn
   let rankings = submissionsToRankings submissions
@@ -349,7 +375,7 @@ testAorbLocalSearch n maxIterations maxBlockingPercentage batchSize
                   "%Y%m%d%H%M%S"
                   now
       dbName = "data/test-anorby-" ++ timestamp ++ ".db"
-  conn <- initDB dbName
+  conn <- initDB dbName False
   mockBaseAorbAnswers conn n
   submissions <- baseAorbsToSubmissions conn
   let rankings = submissionsToRankings submissions

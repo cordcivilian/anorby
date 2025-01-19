@@ -230,9 +230,19 @@ instance Random.Random AssociationScheme where
 
 -- ---------------------------------------------------------------------------
 
-initDB :: FilePath -> IO SQL.Connection
-initDB db = do
+initDB :: FilePath -> Bool -> IO SQL.Connection
+initDB db clean = do
   conn <- SQL.open db
+  Monad.when clean $ do
+    putStrLn "Cleaning existing database..."
+    let cleanupQueries =
+          [ "PRAGMA writable_schema = 1"
+          , "DELETE FROM sqlite_master"
+          , "PRAGMA writable_schema = 0"
+          , "VACUUM"
+          , "PRAGMA integrity_check"
+          ]
+    mapM_ (SQL.execute_ conn . SQL.Query . T.pack) cleanupQueries
   initSQLitePragmas conn
   return conn
 

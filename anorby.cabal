@@ -15,6 +15,7 @@ executable anorby
     import:           warnings
     main-is:          Main.hs
     other-modules:
+        Config,
         Anorby,
         Similarity,
         Rank,

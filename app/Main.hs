@@ -41,10 +41,12 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.RequestLogger as Mid
 
+import Config
 import Anorby
 -- import Similarity
 -- import Rank
 import Marry
+import Simulate
 
 type Logger = T.Text -> IO ()
 
@@ -1082,8 +1084,9 @@ ansTemplateRoute conn uid _ = do
           [(Headers.hContentType, BS.pack "text/html")]
           (R.renderHtml $ noMoreQuestionsTemplate)
         Just aorb -> do
-          gen <- Random.getStdGen
-          let (shouldSwap, _) = Random.random gen
+          let seed = aorbId aorb * 31 + uid
+              gen = Random.mkStdGen seed
+              (shouldSwap, _) = Random.random gen
           token <- generateAnswerToken uid (aorbId aorb)
           return $ Wai.responseLBS
             HTTP.status200
@@ -1106,14 +1109,14 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
              ]
       H.div H.! A.class_ "ans-context" $
         H.toHtml (aorbCtx aorb)
-      H.div H.! A.class_ "ans-choices" $ do
-        if shouldSwap
-          then do
-            makeChoice aorb token (aorbB aorb) 1
-            makeChoice aorb token (aorbA aorb) 0
-          else do
-            makeChoice aorb token (aorbA aorb) 0
-            makeChoice aorb token (aorbB aorb) 1
+      H.div H.! A.class_ "ans-choices" $
+        let (firstChoice, firstValue, secondChoice, secondValue) =
+              if shouldSwap
+                then (aorbB aorb, 1, aorbA aorb, 0)
+                else (aorbA aorb, 0, aorbB aorb, 1)
+        in do
+          makeChoice aorb token firstChoice firstValue
+          makeChoice aorb token secondChoice secondValue
   where
     makeChoice :: Aorb -> T.Text -> T.Text -> Word.Word8 -> H.Html
     makeChoice a t choice value = do
@@ -1276,9 +1279,28 @@ validateAnswerToken token expectedUid expectedAid = do
 
 main :: IO ()
 main = do
-  pool <- initPool "data/mock-anorby-20250118114756.db"
+  config <- Config.getConfig
+  pool <- case Config.environment config of
+    Config.Production -> do
+      initPool (Config.dbPath config)
+    Config.TestWithAnswers -> do
+      Monad.when (Config.newDb config) $ do
+        putStrLn "Creating new test database with answers..."
+        conn <- initDB (Config.dbPath config) True
+        mockBaseAorbAnswers conn (Config.userCount config)
+        SQL.close conn
+      initPool (Config.dbPath config)
+    Config.TestWithoutAnswers -> do
+      Monad.when (Config.newDb config) $ do
+        putStrLn "Creating new test database without answers..."
+        conn <- initDB (Config.dbPath config) True
+        mockBase conn (Config.userCount config)
+        SQL.close conn
+      initPool (Config.dbPath config)
   maybePort <- Env.lookupEnv "PORT"
   let autoPort = 5001
       port = maybe autoPort read maybePort
   putStrLn $ "Server starting on port " ++ show (port :: Int)
+  putStrLn $ "  Environment: " ++ show (Config.environment config)
+  putStrLn $ "  Database: " ++ Config.dbPath config
   Warp.run port $ monolith pool
