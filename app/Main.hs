@@ -56,69 +56,82 @@ monolith pool = Mid.logStdout $ application TIO.putStrLn pool
 application :: Logger -> Pool.Pool SQL.Connection -> Wai.Application
 application _ pool request respond = do
   _ <- Wai.lazyRequestBody request
-  let request_method = BS.unpack $ Wai.requestMethod request
-      request_path = BS.unpack $ Wai.rawPathInfo request
-  case (request_method, request_path) of
-    ("GET", path)
-      | Just uuid <- List.stripPrefix "/share/" path ->
-        Pool.withResource pool $ \conn ->
-          respond =<< sharedProfileTemplateRoute conn (T.pack uuid) request
-      | Just aid <- Read.readMaybe =<< List.stripPrefix "/ans/" path ->
-          Pool.withResource pool $ \conn ->
-            respond =<< existingAnswerTemplateRoute conn 1 aid request
-    ("POST", path)
-      | Just aid <-
-        Read.readMaybe =<< List.stripPrefix "/aorb/favorite/" path ->
-          Pool.withResource pool $ \conn ->
-            respond =<< setFavoriteAorbRoute conn 1 aid request
+  let method = BS.unpack $ Wai.requestMethod request
+      path = BS.unpack $ Wai.rawPathInfo request
+
+  case (method, path) of
+
     ("GET", "/") ->
-      Pool.withResource pool $ \conn ->
-        respond =<< rootTemplateRoute conn request
+      runHandlerWithConn rootTemplateRoute
+
     ("GET", "/whoami") ->
-      Pool.withResource pool $ \conn ->
-        respond =<< profileTemplateRoute conn 1 request
+      runHandlerWithConn (\conn -> profileTemplateRoute conn 1)
+
     ("GET", "/ans") ->
-      Pool.withResource pool $ \conn ->
-        respond =<< ansTemplateRoute conn 1 request
+      runHandlerWithConn (\conn -> ansTemplateRoute conn 1)
+
+    ("GET", p) | Just uuid <- List.stripPrefix "/share/" p ->
+      runHandlerWithConn (\conn ->
+        sharedProfileTemplateRoute conn (T.pack uuid))
+
+    ("GET", p) | Just aid <- readAorbId p ->
+      runHandlerWithConn (\conn -> existingAnswerTemplateRoute conn 1 aid)
+
     ("POST", "/ans/submit") -> do
       body <- Wai.strictRequestBody request
-      let params = HTTP.parseQueryText $ BSL.toStrict body
-          maybeAorbId = (Read.readMaybe . T.unpack)
-            =<< Monad.join (lookup "aorb_id" params)
-          maybeChoice = (Read.readMaybe . T.unpack)
-            =<< Monad.join (lookup "choice" params)
-          maybeToken = Monad.join (lookup "token" params)
-      case (maybeAorbId, maybeChoice, maybeToken) of
-        (Just aid, Just choice, Just token) ->
-          Pool.withResource pool $ \conn ->
-            respond =<< submitAnswerRoute
-                        conn 1 aid (AorbAnswer choice) token request
-        _ -> respond $ Wai.responseLBS
-          HTTP.status400
-          [(Headers.hContentType, BS.pack "text/html")]
-          (R.renderHtml $ invalidSubmissionTemplate)
+      case parseAnswerSubmission body of
+        Just (aid, choice, token) ->
+          runHandlerWithConn (\conn ->
+            submitAnswerRoute conn 1 aid choice token)
+        Nothing -> respond invalidSubmissionResponse
+
     ("POST", "/ans/edit") -> do
       body <- Wai.strictRequestBody request
+      case parseAnswerSubmission body of
+        Just (aid, choice, token) ->
+          runHandlerWithConn (\conn ->
+            editAnswerRoute conn 1 aid choice token)
+        Nothing -> respond invalidSubmissionResponse
+
+    ("POST", p) | Just aid <- readFavoriteAorbId p ->
+      runHandlerWithConn (\conn -> setFavoriteAorbRoute conn 1 aid)
+
+    _ -> respond notFoundResponse
+
+  where
+
+    readAorbId :: String -> Maybe AorbID
+    readAorbId path =
+      Read.readMaybe =<< List.stripPrefix "/ans/" path
+
+    readFavoriteAorbId :: String -> Maybe AorbID
+    readFavoriteAorbId path =
+      Read.readMaybe =<< List.stripPrefix "/aorb/favorite/" path
+
+    runHandlerWithConn :: (SQL.Connection -> Wai.Request -> IO Wai.Response)
+                       -> IO Wai.ResponseReceived
+    runHandlerWithConn handler =
+      Pool.withResource pool (\conn -> handler conn request) >>= respond
+
+    parseAnswerSubmission :: BSL.ByteString
+                              -> Maybe (AorbID, AorbAnswer, T.Text)
+    parseAnswerSubmission body = do
       let params = HTTP.parseQueryText $ BSL.toStrict body
-          maybeAorbId =
-            (Read.readMaybe . T.unpack) =<<
-              Monad.join (lookup "aorb_id" params)
-          maybeChoice =
-            (Read.readMaybe . T.unpack) =<<
-              Monad.join (lookup "choice" params)
-          maybeToken = Monad.join (lookup "token" params)
-      case (maybeAorbId, maybeChoice, maybeToken) of
-        (Just aid, Just choice, Just token) ->
-          Pool.withResource pool $ \conn ->
-            respond =<< editAnswerRoute
-              conn 1 aid (AorbAnswer choice) token request
-        _ -> respond $ Wai.responseLBS
-          HTTP.status400
-          [(Headers.hContentType, BS.pack "text/html")]
-          (R.renderHtml $ invalidSubmissionTemplate)
-    ("GET", "/login") -> undefined
-    ("GET", "/logout") -> undefined
-    _ -> respond $ notFoundTemplateRoute request
+      reqAorbId <- (Read.readMaybe . T.unpack)
+        =<< Monad.join (lookup "aorb_id" params)
+      rawChoice <- (Read.readMaybe . T.unpack)
+        =<< Monad.join (lookup "choice" params)
+      token <- Monad.join (lookup "token" params)
+      return (reqAorbId, AorbAnswer (rawChoice :: Word.Word8), token)
+
+    invalidSubmissionResponse :: Wai.Response
+    invalidSubmissionResponse = Wai.responseLBS
+      HTTP.status400
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml invalidSubmissionTemplate)
+
+    notFoundResponse :: Wai.Response
+    notFoundResponse = notFoundTemplateRoute request
 
 -- ---------------------------------------------------------------------------
 
