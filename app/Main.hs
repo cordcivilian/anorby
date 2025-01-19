@@ -4,8 +4,10 @@ module Main where
 
 import qualified System.Environment as Env
 import qualified System.Random as Random
+import qualified System.IO.Unsafe as Unsafe
 
 import qualified Control.Monad as Monad
+import qualified Control.Concurrent.MVar as MVar
 
 import qualified Data.Binary.Builder as Builder
 import qualified Data.Word as Word
@@ -42,6 +44,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.RequestLogger as Mid
 
 import Config
+import Cache
 import Anorby
 -- import Similarity
 -- import Rank
@@ -50,19 +53,39 @@ import Simulate
 
 type Logger = T.Text -> IO ()
 
-monolith :: Pool.Pool SQL.Connection -> Wai.Application
-monolith pool = Mid.logStdout $ application TIO.putStrLn pool
+data AppState = AppState
+  { appPool :: Pool.Pool SQL.Connection
+  , appRootCache :: MVar.MVar (Cache.Cache [Aorb])
+  }
 
-application :: Logger -> Pool.Pool SQL.Connection -> Wai.Application
-application _ pool request respond = do
+monolith :: Pool.Pool SQL.Connection -> Wai.Application
+monolith pool =
+  let rootCache = Unsafe.unsafePerformIO $
+        Cache.initCache (60 * Clock.secondsToNominalDiffTime 1)
+      state = AppState
+        { appPool = pool
+        , appRootCache = rootCache
+        }
+  in Mid.logStdout $ application TIO.putStrLn state
+
+application :: Logger -> AppState -> Wai.Application
+application _ state request respond = do
+
   _ <- Wai.lazyRequestBody request
-  let method = BS.unpack $ Wai.requestMethod request
+
+  let runHandlerWithConn :: (SQL.Connection -> Wai.Request -> IO Wai.Response)
+                        -> IO Wai.ResponseReceived
+      runHandlerWithConn handler =
+        Pool.withResource pool (\conn -> handler conn request) >>= respond
+
+      method = BS.unpack $ Wai.requestMethod request
       path = BS.unpack $ Wai.rawPathInfo request
+      pool = appPool state
 
   case (method, path) of
 
     ("GET", "/") ->
-      runHandlerWithConn rootTemplateRoute
+      runHandlerWithConn (rootTemplateRoute state)
 
     ("GET", "/whoami") ->
       runHandlerWithConn (\conn -> profileTemplateRoute conn 1)
@@ -107,11 +130,6 @@ application _ pool request respond = do
     readFavoriteAorbId :: String -> Maybe AorbID
     readFavoriteAorbId path =
       Read.readMaybe =<< List.stripPrefix "/aorb/favorite/" path
-
-    runHandlerWithConn :: (SQL.Connection -> Wai.Request -> IO Wai.Response)
-                       -> IO Wai.ResponseReceived
-    runHandlerWithConn handler =
-      Pool.withResource pool (\conn -> handler conn request) >>= respond
 
     parseAnswerSubmission :: BSL.ByteString
                               -> Maybe (AorbID, AorbAnswer, T.Text)
@@ -591,15 +609,22 @@ navBar links = H.div H.! A.class_ "nav-bar" $ do
 
 -- ---------------------------------------------------------------------------
 
-rootTemplateRoute :: SQL.Connection -> Wai.Request -> IO Wai.Response
-rootTemplateRoute conn _ = do
-  aorbs <- SQL.query_ conn "SELECT * FROM aorb" :: IO [Aorb]
-  gen <- Random.getStdGen
-  let (shuffledAorbs, _) = fisherYatesShuffle gen aorbs
+rootTemplateRoute :: AppState -> SQL.Connection -> Wai.Request
+                  -> IO Wai.Response
+rootTemplateRoute state conn _ = do
+  cachedAorbs <- Cache.getFromCache "root_aorbs" (appRootCache state)
+  aorbs <- case cachedAorbs of
+    Just as -> return as
+    Nothing -> do
+      as <- SQL.query_ conn "SELECT * FROM aorb" :: IO [Aorb]
+      gen <- Random.getStdGen
+      let (shuffledAorbs, _) = fisherYatesShuffle gen as
+      Cache.putInCache "root_aorbs" shuffledAorbs (appRootCache state)
+      return shuffledAorbs
   return $ Wai.responseLBS
     HTTP.status200
     [(Headers.hContentType, BS.pack "text/html")]
-    (R.renderHtml $ rootTemplate shuffledAorbs)
+    (R.renderHtml $ rootTemplate aorbs)
 
 
 rootTemplate :: [Aorb] -> H.Html
