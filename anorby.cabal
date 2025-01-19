@@ -26,6 +26,7 @@ executable anorby
     build-depends:
         SHA,
         aeson,
+        async,
         base ^>=4.20.0.0,
         binary,
         blaze-html,
@@ -33,10 +34,13 @@ executable anorby
         bytestring,
         bytestring,
         containers,
+        cookie,
         directory,
         http-types,
+        mime-mail,
         random,
         resource-pool,
+        smtp-mail,
         sqlite-simple,
         text,
         time,
@@ -46,6 +50,5 @@ executable anorby
         wai,
         wai-extra,
         warp,
-        async,
     hs-source-dirs:   app
     default-language: Haskell2010

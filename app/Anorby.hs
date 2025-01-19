@@ -4,17 +4,17 @@ module Anorby where
 
 import qualified System.Random as Random
 
-import qualified Data.Word as Word
-import qualified Data.Text as T
-import qualified Data.ByteString.Lazy as BSL
+import qualified Control.Monad as Monad
+
 import qualified Data.Aeson as JSON
-import qualified Data.Map as Map
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List as List
+import qualified Data.Map as Map
 import qualified Data.Pool as Pool
+import qualified Data.Text as T
 import qualified Data.Time as Time
 import qualified Data.Time.Clock.POSIX as POSIXTime
-
-import qualified Control.Monad as Monad
+import qualified Data.Word as Word
 
 import qualified Database.SQLite.Simple as SQL
 import qualified Database.SQLite.Simple.FromField as SQL
@@ -298,6 +298,19 @@ initTables conn = SQL.withTransaction conn $ do
   initAorbTable conn
   initAorbAnswersTable conn
   initAorbMeanTrigger conn
+  initAuthTable conn
+
+initAuthTable :: SQL.Connection -> IO ()
+initAuthTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+  [ "CREATE TABLE IF NOT EXISTS auth"
+  , "(id INTEGER PRIMARY KEY,"
+  , "user_id INTEGER NOT NULL,"
+  , "hash TEXT NOT NULL,"
+  , "created_on TEXT NOT NULL,"
+  , "last_accessed TEXT NOT NULL,"
+  , "FOREIGN KEY (user_id) REFERENCES users(id),"
+  , "UNIQUE(hash))"
+  ]
 
 initUserTable :: SQL.Connection -> IO()
 initUserTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
@@ -424,6 +437,24 @@ baseAorbsToSubmissions conn = do
     ) basedUsersAorbIdAssoc
 
 -- ---------------------------------------------------------------------------
+
+getUserFromAuthHash :: SQL.Connection -> T.Text -> IO (Maybe User)
+getUserFromAuthHash conn hash = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT users.*"
+        , "FROM users"
+        , "JOIN auth ON users.id = auth.user_id"
+        , "WHERE auth.hash = ?"
+        ]
+  now <- Time.getCurrentTime
+  results <- SQL.query conn query (SQL.Only hash) :: IO [User]
+  case results of
+    [user] -> do
+      SQL.execute conn
+        "UPDATE auth SET last_accessed = ? WHERE hash = ?"
+        (now, hash)
+      return $ Just user
+    _ -> return Nothing
 
 getUserByUuid :: SQL.Connection -> T.Text -> IO (Maybe User)
 getUserByUuid conn uuid = do

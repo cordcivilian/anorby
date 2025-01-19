@@ -11,6 +11,7 @@ import qualified Control.Concurrent.MVar as MVar
 
 import qualified Data.Binary.Builder as Builder
 import qualified Data.Word as Word
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Digest.Pure.SHA as SHA
@@ -18,6 +19,7 @@ import qualified Data.List as List
 import qualified Data.Ord as Ord
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import qualified Data.Time.Clock.POSIX as POSIXTime
@@ -26,6 +28,8 @@ import qualified Data.Time.Calendar as Calendar
 import qualified Data.Time.Clock as Clock
 import qualified Data.Aeson as JSON
 import qualified Data.Maybe as Maybe
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
 
 import qualified Text.Printf as Text
 import qualified Text.Read as Read
@@ -40,8 +44,12 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as R
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP.Types.Header as Headers
 import qualified Network.Wai as Wai
+import qualified Network.Wai.Parse as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.RequestLogger as Mid
+import qualified Network.Mail.Mime as Mail
+import qualified Network.Mail.SMTP as SMTP
+import qualified Web.Cookie as Cookie
 
 import Config
 import Cache
@@ -70,7 +78,6 @@ monolith pool =
 
 application :: Logger -> AppState -> Wai.Application
 application _ state request respond = do
-
   _ <- Wai.lazyRequestBody request
 
   let runHandlerWithConn :: (SQL.Connection -> Wai.Request -> IO Wai.Response)
@@ -78,51 +85,76 @@ application _ state request respond = do
       runHandlerWithConn handler =
         Pool.withResource pool (\conn -> handler conn request) >>= respond
 
+      runProtectedHandlerWithConn ::
+        (SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response)
+        -> IO Wai.ResponseReceived
+      runProtectedHandlerWithConn handler =
+        Pool.withResource pool (\conn -> do
+          maybeUser <- getAuthenticatedUser conn request
+          case maybeUser of
+            Nothing -> return redirectToLogin
+            Just user -> handler conn (userId user) request) >>= respond
+
       method = BS.unpack $ Wai.requestMethod request
       path = BS.unpack $ Wai.rawPathInfo request
       pool = appPool state
 
   case (method, path) of
-
     ("GET", "/") ->
       runHandlerWithConn (rootTemplateRoute state)
 
+    ("GET", "/login") ->
+      runHandlerWithConn loginGetRoute
+
+    ("POST", "/login") ->
+      runHandlerWithConn loginPostRoute
+
+    ("GET", "/register") ->
+      runHandlerWithConn registerGetRoute
+
+    ("POST", "/register") ->
+      runHandlerWithConn registerPostRoute
+
+    ("GET", p) | Just h <- List.stripPrefix "/auth/" p ->
+      runHandlerWithConn (\conn -> authHashRoute conn (T.pack h))
+
     ("GET", "/whoami") ->
-      runHandlerWithConn (\conn -> profileTemplateRoute conn 1)
+      runProtectedHandlerWithConn profileTemplateRoute
 
     ("GET", "/ans") ->
-      runHandlerWithConn (\conn -> ansTemplateRoute conn 1)
+      runProtectedHandlerWithConn ansTemplateRoute
 
     ("GET", p) | Just uuid <- List.stripPrefix "/share/" p ->
       runHandlerWithConn (\conn ->
         sharedProfileTemplateRoute conn (T.pack uuid))
 
     ("GET", p) | Just aid <- readAorbId p ->
-      runHandlerWithConn (\conn -> existingAnswerTemplateRoute conn 1 aid)
+      runProtectedHandlerWithConn (\conn uid ->
+        existingAnswerTemplateRoute conn uid aid)
 
     ("POST", "/ans/submit") -> do
       body <- Wai.strictRequestBody request
       case parseAnswerSubmission body of
         Just (aid, choice, token) ->
-          runHandlerWithConn (\conn ->
-            submitAnswerRoute conn 1 aid choice token)
+          runProtectedHandlerWithConn (\conn uid ->
+            submitAnswerRoute conn uid aid choice token)
         Nothing -> respond invalidSubmissionResponse
 
     ("POST", "/ans/edit") -> do
       body <- Wai.strictRequestBody request
       case parseAnswerSubmission body of
         Just (aid, choice, token) ->
-          runHandlerWithConn (\conn ->
-            editAnswerRoute conn 1 aid choice token)
+          runProtectedHandlerWithConn (\conn uid ->
+            editAnswerRoute conn uid aid choice token)
         Nothing -> respond invalidSubmissionResponse
 
     ("POST", p) | Just aid <- readFavoriteAorbId p ->
-      runHandlerWithConn (\conn -> setFavoriteAorbRoute conn 1 aid)
+      runProtectedHandlerWithConn (\conn uid ->
+        setFavoriteAorbRoute conn uid aid)
 
     _ -> respond notFoundResponse
 
   where
-
     readAorbId :: String -> Maybe AorbID
     readAorbId path =
       Read.readMaybe =<< List.stripPrefix "/ans/" path
@@ -543,6 +575,33 @@ ansComponentsCSS = combineCSS
     ]
   ]
 
+authPageCSS :: T.Text
+authPageCSS = combineCSS
+  [ baseCSS
+  , navBarCSS
+  , cssEntry "div.auth-form"
+    [ cssProperty "max-width" "400px"
+    , cssProperty "margin" "0 auto"
+    ]
+  , cssEntry "form.auth-form"
+    [ cssProperty "display" "flex"
+    , cssProperty "flex-direction" "column"
+    ]
+  , cssEntry ".auth-input"
+    [ cssProperty "padding" "0.5rem"
+    , cssProperty "font-family" "inherit"
+    , cssProperty "font-size" "inherit"
+    ]
+  , cssEntry ".auth-button"
+    [ cssProperty "width" "100%"
+    , cssProperty "padding" "0.5rem"
+    , cssProperty "margin" "1rem 0"
+    , cssProperty "font-family" "inherit"
+    , cssProperty "font-size" "inherit"
+    , cssProperty "cursor" "pointer"
+    ]
+  ]
+
 cssMaxWidth :: Int -> [T.Text] -> T.Text
 cssMaxWidth width = cssMediaQuery
   ("only screen and (max-width: " <> T.pack (show width) <> "px)")
@@ -705,6 +764,7 @@ publicAorbs aorbs = do
 profileTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
                      -> IO Wai.Response
 profileTemplateRoute conn uid _ = do
+  config <- getConfig
   userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
   case userQ of
     (user:_) -> do
@@ -716,9 +776,10 @@ profileTemplateRoute conn uid _ = do
           (R.renderHtml $ profileTemplate [] Nothing Nothing Nothing True)
         else do
           myAorbs <- getUserAorbsFromControversialToCommonPlace conn uid
-          let shareUrl =
-                Just $
-                "https://anorby.cordcivilian.com/share/" <> userUuid user
+          let shareBaseUrl = if environment config == Production
+                                then "https://anorby.cordcivilian.com/share/"
+                                else "http://localhost:5001/share/"
+              shareUrl = Just $ shareBaseUrl <> userUuid user
           return $ Wai.responseLBS
             HTTP.status200
             [(Headers.hContentType, BS.pack "text/html")]
@@ -1173,6 +1234,249 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
           A.class_ "ans-choice" $
           H.toHtml choice
 
+redirectToLogin :: Wai.Response
+redirectToLogin = Wai.responseLBS
+  HTTP.status303
+  [ (Headers.hLocation, "/login")
+  , (Headers.hContentType, "text/html")
+  ]
+  ""
+
+loginGetRoute :: SQL.Connection -> Wai.Request -> IO Wai.Response
+loginGetRoute conn req = do
+  maybeUser <- getAuthenticatedUser conn req
+  case maybeUser of
+    Just _ -> return $ Wai.responseLBS
+      HTTP.status303
+      [ (Headers.hLocation, "/whoami")
+      , (Headers.hContentType, "text/html")
+      ]
+      ""
+    Nothing -> do
+      token <- generateAnswerToken (-1) (-1)
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, "text/html")]
+        (R.renderHtml $ loginTemplate token)
+
+loginPostRoute :: SQL.Connection -> Wai.Request -> IO Wai.Response
+loginPostRoute conn req = do
+  (bodyParams, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  let emailParam = lookup "email" bodyParams
+      tokenParam = lookup "token" bodyParams
+  case (emailParam, tokenParam) of
+    (Just email, Just token) -> do
+      isValid <- validateAnswerToken (TE.decodeUtf8 token) (-1) (-1)
+      if not isValid
+        then return $ Wai.responseLBS
+          HTTP.status403
+          [(Headers.hContentType, "text/html")]
+          (R.renderHtml invalidTokenTemplate)
+        else do
+          users <- SQL.query conn
+            "SELECT * FROM users WHERE email = ?"
+            (SQL.Only $ TE.decodeUtf8 email) :: IO [User]
+          case users of
+            [] -> return $ Wai.responseLBS
+              HTTP.status404
+              [(Headers.hContentType, "text/html")]
+              (R.renderHtml $ msgTemplate MessageTemplate
+                { messageTitle = "user not found"
+                , messageHeading = "User not found"
+                , messageLink = ("/register", "Register")
+                })
+            [user] -> do
+              let query = SQL.Query $ T.unwords
+                    [ "INSERT INTO auth"
+                    , "(user_id, hash, created_on, last_accessed)"
+                    , "VALUES (?, ?, ?, ?)"
+                    ]
+              hash <- generateAuthHash (TE.decodeUtf8 email)
+              now <- POSIXTime.getCurrentTime
+              SQL.execute conn query
+                ( userId user, hash:: T.Text
+                , show now :: String
+                , show now :: String
+                )
+              emailConfig <- getEmailConfig
+              sendAuthEmail emailConfig (TE.decodeUtf8 email) hash
+              return $ Wai.responseLBS
+                HTTP.status200
+                [(Headers.hContentType, "text/html")]
+                (R.renderHtml $ emailSentTemplate)
+            _ -> return $ Wai.responseLBS
+              HTTP.status500
+              [(Headers.hContentType, "text/html")]
+              (R.renderHtml notFoundTemplate)
+    _ -> return $ Wai.responseLBS
+      HTTP.status400
+      [(Headers.hContentType, "text/html")]
+      (R.renderHtml invalidSubmissionTemplate)
+
+registerGetRoute :: SQL.Connection -> Wai.Request -> IO Wai.Response
+registerGetRoute conn req = do
+  maybeUser <- getAuthenticatedUser conn req
+  case maybeUser of
+    Just _ -> return $ Wai.responseLBS
+      HTTP.status303
+      [ (Headers.hLocation, "/whoami")
+      , (Headers.hContentType, "text/html")
+      ]
+      ""
+    Nothing -> do
+      token <- generateAnswerToken (-1) (-1)
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, "text/html")]
+        (R.renderHtml $ registerTemplate token)
+
+registerPostRoute :: SQL.Connection -> Wai.Request -> IO Wai.Response
+registerPostRoute conn req = do
+  (bodyParams, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  let emailParam = lookup "email" bodyParams
+      tokenParam = lookup "token" bodyParams
+  case (emailParam, tokenParam) of
+    (Just email, Just token) -> do
+      isValid <- validateAnswerToken (TE.decodeUtf8 token) (-1) (-1)
+      if not isValid
+        then return $ Wai.responseLBS
+          HTTP.status403
+          [(Headers.hContentType, "text/html")]
+          (R.renderHtml invalidTokenTemplate)
+        else do
+          existing <- SQL.query conn
+            "SELECT 1 FROM users WHERE email = ?"
+            (SQL.Only $ TE.decodeUtf8 email) :: IO [SQL.Only Int]
+          case existing of
+            (_:_) -> return $ Wai.responseLBS
+              HTTP.status409
+              [(Headers.hContentType, "text/html")]
+              (R.renderHtml $ msgTemplate MessageTemplate
+                { messageTitle = "email exists"
+                , messageHeading = "Email already registered"
+                , messageLink = ("/login", "Login")
+                })
+            [] -> do
+              now <- POSIXTime.getCurrentTime
+              uuid <- UUID.toString <$> UUID.nextRandom
+              let newUser = User
+                    { userId = 0  -- will be set by sqlite
+                    , userName = TE.decodeUtf8 email
+                    , userEmail = TE.decodeUtf8 email
+                    , userUuid = T.pack uuid
+                    , userAorbId = Nothing
+                    , userAssoc = Nothing
+                    }
+              SQL.execute conn
+                "INSERT INTO users (name, email, uuid) VALUES (?, ?, ?)"
+                (userName newUser, userEmail newUser, userUuid newUser)
+              users <- SQL.query conn
+                "SELECT * FROM users WHERE email = ?"
+                (SQL.Only $ userEmail newUser) :: IO [User]
+              case users of
+                [user] -> do
+                  let query = SQL.Query $ T.unwords
+                        [ "INSERT INTO auth"
+                        , "(user_id, hash, created_on, last_accessed)"
+                        , "VALUES (?, ?, ?, ?)"
+                        ]
+                  hash <- generateAuthHash (userEmail newUser)
+                  SQL.execute conn query
+                    ( userId user, hash :: T.Text
+                    ,  show now :: String
+                    , show now :: String
+                    )
+                  emailConfig <- getEmailConfig
+                  sendAuthEmail emailConfig (userEmail newUser) hash
+                  return $ Wai.responseLBS
+                    HTTP.status200
+                    [(Headers.hContentType, "text/html")]
+                    (R.renderHtml $ emailSentTemplate)
+                _ -> return $ Wai.responseLBS
+                  HTTP.status500
+                  [(Headers.hContentType, "text/html")]
+                  (R.renderHtml notFoundTemplate)
+    _ -> return $ Wai.responseLBS
+      HTTP.status400
+      [(Headers.hContentType, "text/html")]
+      (R.renderHtml invalidSubmissionTemplate)
+
+loginTemplate :: T.Text -> H.Html
+loginTemplate token = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "login"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ H.text authPageCSS
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      navBar [ NavLink "/" "home" False
+             , NavLink "/login" "login" True
+             , NavLink "/register" "register" False
+             ]
+      H.div H.! A.class_ "auth-form" $ do
+        H.form H.! A.class_ "auth-form"
+          H.! A.method "POST" H.! A.action "/login" $ do
+          H.input H.! A.type_ "email"
+                 H.! A.name "email"
+                 H.! A.placeholder "email"
+                 H.! A.class_ "auth-input"
+                 H.! A.required "required"
+          H.input H.! A.type_ "hidden"
+                 H.! A.name "token"
+                 H.! A.value (H.textValue token)
+          H.button H.! A.type_ "submit"
+                  H.! A.class_ "auth-button" $ "login"
+
+registerTemplate :: T.Text -> H.Html
+registerTemplate token = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "register"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ H.text authPageCSS
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      navBar [ NavLink "/" "home" False
+             , NavLink "/login" "login" False
+             , NavLink "/register" "register" True
+             ]
+      H.div H.! A.class_ "auth-form" $ do
+        H.form H.! A.class_ "auth-form"
+          H.! A.method "POST" H.! A.action "/register" $ do
+          H.input H.! A.type_ "email"
+                 H.! A.name "email"
+                 H.! A.placeholder "email"
+                 H.! A.class_ "auth-input"
+                 H.! A.required "required"
+          H.input H.! A.type_ "hidden"
+                 H.! A.name "token"
+                 H.! A.value (H.textValue token)
+          H.button H.! A.type_ "submit"
+                  H.! A.class_ "auth-button" $ "register"
+
+authHashRoute :: SQL.Connection -> T.Text -> Wai.Request -> IO Wai.Response
+authHashRoute conn hash _ = do
+  maybeUser <- getUserFromAuthHash conn hash
+  case maybeUser of
+    Nothing -> return $ Wai.responseLBS
+      HTTP.status404
+      [(Headers.hContentType, "text/html")]
+      (R.renderHtml notFoundTemplate)
+    Just _ -> do
+      now <- POSIXTime.getCurrentTime
+      SQL.execute conn
+        "UPDATE auth SET last_accessed = ? WHERE hash = ?"
+        (show now :: String, hash)
+      return $ setCookie hash $ Wai.responseLBS
+        HTTP.status303
+        [ (Headers.hLocation, "/whoami")
+        , (Headers.hContentType, "text/html")
+        ]
+        ""
+
 data MessageTemplate = MessageTemplate
   { messageTitle :: T.Text
   , messageHeading :: T.Text
@@ -1193,6 +1497,13 @@ msgTemplate template = H.docTypeHtml $ H.html $ do
       H.div $ do
         H.a H.! A.href (H.textValue $ fst $ messageLink template) $
           H.toHtml $ snd $ messageLink template
+
+emailSentTemplate :: H.Html
+emailSentTemplate = msgTemplate MessageTemplate
+  { messageTitle = "check your email"
+  , messageHeading = "check your email"
+  , messageLink = ("/", "home")
+  }
 
 dailyLimitTemplate :: T.Text -> H.Html
 dailyLimitTemplate timeLeft = msgTemplate MessageTemplate
@@ -1243,6 +1554,14 @@ notFoundTemplateRoute _ = Wai.responseLBS
   (R.renderHtml notFoundTemplate)
 
 -- ---------------------------------------------------------------------------
+
+getAuthenticatedUser :: SQL.Connection -> Wai.Request -> IO (Maybe User)
+getAuthenticatedUser conn req = do
+  case getCookie req of
+    Nothing -> return Nothing
+    Just cookieBS -> do
+      let hash = TE.decodeUtf8 cookieBS
+      getUserFromAuthHash conn hash
 
 getTimeUntilNextMidnight :: IO T.Text
 getTimeUntilNextMidnight = do
@@ -1313,32 +1632,132 @@ validateAnswerToken token expectedUid expectedAid = do
         _ -> return False
     _ -> return False
 
+getCookie :: Wai.Request -> Maybe BS.ByteString
+getCookie req =
+  case lookup "Cookie" (Wai.requestHeaders req) of
+    Nothing -> Nothing
+    Just cookies ->
+      let parsedCookies = Cookie.parseCookies cookies
+      in lookup "X-Auth-Hash" parsedCookies
+
+setCookie :: T.Text -> Wai.Response -> Wai.Response
+setCookie hash resp =
+  let cookie = Cookie.defaultSetCookie
+        { Cookie.setCookieName = "X-Auth-Hash"
+        , Cookie.setCookieValue = TE.encodeUtf8 hash
+        , Cookie.setCookiePath = Just "/"
+        , Cookie.setCookieSecure = True
+        , Cookie.setCookieSameSite = Just Cookie.sameSiteStrict
+        , Cookie.setCookieHttpOnly = True
+        }
+      cookieHeader = ("Set-Cookie", BSL.toStrict $
+                      Builder.toLazyByteString $
+                      Cookie.renderSetCookie cookie)
+  in Wai.mapResponseHeaders ((:) cookieHeader) resp
+
+generateAuthHash :: T.Text -> IO T.Text
+generateAuthHash email = do
+  maybeSecret <- Env.lookupEnv "ANORBY"
+  now <- POSIXTime.getPOSIXTime
+  nonce <- B.pack <$>
+    Monad.replicateM 32 (Random.randomRIO (0 :: Word.Word8, 255))
+  let secret = BSL.fromStrict $ TE.encodeUtf8 $
+                T.pack $ maybe "no-secret" id maybeSecret
+      hashData = BSL.concat
+        [ secret
+        , BSL.fromStrict nonce
+        , BSL.fromStrict $ TE.encodeUtf8 email
+        , Builder.toLazyByteString $
+            Builder.putWord64host $ truncate now
+        ]
+      hash1 = SHA.sha512 hashData
+      hash2 = SHA.hmacSha512 secret
+        (BSL.fromStrict $ BS.pack $ SHA.showDigest hash1)
+  return $ T.pack $ SHA.showDigest hash2
+
+-- ---------------------------------------------------------------------------
+
+data EmailConfig = EmailConfig
+  { emailHost :: String
+  , emailPort :: Int
+  , emailUser :: String
+  , emailPass :: String
+  , emailFrom :: T.Text
+  , emailSend :: Bool
+  , emailBaseUrl :: T.Text
+  }
+
+getEmailConfig :: IO EmailConfig
+getEmailConfig = do
+  config <- getConfig
+  pass <- maybe "" id <$> Env.lookupEnv "SMTP"
+  return $ EmailConfig
+    { emailHost = "smtp.protonmail.ch"
+    , emailPort = 587
+    , emailUser = "anorby@cordcivilian.com"
+    , emailPass = pass
+    , emailFrom = "anorby@cordcivilian.com"
+    , emailSend = environment config == Production
+    , emailBaseUrl = if environment config == Production
+                     then "https://anorby.cordcivilian.com"
+                     else "http://localhost:5001"
+    }
+
+sendAuthEmail :: EmailConfig -> T.Text -> T.Text -> IO ()
+sendAuthEmail config toEmail hash = do
+  let subject = "Your Anorby Authentication Link"
+      authUrl = emailBaseUrl config <> "/auth/" <> hash
+      textBody = TL.fromStrict $
+                 "Click this link to authenticate: " <> authUrl
+      htmlBody = TL.fromStrict $
+                 "<p>Click this link to authenticate: \
+                 \<a href=\"" <> authUrl <> "\">" <> authUrl <> "</a></p>"
+
+      from = Mail.Address (Just "anorby") (emailFrom config)
+      to = Mail.Address Nothing toEmail
+
+  if emailSend config
+    then do
+      mail <- Mail.simpleMail from to "" "" subject
+        [(TL.toStrict textBody, "plain"), (TL.toStrict htmlBody, "html")]
+      SMTP.sendMailWithLogin
+        (emailHost config)
+        (emailUser config)
+        (emailPass config)
+        mail
+    else do
+      putStrLn $
+        "auth url for "
+        ++ T.unpack toEmail
+        ++ ": "
+        ++ T.unpack authUrl
+
 -- ---------------------------------------------------------------------------
 
 main :: IO ()
 main = do
-  config <- Config.getConfig
-  pool <- case Config.environment config of
-    Config.Production -> do
-      initPool (Config.dbPath config)
-    Config.TestWithAnswers -> do
-      Monad.when (Config.newDb config) $ do
+  config <- getConfig
+  pool <- case environment config of
+    Production -> do
+      initPool (dbPath config)
+    TestWithAnswers -> do
+      Monad.when (newDb config) $ do
         putStrLn "Creating new test database with answers..."
-        conn <- initDB (Config.dbPath config) True
-        mockBaseAorbAnswers conn (Config.userCount config)
+        conn <- initDB (dbPath config) True
+        mockBaseAorbAnswers conn (userCount config)
         SQL.close conn
-      initPool (Config.dbPath config)
-    Config.TestWithoutAnswers -> do
-      Monad.when (Config.newDb config) $ do
+      initPool (dbPath config)
+    TestWithoutAnswers -> do
+      Monad.when (newDb config) $ do
         putStrLn "Creating new test database without answers..."
-        conn <- initDB (Config.dbPath config) True
-        mockBase conn (Config.userCount config)
+        conn <- initDB (dbPath config) True
+        mockBase conn (userCount config)
         SQL.close conn
-      initPool (Config.dbPath config)
+      initPool (dbPath config)
   maybePort <- Env.lookupEnv "PORT"
   let autoPort = 5001
       port = maybe autoPort read maybePort
   putStrLn $ "Server starting on port " ++ show (port :: Int)
-  putStrLn $ "  Environment: " ++ show (Config.environment config)
-  putStrLn $ "  Database: " ++ Config.dbPath config
+  putStrLn $ "  Environment: " ++ show (environment config)
+  putStrLn $ "  Database: " ++ dbPath config
   Warp.run port $ monolith pool

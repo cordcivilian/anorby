@@ -43,6 +43,7 @@ getConfig = do
   env <- getEnvironment
   newFlag <- Maybe.isJust <$> Env.lookupEnv "NEW"
   xDbFlag <- Maybe.isJust <$> Env.lookupEnv "XDB"
+  smtpFlag <- Maybe.isJust <$> Env.lookupEnv "SMTP"
   
   Monad.when (env == Production && newFlag) $ do
     putStrLn "ERROR: NEW=1 cannot be used in production"
@@ -50,6 +51,10 @@ getConfig = do
     
   Monad.when (env == Production && xDbFlag) $ do
     putStrLn "ERROR: XDB=1 cannot be used in production"
+    Exit.exitWith (Exit.ExitFailure 1)
+
+  Monad.when (env == Production && not smtpFlag) $ do
+    putStrLn "ERROR: SMTP=1 must be set in production"
     Exit.exitWith (Exit.ExitFailure 1)
   
   let dbPath' = case (env, xDbFlag) of
