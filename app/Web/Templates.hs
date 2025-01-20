@@ -233,32 +233,39 @@ profileNotYetActive = H.div $ do
   H.div $ do
     H.a H.! A.href "/ans" $ "begin"
 
-profileMainAorb :: Maybe AorbID -> [AorbWithAnswer] -> H.Html
-profileMainAorb mAid aorbs = case mAid of
+profileMainAorb :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
+profileMainAorb mAid aorbs maybeUuid = case mAid of
   Just aid -> do
     H.span H.! A.id "main" $ ""
     H.div H.! A.class_ "frame" $ do
       H.h1 "main"
       H.div H.! A.class_ "aorbs-container" $ do
-        mapM_ (\awa -> profileAorb awa mAid Nothing) $
+        mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) $
           filter (\awa -> aorbId (aorbData awa) == aid) aorbs
   Nothing -> mempty
 
-profileCommonplaceAorbs :: Maybe AorbID -> [AorbWithAnswer] -> H.Html
-profileCommonplaceAorbs mAid aorbs = H.div H.! A.class_ "frame" $ do
-  H.h1 "most commonplace"
-  H.div H.! A.class_ "aorbs-container" $ do
-    mapM_
-      (\awa -> profileAorb awa mAid Nothing) (take 3 $ reverse aorbs)
+profileCommonplaceAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text
+                       -> H.Html
+profileCommonplaceAorbs mAid aorbs maybeUuid =
+  H.div H.! A.class_ "frame" $ do
+    H.h1 "most commonplace"
+    H.div H.! A.class_ "aorbs-container" $ do
+      mapM_
+        (\awa -> profileAorb awa mAid Nothing maybeUuid)
+        (take 3 $ reverse aorbs)
 
-profileControversialAorbs :: Maybe AorbID -> [AorbWithAnswer] -> H.Html
-profileControversialAorbs mAid aorbs = H.div H.! A.class_ "frame" $ do
-  H.h1 "most controversial"
-  H.div H.! A.class_ "aorbs-container" $ do
-    mapM_ (\awa -> profileAorb awa mAid Nothing) (take 3 aorbs)
+profileControversialAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text
+                         -> H.Html
+profileControversialAorbs mAid aorbs maybeUuid =
+  H.div H.! A.class_ "frame" $ do
+    H.h1 "most controversial"
+    H.div H.! A.class_ "aorbs-container" $ do
+      mapM_
+        (\awa -> profileAorb awa mAid Nothing maybeUuid)
+        (take 3 aorbs)
 
-profileAllAnswers :: Maybe AorbID -> [AorbWithAnswer] -> H.Html
-profileAllAnswers mAid aorbs = do
+profileAllAnswers :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
+profileAllAnswers mAid aorbs maybeUuid = do
   H.span H.! A.id "all-answers" $ ""
   H.div H.! A.class_ "frame" $ do
     H.h1 "all answers"
@@ -273,7 +280,7 @@ profileAllAnswers mAid aorbs = do
     H.div H.! A.id "by-flake" $ mempty
     H.span H.! A.class_ "notch" $ do
       H.a H.! A.href "#all-answers" $ "backtoallanswersss"
-    profileOrdinaryAorbs mAid aorbs
+    profileOrdinaryAorbs mAid aorbs maybeUuid
 
 profileSharer :: Maybe T.Text -> Maybe T.Text -> H.Html
 profileSharer maybeUuid shareUrl = case (maybeUuid, shareUrl) of
@@ -294,16 +301,17 @@ profileFullView :: Maybe AorbID -> [AorbWithAnswer]
                 -> Maybe T.Text -> Maybe T.Text
                 -> H.Html
 profileFullView mAid aorbs maybeUuid shareUrl = do
-  profileMainAorb mAid aorbs
+  profileMainAorb mAid aorbs maybeUuid
   Monad.when (Maybe.isNothing mAid) $ H.span H.! A.id "main" $ ""
-  profileCommonplaceAorbs mAid aorbs
-  profileControversialAorbs mAid aorbs
-  profileAllAnswers mAid aorbs
+  profileCommonplaceAorbs mAid aorbs maybeUuid
+  profileControversialAorbs mAid aorbs maybeUuid
+  profileAllAnswers mAid aorbs maybeUuid
   profileSharer maybeUuid shareUrl
   accountManager maybeUuid
 
-profileAorb :: AorbWithAnswer -> Maybe AorbID -> Maybe [Int] -> H.Html
-profileAorb awa mFavoriteId mOrders = do
+profileAorb :: AorbWithAnswer -> Maybe AorbID -> Maybe [Int] -> Maybe T.Text
+            -> H.Html
+profileAorb awa mFavoriteId mOrders maybeUuid = do
   let aorb = aorbData awa
       ans = userAnswer awa
       aid = aorbId aorb
@@ -317,30 +325,36 @@ profileAorb awa mFavoriteId mOrders = do
         Just orders ->
           (H.! A.style (aorbDynamicCSS (zip ["basic", "flake"] orders)))
         Nothing -> id
-  dynamicStyle $ H.a H.! A.href (H.toValue $ "/ans/" ++ show aid)
-    H.! A.class_ "aorb-clickable" $ do
-      H.div H.! A.class_ (H.textValue $ "aorb" <> favoriteClass) $ do
-        H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
-        H.div H.! A.class_ (if ans == AorbAnswer 0
-                            then "choice selected"
-                            else "choice") $ do
-          H.toHtml $ aorbA aorb
-          Monad.when (ans == AorbAnswer 0) $
-            H.span H.! A.class_ "percentage" $
-              H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
-        H.div H.! A.class_ (if ans == AorbAnswer 1
-                            then "choice selected"
-                            else "choice") $ do
-          H.toHtml $ aorbB aorb
-          Monad.when (ans == AorbAnswer 1) $
-            H.span H.! A.class_ "percentage" $
-              H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
+      baseWrapper contents = case maybeUuid of
+        Just _ ->
+          H.div H.! A.class_ "aorb-clickable" $ contents
+        Nothing ->
+          H.a H.! A.href (H.toValue $ "/ans/" ++ show aid)
+              H.! A.class_ "aorb-clickable" $ contents
+  dynamicStyle $ baseWrapper $ do
+    H.div H.! A.class_ (H.textValue $ "aorb" <> favoriteClass) $ do
+      H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
+      H.div H.! A.class_ (if ans == AorbAnswer 0
+                          then "choice selected"
+                          else "choice") $ do
+        H.toHtml $ aorbA aorb
+        Monad.when (ans == AorbAnswer 0) $
+          H.span H.! A.class_ "percentage" $
+            H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
+      H.div H.! A.class_ (if ans == AorbAnswer 1
+                          then "choice selected"
+                          else "choice") $ do
+        H.toHtml $ aorbB aorb
+        Monad.when (ans == AorbAnswer 1) $
+          H.span H.! A.class_ "percentage" $
+            H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
 
-profileOrdinaryAorbs :: Maybe AorbID -> [AorbWithAnswer] -> H.Html
-profileOrdinaryAorbs mAid aorbs = do
+profileOrdinaryAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text
+                     -> H.Html
+profileOrdinaryAorbs mAid aorbs maybeUuid = do
   H.div H.! A.id "aorbs-container" $ do
     Monad.forM_ (aorbWithAnswerWithOrders aorbs) $
-      \(_, (awa, orders)) -> profileAorb awa mAid (Just orders)
+      \(_, (awa, orders)) -> profileAorb awa mAid (Just orders) maybeUuid
 
 aorbsWithOrders :: (Eq a) => [a] -> [OrderingFunction a] -> [(Int, (a, [Int]))]
 aorbsWithOrders as orderingFuncs = zip [(1::Int)..] $

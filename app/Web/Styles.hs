@@ -353,6 +353,16 @@ sharedViewOverrides = combineCSS
   , cssEntry ".choice.selected"
     [ cssProperty "color" "orange"
     ]
+  , cssEntry ".aorb-clickable"
+    [ cssProperty "pointer-events" "none"
+    , cssProperty "cursor" "default"
+    ]
+  , cssEntry ".aorb-clickable:hover"
+    [ cssProperty "transform" "none"
+    ]
+  , cssEntry ".aorb:hover"
+    [ cssProperty "background-color" "inherit"
+    ]
   ]
 
 -- | Answer CSS
