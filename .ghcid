@@ -1,5 +1,8 @@
---setup ":set -fobject-code -O2"
---reload=./app
--T Main.main
+--setup=":set -fobject-code -O2"
 --test-message="Running anorby..."
+--test=Main.main
 --restart=./anorby.cabal
+--reload=./app
+--reload=./app/Core
+--reload=./app/Web
+--reload=./app/Utils

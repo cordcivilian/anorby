@@ -1,60 +1,36 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Simulate where
-
-import qualified System.Random as Random
-
-import qualified Data.Time as Time
-import qualified Data.Time.Format as DateTimeFormat
-import qualified Data.Text as T
-import qualified Data.Map as Map
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
-
-import qualified Text.Printf as Text
+module Utils.Simulate
+  ( -- * Mock Data Generation
+    mockery
+  , mockDB
+  , mockBase
+  , mockBaseAorbAnswers
+    -- * Testing Functions
+  , testUserAorbs
+  , testAorbGaleShapley
+  , testRandomSubmissionsGaleShapley
+  , testRandomRankingsGaleShapley
+  , testAorbLocalSearch
+  , testRandomSubmissionsLocalSearch
+  , testRandomRankingsLocalSearch
+  ) where
 
 import qualified Control.Monad as Monad
-
+import qualified Data.Map as Map
+import qualified Data.Text as T
+import qualified Data.Time as Time
+import qualified Data.Time.Format as DateTimeFormat
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
 import qualified Database.SQLite.Simple as SQL
+import qualified System.Random as Random
+import qualified Text.Printf as Text
 
-import Anorby
-import Rank
-import Marry
-
-randomBinaryVector :: Int -> Int -> BinaryVector
-randomBinaryVector seed len =
-  take len $ randomRs (AorbAnswer 0, AorbAnswer 1) $ Random.mkStdGen seed
-
-randomRs :: (Random.Random a, Random.RandomGen g) => (a, a) -> g -> [a]
-randomRs range = unfoldr (Just . Random.randomR range)
-  where
-    unfoldr f b =
-      case f b of
-        Just (a, b') -> a : unfoldr f b'
-        Nothing      -> []
-
--- ---------------------------------------------------------------------------
-
-generateSubmissions :: Int -> Int -> Int -> Submissions
-generateSubmissions n len seed = do
-  let submissionsList = map (generateSubmission len) [seed .. (seed + n - 1)]
-  Map.fromList $ zip [0 ..] submissionsList
-
-generateSubmission :: Int -> Int -> UserSubmission
-generateSubmission len seed =
-  let binaryVector = randomBinaryVector seed len
-      rng = Random.mkStdGen (seed + 1)
-      (weightIndex, _) = Random.randomR (0, len - 1) rng
-      schemes = [PPPod, Balance, Bipolar]
-      schemeIndex = rem seed 3
-      scheme = schemes !! schemeIndex
-  in (binaryVector, weightIndex, scheme)
-
-testSubmissionsToRankings :: Int -> Int -> Int -> Rankings
-testSubmissionsToRankings n len seed =
-  submissionsToRankings $ generateSubmissions n len seed
-
--- ---------------------------------------------------------------------------
+import Types
+import Database
+import Core.Matching
+import Core.Ranking
 
 randomRankings :: (Random.RandomGen g) => g -> Int -> Rankings
 randomRankings gen n =
@@ -72,7 +48,7 @@ randomRankings gen n =
           (shuffled, newGen) = fisherYatesShuffle g others
       in (shuffled : prefs, newGen)
 
--- ---------------------------------------------------------------------------
+-- | Mock Data Generation
 
 mockery :: Int -> Bool -> IO ()
 mockery n answers = do
@@ -228,9 +204,10 @@ mockAorbAnswers conn aorbs users = do
         return (mockAorbAnswer : accAnswers, nextGen)
         ) ([], g) $ zip [0..] [(u, a) | u <- users, a <- aorbs]
 
+-- | Testing Functions
+
 testUserAorbs :: Int -> IO ()
 testUserAorbs n = do
-
   conn <- mockDB "test"
 
   putStrLn $ "\nGenerating mock data for " ++ show n ++ " users..."
@@ -268,10 +245,8 @@ testUserAorbs n = do
   different <- getMatchesTopXCommonDisagreement conn 1 2 3
   mapM_ (printMatchingAorb 1 2) different
 
-  putStrLn "Closing database connection..."
-  SQL.close conn
   putStrLn "Test complete."
-
+  SQL.close conn
   where
     printAorb :: AorbWithAnswer -> IO ()
     printAorb awa = do
@@ -325,8 +300,6 @@ testUserAorbs n = do
         ++ Text.printf "%.1f%% chose A, %.1f%% chose B" percentA percentB
       putStrLn ""
 
--- ---------------------------------------------------------------------------
-
 testAorbGaleShapley :: Int -> IO ()
 testAorbGaleShapley n
   | n <= 1 = putStrLn "number of matching entities must be greater than two"
@@ -340,8 +313,7 @@ testAorbGaleShapley n
   conn <- initDB dbName False
   mockBaseAorbAnswers conn n
   submissions <- baseAorbsToSubmissions conn
-  let rankings = submissionsToRankings submissions
-  testGaleShapleyFromRankings rankings
+  testGaleShapleyFromRankings (submissionsToRankings submissions)
   SQL.close conn
 
 testRandomSubmissionsGaleShapley :: Int -> Int -> Int -> IO ()
@@ -357,10 +329,7 @@ testRandomRankingsGaleShapley n
   | n <= 1 = putStrLn "number of matching entities must be greater than two"
   | otherwise = do
   gen <- Random.getStdGen
-  let rankings = randomRankings gen n
-  testGaleShapleyFromRankings rankings
-
--- ---------------------------------------------------------------------------
+  testGaleShapleyFromRankings (randomRankings gen n)
 
 testAorbLocalSearch :: Int -> Int -> Double -> Int -> IO ()
 testAorbLocalSearch n maxIterations maxBlockingPercentage batchSize
@@ -378,9 +347,11 @@ testAorbLocalSearch n maxIterations maxBlockingPercentage batchSize
   conn <- initDB dbName False
   mockBaseAorbAnswers conn n
   submissions <- baseAorbsToSubmissions conn
-  let rankings = submissionsToRankings submissions
   testLocalSearchFromRankings
-    rankings maxIterations maxBlockingPercentage batchSize
+    (submissionsToRankings submissions)
+    maxIterations
+    maxBlockingPercentage
+    batchSize
   SQL.close conn
 
 testRandomSubmissionsLocalSearch :: Int -> Int -> Int -> Int -> Double -> Int
@@ -407,11 +378,38 @@ testRandomRankingsLocalSearch
   | batchSize <= 1 = putStrLn "batch size must be at least one"
   | otherwise = do
   gen <- Random.getStdGen
-  let rankings = randomRankings gen n
   testLocalSearchFromRankings
-    rankings maxIterations maxBlockingPercentage batchSize
+    (randomRankings gen n)
+    maxIterations maxBlockingPercentage batchSize
 
--- ---------------------------------------------------------------------------
+-- | Helper Functions
+
+randomBinaryVector :: Int -> Int -> BinaryVector
+randomBinaryVector seed len =
+  take len $ randomRs (AorbAnswer 0, AorbAnswer 1) $ Random.mkStdGen seed
+
+randomRs :: (Random.Random a, Random.RandomGen g) => (a, a) -> g -> [a]
+randomRs range = unfoldr (Just . Random.randomR range)
+  where
+    unfoldr f b =
+      case f b of
+        Just (a, b') -> a : unfoldr f b'
+        Nothing      -> []
+
+generateSubmissions :: Int -> Int -> Int -> Submissions
+generateSubmissions n len seed = do
+  let submissionsList = map (generateSubmission len) [seed .. (seed + n - 1)]
+  Map.fromList $ zip [0 ..] submissionsList
+
+generateSubmission :: Int -> Int -> UserSubmission
+generateSubmission len seed =
+  let binaryVector = randomBinaryVector seed len
+      rng = Random.mkStdGen (seed + 1)
+      (weightIndex, _) = Random.randomR (0, len - 1) rng
+      schemes = [PPPod, Balance, Bipolar]
+      schemeIndex = rem seed 3
+      scheme = schemes !! schemeIndex
+  in (binaryVector, weightIndex, scheme)
 
 testGaleShapleyFromRankings :: Rankings -> IO ()
 testGaleShapleyFromRankings rankings = do

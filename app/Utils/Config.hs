@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Config where
+module Utils.Config where
 
 import qualified System.Environment as Env
 import qualified System.Exit as Exit
@@ -34,7 +34,7 @@ getEnvironment = do
   secret <- Env.lookupEnv "ANORBY"
   withAnswers <- Env.lookupEnv "ANS"
   return $ case (secret, withAnswers) of
-    (Just _, _) -> Production 
+    (Just _, _) -> Production
     (Nothing, Just "1") -> TestWithAnswers
     (Nothing, _) -> TestWithoutAnswers
 
@@ -44,11 +44,11 @@ getConfig = do
   newFlag <- Maybe.isJust <$> Env.lookupEnv "NEW"
   xDbFlag <- Maybe.isJust <$> Env.lookupEnv "XDB"
   smtpFlag <- Maybe.isJust <$> Env.lookupEnv "SMTP"
-  
+
   Monad.when (env == Production && newFlag) $ do
     putStrLn "ERROR: NEW=1 cannot be used in production"
     Exit.exitWith (Exit.ExitFailure 1)
-    
+
   Monad.when (env == Production && xDbFlag) $ do
     putStrLn "ERROR: XDB=1 cannot be used in production"
     Exit.exitWith (Exit.ExitFailure 1)
@@ -56,14 +56,14 @@ getConfig = do
   Monad.when (env == Production && not smtpFlag) $ do
     putStrLn "ERROR: SMTP=1 must be set in production"
     Exit.exitWith (Exit.ExitFailure 1)
-  
+
   let dbPath' = case (env, xDbFlag) of
         (Production, _) -> productionDbPath
         (_, True) -> testOverrideDbPath
         (TestWithAnswers, False) -> testWithAnswersDbPath
         (TestWithoutAnswers, False) -> testWithoutAnswersDbPath
-    
-  return $ Config 
+
+  return $ Config
     { environment = env
     , dbPath = dbPath'
     , userCount = 1337

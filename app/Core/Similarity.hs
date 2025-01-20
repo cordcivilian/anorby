@@ -1,9 +1,9 @@
-module Similarity where
+module Core.Similarity where
 
 import qualified Data.Word as Word
 import qualified Data.List as List
 
-import Anorby
+import Types
 
 associate :: AssociationScheme -> (Double , BinaryVectorSimilarity)
 associate scheme =

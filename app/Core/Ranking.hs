@@ -1,4 +1,4 @@
-module Rank where
+module Core.Ranking where
 
 import qualified System.Random as Random
 
@@ -6,9 +6,9 @@ import qualified Data.Map as Map
 import qualified Data.List as List
 import qualified Data.Ord as Ord
 
-import Anorby
-import Similarity
-import Marry
+import Types
+import Core.Similarity
+import Core.Matching
 
 submissionsToRankings :: Submissions -> Rankings
 submissionsToRankings submissions = Map.fromList rankings

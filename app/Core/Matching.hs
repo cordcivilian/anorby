@@ -1,4 +1,4 @@
-module Marry where
+module Core.Matching where
 
 import qualified System.Random as Random
 
@@ -6,7 +6,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 
-import Anorby
+import Types
 
 fisherYatesShuffle :: (Random.RandomGen g) => g -> [a] -> ([a], g)
 fisherYatesShuffle gen [] = ([], gen)

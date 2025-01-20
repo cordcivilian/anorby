@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cache where
+module Utils.Cache where
 
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Map as Map

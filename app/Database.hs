@@ -1,11 +1,39 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Anorby where
-
-import qualified System.Random as Random
+module Database
+  ( -- * Database Setup
+    initDB
+  , initConn
+  , initPool
+    -- * Table Management
+  , initTables
+    -- * Base Data Management
+  , readBaseAorbs
+  , ingestBaseAorbData
+    -- * User Queries
+  , getUsersWithAnswers
+  , getUsersAnswers
+  , getUsersAorbIdAndAssoc
+  , baseAorbsToSubmissions
+  , getUserByUuid
+  , getUserUuidById
+  , getUserTotalAnswerCount
+  , getUserFromAuthHash
+    -- * Aorb Queries
+  , getNextUnansweredAorb
+  , getDailyAnswerCount
+  , getUserAorbAndAssoc
+  , getUserTopXMostCommonplace
+  , getUserTopXMostControversial
+  , getUserAorbsFromControversialToCommonPlace
+  , getMatchesMainAorbs
+  , getMatchesTopXCommonDisagreement
+  , getMatchesTopXUniqueAgreement
+  , getLargestIntersection
+  , getLargestIntersectionAnswers
+  ) where
 
 import qualified Control.Monad as Monad
-
 import qualified Data.Aeson as JSON
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List as List
@@ -13,222 +41,11 @@ import qualified Data.Map as Map
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
 import qualified Data.Time as Time
-import qualified Data.Time.Clock.POSIX as POSIXTime
-import qualified Data.Word as Word
-
 import qualified Database.SQLite.Simple as SQL
-import qualified Database.SQLite.Simple.FromField as SQL
-import qualified Database.SQLite.Simple.ToField as SQL
-import qualified Database.SQLite.Simple.Ok as SQL
 
--- | AorbAnswer: 0 corresponds to choice A, 1 corresponds to choice B
-newtype AorbAnswer = AorbAnswer Word.Word8 deriving (Show, Eq, Ord)
-type BinaryVector = [AorbAnswer]
-type Contingency = (Int, Int, Int, Int)
-type WeightVector = [Double]
-type WeightedContingency = (Double, Double, Double, Double)
-type SimilarityScore = Double
-type BinaryVectorSimilarity =
-  BinaryVector -> BinaryVector -> WeightVector -> SimilarityScore
-data AssociationScheme = PPPod | Balance | Bipolar
-  deriving (Eq, Show, Enum, Bounded)
-type AorbID = Int
-type UserID = Int
-type UserSubmission = (BinaryVector, AorbID, AssociationScheme)
-type Submissions = Map.Map UserID UserSubmission
-type Ranking = [UserID]
-type Rankings = Map.Map UserID Ranking
-type Marriages = Map.Map UserID (Maybe UserID)
+import Types
 
-data AnswerToken = AnswerToken
-  { tokenUserId :: UserID
-  , tokenAorbId :: AorbID
-  , tokenExpiry :: POSIXTime.POSIXTime
-  } deriving (Show)
-
-data SubmitAnswer = SubmitAnswer
-  { submitAorbId :: AorbID
-  , submitChoice :: Word.Word8
-  , submitToken :: T.Text
-  } deriving (Show)
-
-instance SQL.FromField AssociationScheme where
-  fromField f = do
-    assocInt <- SQL.fromField f
-    case assocInt :: Int of
-      1  -> SQL.Ok PPPod
-      0  -> SQL.Ok Balance
-      -1 -> SQL.Ok Bipolar
-      _  -> SQL.Ok Balance
-
-instance SQL.ToField AssociationScheme where
-  toField PPPod   = SQL.SQLInteger 1
-  toField Balance = SQL.SQLInteger 0
-  toField Bipolar = SQL.SQLInteger (-1)
-
-data User = User
-  { userId :: UserID
-  , userName :: T.Text
-  , userEmail :: T.Text
-  , userUuid :: T.Text
-  , userAorbId :: Maybe AorbID
-  , userAssoc :: Maybe AssociationScheme
-  } deriving (Show)
-
-instance SQL.FromRow User where
-  fromRow =
-    User
-    <$> SQL.field
-    <*> SQL.field
-    <*> SQL.field
-    <*> SQL.field
-    <*> SQL.field
-    <*> SQL.field
-
-instance SQL.ToRow User where
-  toRow user =
-    [ SQL.SQLInteger (fromIntegral $ userId user)
-    , SQL.SQLText (userName user)
-    , SQL.SQLText (userEmail user)
-    , SQL.SQLText (userUuid user)
-    , maybe SQL.SQLNull (SQL.SQLInteger . fromIntegral) (userAorbId user)
-    , maybe SQL.SQLNull SQL.toField (userAssoc user)
-    ]
-
-data Aorb = Aorb
-  { aorbId :: AorbID
-  , aorbCtx :: T.Text
-  , aorbStx :: T.Text
-  , aorbA :: T.Text
-  , aorbB :: T.Text
-  , aorbMean :: Double
-  } deriving (Show)
-
-instance Eq Aorb where a1 == a2 = aorbId a1 == aorbId a2
-
-instance SQL.FromRow Aorb where
-  fromRow =
-    Aorb
-    <$> SQL.field
-    <*> SQL.field
-    <*> SQL.field
-    <*> SQL.field
-    <*> SQL.field
-    <*> SQL.field
-
-instance SQL.ToRow Aorb where
-  toRow aorb =
-    [ SQL.SQLInteger (fromIntegral $ aorbId aorb)
-    , SQL.SQLText (aorbCtx aorb)
-    , SQL.SQLText (aorbStx aorb)
-    , SQL.SQLText (aorbA aorb)
-    , SQL.SQLText (aorbB aorb)
-    ]
-
-data AorbAnswers = AorbAnswers
-  { aorbUserId :: UserID
-  , aorbAorbId :: AorbID
-  , aorbAnswer :: AorbAnswer
-  , aorbAnsweredOn :: Time.UTCTime
-  } deriving (Show)
-
-instance SQL.FromRow AorbAnswers where
-  fromRow =
-    AorbAnswers
-    <$> SQL.field
-    <*> SQL.field
-    <*> SQL.field
-    <*> SQL.field
-
-instance SQL.ToRow AorbAnswers where
-  toRow ans =
-    [ SQL.SQLInteger (fromIntegral $ aorbUserId ans)
-    , SQL.SQLInteger (fromIntegral $ aorbAorbId ans)
-    , SQL.toField (aorbAnswer ans)
-    , SQL.SQLText (T.pack $ show $ aorbAnsweredOn ans)
-    ]
-
-instance SQL.FromField AorbAnswer where
-  fromField f = do
-    val <- SQL.fromField f
-    return $ AorbAnswer (if val == (1 :: Int) then 1 else 0 :: Word.Word8)
-
-instance SQL.ToField AorbAnswer where
-  toField (AorbAnswer w) =
-    SQL.SQLInteger $
-      fromIntegral (if w == (1 :: Word.Word8) then 1 else 0 :: Word.Word8)
-
-data AorbWithAnswer = AorbWithAnswer
-  { aorbData :: Aorb
-  , userAnswer :: AorbAnswer
-  } deriving (Show)
-
-instance Eq AorbWithAnswer where
-  a1 == a2 = aorbData a1 == aorbData a2 && userAnswer a1 == userAnswer a2
-
-instance SQL.FromRow AorbWithAnswer where
-  fromRow = AorbWithAnswer
-    <$> (Aorb
-          <$> SQL.field
-          <*> SQL.field
-          <*> SQL.field
-          <*> SQL.field
-          <*> SQL.field
-          <*> SQL.field)
-    <*> SQL.field
-
-data MatchingAorbWithAnswer = MatchingAorbWithAnswer
-  { matchingAorbData :: Aorb
-  , mainUserAnswer :: AorbAnswer
-  , otherUserAnswer :: AorbAnswer
-  } deriving (Show)
-
-instance SQL.FromRow MatchingAorbWithAnswer where
-  fromRow = MatchingAorbWithAnswer
-    <$> (Aorb
-          <$> SQL.field
-          <*> SQL.field
-          <*> SQL.field
-          <*> SQL.field
-          <*> SQL.field
-          <*> SQL.field)
-    <*> SQL.field
-    <*> SQL.field
-
--- ---------------------------------------------------------------------------
-
-instance JSON.FromJSON Aorb where
-  parseJSON = JSON.withObject "Aorb" $ \v -> Aorb
-    <$> v JSON..: "id"
-    <*> v JSON..: "context"
-    <*> v JSON..: "subtext"
-    <*> v JSON..: "a"
-    <*> v JSON..: "b"
-    <*> pure 0.500000000000000
-
-instance JSON.FromJSON SubmitAnswer where
-  parseJSON = JSON.withObject "SubmitAnswer" $ \v -> SubmitAnswer
-    <$> v JSON..: "aorb_id"
-    <*> v JSON..: "choice"
-    <*> v JSON..: "token"
-
--- ---------------------------------------------------------------------------
-
-instance Random.Random AorbAnswer where
-  random g =
-    case Random.random g of
-      (b, g') -> (if b then AorbAnswer 1 else AorbAnswer 0, g')
-  randomR (_, _) g =
-    case Random.random g of
-      (b, g') -> (if b then AorbAnswer 1 else AorbAnswer 0, g')
-
-instance Random.Random AssociationScheme where
-  random g = Random.randomR (minBound, maxBound) g
-  randomR (a, b) g =
-    case Random.randomR (fromEnum a, fromEnum b) g of
-      (x, g') -> (toEnum x, g')
-
--- ---------------------------------------------------------------------------
+-- | Database initialization and connection management
 
 initDB :: FilePath -> Bool -> IO SQL.Connection
 initDB db clean = do
@@ -243,6 +60,7 @@ initDB db clean = do
           , "PRAGMA integrity_check"
           ]
     mapM_ (SQL.execute_ conn . SQL.Query . T.pack) cleanupQueries
+    initTables conn
   initSQLitePragmas conn
   return conn
 
@@ -253,7 +71,7 @@ initPool :: FilePath -> IO (Pool.Pool SQL.Connection)
 initPool db = Pool.newPool $
   Pool.defaultPoolConfig (initConn db) SQL.close 30 10
 
--- | à la https://briandouglas.ie/sqlite-defaults/
+-- | SQLite optimization settings
 initSQLitePragmas :: SQL.Connection -> IO ()
 initSQLitePragmas conn = do
   putStrLn "Initializing SQLite pragmas for performance optimization..."
@@ -291,6 +109,8 @@ initSQLitePragmas conn = do
       _ -> do
         [SQL.Only value] <- SQL.query_ conn query :: IO [SQL.Only Int]
         putStrLn $ pragma <> " = " <> show value
+
+-- | Table initialization
 
 initTables :: SQL.Connection -> IO ()
 initTables conn = SQL.withTransaction conn $ do
@@ -360,6 +180,8 @@ initAorbMeanTrigger conn = SQL.execute_ conn $ SQL.Query $ T.unwords
  , "END"
  ]
 
+-- | Base data management
+
 readBaseAorbs :: IO (Maybe [Aorb])
 readBaseAorbs = do
   jsonData <- BSL.readFile "data/base.json"
@@ -380,7 +202,7 @@ ingestBaseAorbData conn = do
            ) aorbs)
     Nothing -> putStrLn "error parsing json"
 
--- ---------------------------------------------------------------------------
+-- | User query functions
 
 getUsersWithAnswers :: SQL.Connection -> [AorbID] -> IO [UserID]
 getUsersWithAnswers conn aorbIds = do
@@ -436,7 +258,33 @@ baseAorbsToSubmissions conn = do
     in (answers, aid, assoc)
     ) basedUsersAorbIdAssoc
 
--- ---------------------------------------------------------------------------
+getUserByUuid :: SQL.Connection -> T.Text -> IO (Maybe User)
+getUserByUuid conn uuid = do
+  users <- SQL.query
+      conn "SELECT * FROM users WHERE uuid = ?" (SQL.Only uuid) :: IO [User]
+  return $ case users of
+    [user] -> Just user
+    _ -> Nothing
+
+getUserUuidById :: SQL.Connection -> UserID -> IO (Maybe T.Text)
+getUserUuidById conn uid = do
+  let query = "SELECT uuid FROM users WHERE id = ?"
+  results <- SQL.query conn query (SQL.Only uid) :: IO [SQL.Only T.Text]
+  return $ case results of
+    [SQL.Only uuid] -> Just uuid
+    _ -> Nothing
+
+getUserTotalAnswerCount :: SQL.Connection -> UserID -> IO Int
+getUserTotalAnswerCount conn uid = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT COUNT(*)"
+        , "FROM aorb_answers"
+        , "WHERE user_id = ?"
+        ]
+  counts <- SQL.query conn query [uid] :: IO [SQL.Only Int]
+  case counts of
+    (count:_) -> return $ SQL.fromOnly count
+    [] -> return 0
 
 getUserFromAuthHash :: SQL.Connection -> T.Text -> IO (Maybe User)
 getUserFromAuthHash conn hash = do
@@ -456,21 +304,7 @@ getUserFromAuthHash conn hash = do
       return $ Just user
     _ -> return Nothing
 
-getUserByUuid :: SQL.Connection -> T.Text -> IO (Maybe User)
-getUserByUuid conn uuid = do
-  users <- SQL.query
-      conn "SELECT * FROM users WHERE uuid = ?" (SQL.Only uuid) :: IO [User]
-  return $ case users of
-    [user] -> Just user
-    _ -> Nothing
-
-getUserUuidById :: SQL.Connection -> UserID -> IO (Maybe T.Text)
-getUserUuidById conn uid = do
-  let query = "SELECT uuid FROM users WHERE id = ?"
-  results <- SQL.query conn query (SQL.Only uid) :: IO [SQL.Only T.Text]
-  return $ case results of
-    [SQL.Only uuid] -> Just uuid
-    _ -> Nothing
+-- | Aorb query functions
 
 getNextUnansweredAorb :: SQL.Connection -> UserID -> IO (Maybe Aorb)
 getNextUnansweredAorb conn uid = do
@@ -498,18 +332,6 @@ getDailyAnswerCount conn uid = do
         , "FROM aorb_answers"
         , "WHERE user_id = ?"
         , "AND date(substr(answered_on, 1, 10)) = date('now')"
-        ]
-  counts <- SQL.query conn query [uid] :: IO [SQL.Only Int]
-  case counts of
-    (count:_) -> return $ SQL.fromOnly count
-    [] -> return 0
-
-getUserTotalAnswerCount :: SQL.Connection -> UserID -> IO Int
-getUserTotalAnswerCount conn uid = do
-  let query = SQL.Query $ T.unwords
-        [ "SELECT COUNT(*)"
-        , "FROM aorb_answers"
-        , "WHERE user_id = ?"
         ]
   counts <- SQL.query conn query [uid] :: IO [SQL.Only Int]
   case counts of
@@ -562,7 +384,7 @@ getUserTopXMostControversial conn uid x = do
   SQL.query conn query (uid, x)
 
 getUserAorbsFromControversialToCommonPlace :: SQL.Connection -> UserID
-                                           -> IO [AorbWithAnswer]
+                                          -> IO [AorbWithAnswer]
 getUserAorbsFromControversialToCommonPlace conn uid = do
   let query = SQL.Query $ T.unwords
         [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, ans.answer"
@@ -574,9 +396,7 @@ getUserAorbsFromControversialToCommonPlace conn uid = do
   SQL.query conn query [uid]
 
 getMatchesMainAorbs :: SQL.Connection -> UserID -> UserID
-                    -> IO (Maybe
-                            (MatchingAorbWithAnswer, MatchingAorbWithAnswer)
-                          )
+                    -> IO (Maybe (MatchingAorbWithAnswer, MatchingAorbWithAnswer))
 getMatchesMainAorbs conn uid1 uid2 = do
   let userQuery = SQL.Query "SELECT aorb_id FROM users WHERE id IN (?, ?)"
   aorbIds <- SQL.query conn userQuery (uid1, uid2) :: IO [SQL.Only Int]
@@ -661,7 +481,7 @@ getLargestIntersection conn uid1 uid2 = do
   return $ map SQL.fromOnly rows
 
 getLargestIntersectionAnswers :: SQL.Connection -> UserID -> UserID
-                              -> IO ([AorbAnswer], [AorbAnswer])
+                             -> IO ([AorbAnswer], [AorbAnswer])
 getLargestIntersectionAnswers conn uid1 uid2 = do
   intersection <- getLargestIntersection conn uid1 uid2
   if null intersection
