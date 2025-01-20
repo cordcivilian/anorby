@@ -9,19 +9,6 @@ build-type:         Simple
 extra-doc-files:    README.md
 
 executable anorby
-  default-language: Haskell2010
-  ghc-options:      -rtsopts
-                    -with-rtsopts=-N
-                    -Wall
-                    -Wcompat
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wmissing-home-modules
-                    -Wpartial-fields
-                    -Wredundant-constraints
-                    -threaded
-                    -O2
   hs-source-dirs:   app
   main-is:          Main.hs
   other-modules:    Auth
@@ -40,29 +27,42 @@ executable anorby
                     Web.Styles
                     Web.Templates
                     Web.Types
-  build-depends:    SHA,
-                    aeson,
-                    async,
-                    base ^>=4.20.0.0,
-                    binary,
-                    blaze-html,
-                    blaze-markup,
-                    bytestring,
-                    containers,
-                    cookie,
-                    directory,
-                    extra,
-                    http-types,
-                    mime-mail,
-                    random,
-                    resource-pool,
-                    smtp-mail,
-                    sqlite-simple,
-                    text,
-                    time,
-                    uuid,
-                    uuid-types,
-                    vector,
-                    wai,
-                    wai-extra,
-                    warp,
+  build-depends:    base ^>=4.20.0.0
+                    , SHA
+                    , aeson
+                    , async
+                    , binary
+                    , blaze-html
+                    , blaze-markup
+                    , bytestring
+                    , containers
+                    , cookie
+                    , directory
+                    , extra
+                    , http-types
+                    , mime-mail
+                    , random
+                    , resource-pool
+                    , smtp-mail
+                    , sqlite-simple
+                    , text
+                    , time
+                    , uuid
+                    , uuid-types
+                    , vector
+                    , wai
+                    , wai-extra
+                    , warp
+  default-language: Haskell2010
+  ghc-options:      -rtsopts
+                    -with-rtsopts=-N
+                    -Wall
+                    -Wcompat
+                    -Widentities
+                    -Wincomplete-record-updates
+                    -Wincomplete-uni-patterns
+                    -Wmissing-home-modules
+                    -Wpartial-fields
+                    -Wredundant-constraints
+                    -threaded
+                    -O2
