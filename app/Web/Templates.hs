@@ -119,16 +119,16 @@ roadmapTemplate userCount = H.docTypeHtml $ H.html $ do
         H.a H.! A.href "#milestone-100" $ "begin"
     milestoneFrame
       "100" userCount "#milestone-500" False
-      (Just "profile sharing")
+      (Just "weekly matching begins")
     milestoneFrame
       "500" userCount "#milestone-1000" False
-      (Just "community themes")
+      (Just "weekly new questions")
     milestoneFrame
       "1000" userCount "#milestone-5000" False
-      (Just "friend matching")
+      (Just "daily matching begins")
     milestoneFrame
       "5000" userCount "#top" True
-      (Just "question submissions")
+      (Just "daily new questions")
 
 milestoneFrame :: T.Text -> Int -> T.Text -> Bool -> Maybe T.Text -> H.Html
 milestoneFrame threshold userCount nextLink bottom maybeProgressText = do
