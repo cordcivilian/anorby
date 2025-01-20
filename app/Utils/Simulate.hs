@@ -182,7 +182,7 @@ mockAorbAnswers conn aorbs users = do
   putStrLn "Answer generation complete."
   where
     generateMockAnswers :: Random.StdGen -> Time.UTCTime
-                       -> IO ([AorbAnswers], Random.StdGen)
+                        -> IO ([AorbAnswers], Random.StdGen)
     generateMockAnswers g currentTime = do
       putStrLn "Starting answer generation loop..."
       let total = length users * length aorbs

@@ -1,20 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Web.Styles
-  ( -- * Core CSS
-    baseCSS
+  ( baseCSS
   , combineCSS
-    -- * Page Specific CSS
   , rootPageCSS
+  , roadmapCSS
   , profilePageCSS
   , ansPageCSS
   , authPageCSS
   , accountPageCSS
-    -- * Component CSS
   , navBarCSS
   , clickableAorbCSS
   , ansComponentsCSS
-    -- * CSS Helpers
   , cssEntry
   , cssMediaQuery
   , cssProperty
@@ -165,6 +162,55 @@ underlineCSS = cssEntry "span.underline"
   , cssProperty "line-height" "0.85"
   , cssProperty "padding" "0 1px"
   , cssProperty "margin" "0 1px -3px"
+  ]
+
+roadmapCSS :: T.Text
+roadmapCSS = combineCSS
+  [ cssEntry ".milestone-incomplete"
+    [ cssProperty "position" "relative"
+    , cssProperty "height" "60px"
+    , cssProperty "background-color" "#f5f5f5"
+    , cssProperty "border-radius" "30px"
+    , cssProperty "margin" "2rem auto"
+    , cssProperty "max-width" "800px"
+    , cssProperty "overflow" "hidden"
+    ]
+  , cssEntry ".milestone-complete"
+    [ cssProperty "position" "relative"
+    , cssProperty "height" "60px"
+    , cssProperty "background-color" "#f5f5f5"
+    , cssProperty "border-radius" "30px"
+    , cssProperty "margin" "2rem auto"
+    , cssProperty "max-width" "800px"
+    , cssProperty "overflow" "hidden"
+    , cssProperty "border" "2px solid #4169e1"
+    ]
+  , cssEntry ".progress-bar"
+    [ cssProperty "position" "absolute"
+    , cssProperty "top" "0"
+    , cssProperty "left" "0"
+    , cssProperty "height" "100%"
+    , cssProperty "background-color" "rgba(65, 105, 225, 0.2)"
+    , cssProperty "transition" "width 0.5s ease-in-out"
+    ]
+  , cssEntry ".milestone-marker"
+    [ cssProperty "position" "absolute"
+    , cssProperty "top" "50%"
+    , cssProperty "left" "50%"
+    , cssProperty "transform" "translate(-50%, -50%)"
+    , cssProperty "font-size" "1.5rem"
+    , cssProperty "font-weight" "bold"
+    , cssProperty "color" "#4169e1"
+    ]
+  , cssEntry ".next-milestone"
+    [ cssProperty "text-align" "center"
+    , cssProperty "margin-top" "2rem"
+    ]
+  , cssMediaQuery "(prefers-color-scheme: dark)"
+    [ cssEntry ".milestone-incomplete"
+      [ cssProperty "background-color" "#2a2a2a"
+      ]
+    ]
   ]
 
 sorterCSS :: T.Text

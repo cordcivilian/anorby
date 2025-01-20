@@ -127,6 +127,9 @@ application _ state request respond = do
     ("GET", "/") ->
       runHandlerWithConn (rootTemplateRoute state)
 
+    ("GET", "/roadmap") ->
+      runHandlerWithConn roadmapTemplateRoute
+
     ("GET", "/login") ->
       runHandlerWithConn loginGetRoute
 

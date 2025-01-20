@@ -1,17 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Web.Templates
-  ( -- * Core Templates
-    rootTemplate
+  ( rootTemplate
+  , roadmapTemplate
   , profileTemplate
   , ansTemplate
   , existingAnswerTemplate
-    -- * Auth Templates
   , loginTemplate
   , registerTemplate
   , accountTemplate
   , confirmTemplate
-    -- * Message Templates
   , MessageTemplate(..)
   , msgTemplate
   , emailSentTemplate
@@ -61,8 +59,8 @@ navBar links = H.div H.! A.class_ "nav-bar" $ do
 
 -- | Core Templates
 
-rootTemplate :: [Aorb] -> H.Html
-rootTemplate aorbs = H.docTypeHtml $ H.html $ do
+rootTemplate :: Int -> [Aorb] -> H.Html  -- Add Int parameter for user count
+rootTemplate userCount aorbs = H.docTypeHtml $ H.html $ do
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
@@ -88,6 +86,8 @@ rootTemplate aorbs = H.docTypeHtml $ H.html $ do
     H.div H.! A.class_ "frame" $ do
       H.h1 "baseline_100"
       H.h4 "what is this... blah blah blah"
+      H.a H.! A.href "/roadmap" $ do
+        H.h4 $ H.text $ T.pack $ "# of responses: " ++ show userCount
       H.div H.! A.id "sorter" $ do
         H.div H.! A.class_ "sort-by" $ "sort by:"
         H.a H.! A.class_ "sort-by" H.! A.href "#by-sided" $ "> most one-sided"
@@ -101,6 +101,58 @@ rootTemplate aorbs = H.docTypeHtml $ H.html $ do
       H.span H.! A.class_ "notch" $ do
         H.a H.! A.href "#baseline" $ "backtobasebasebase"
       publicAorbs aorbs
+
+roadmapTemplate :: Int -> H.Html
+roadmapTemplate userCount = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+        A.content "width=device-width, initial-scale=1.0"
+    H.title "roadmap"
+    H.style $ H.text $ combineCSS [baseCSS, navBarCSS, roadmapCSS]
+  H.body $ do
+    H.span H.! A.id "top" $ ""
+    H.div H.! A.class_ "frame" $ do
+      navBar [ NavLink "/#baseline" "back" False ]
+      H.h1 "roadmap"
+      H.div $ do
+        H.a H.! A.href "#milestone-100" $ "begin"
+    milestoneFrame
+      "100" userCount "#milestone-500" False
+      (Just "profile sharing")
+    milestoneFrame
+      "500" userCount "#milestone-1000" False
+      (Just "community themes")
+    milestoneFrame
+      "1000" userCount "#milestone-5000" False
+      (Just "friend matching")
+    milestoneFrame
+      "5000" userCount "#top" True
+      (Just "question submissions")
+
+milestoneFrame :: T.Text -> Int -> T.Text -> Bool -> Maybe T.Text -> H.Html
+milestoneFrame threshold userCount nextLink bottom maybeProgressText = do
+  let users = read (T.unpack threshold) :: Int
+      progress :: Int
+      progress = min 100 $ round ((fromIntegral userCount /
+                                 fromIntegral users) * 100 :: Double)
+      progressClass = if userCount >= users
+                     then "milestone-complete"
+                     else "milestone-incomplete"
+      progressText = case maybeProgressText of
+        Just txt -> txt
+        Nothing -> threshold
+  H.span H.! A.id (H.textValue $ "milestone-" <> threshold) $ ""
+  H.div H.! A.class_ "frame" $ do
+    H.h2 $ do
+      H.text $ threshold <> " users"
+    H.div H.! A.class_ progressClass $ do
+      H.div H.! A.class_ "progress-bar" H.!
+        A.style (H.textValue $ "width: " <> T.pack (show progress) <> "%") $ ""
+      H.div H.! A.class_ "milestone-marker" $ H.text progressText
+    H.div H.! A.class_ "next-milestone" $ do
+      H.a H.! A.href (H.textValue nextLink) $
+        (if bottom then "top" else  "next")
 
 publicAorbs :: [Aorb] -> H.Html
 publicAorbs aorbs = do
@@ -398,8 +450,8 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token =
                 H.! A.class_ (H.textValue $ "favorite-button active") $
                   "set as favorite question"
   where
-    makeExistingChoice :: Aorb -> T.Text -> T.Text -> Word.Word8 -> Bool -> Bool
-                       -> H.Html
+    makeExistingChoice ::
+      Aorb -> T.Text -> T.Text -> Word.Word8 -> Bool -> Bool -> H.Html
     makeExistingChoice a t choice value isSelected favorite = do
       H.form H.! A.method "POST" H.! A.action "/ans/edit" $ do
         H.input H.! A.type_ "hidden" H.!

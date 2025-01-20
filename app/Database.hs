@@ -1,16 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Database
-  ( -- * Database Setup
-    initDB
+  ( initDB
   , initConn
   , initPool
-    -- * Table Management
   , initTables
-    -- * Base Data Management
   , readBaseAorbs
   , ingestBaseAorbData
-    -- * User Queries
   , getUsersWithAnswers
   , getUsersAnswers
   , getUsersAorbIdAndAssoc
@@ -19,7 +15,6 @@ module Database
   , getUserUuidById
   , getUserTotalAnswerCount
   , getUserFromAuthHash
-    -- * Aorb Queries
   , getNextUnansweredAorb
   , getDailyAnswerCount
   , getUserAorbAndAssoc
@@ -169,16 +164,38 @@ initAorbAnswersTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
  ]
 
 initAorbMeanTrigger :: SQL.Connection -> IO ()
-initAorbMeanTrigger conn = SQL.execute_ conn $ SQL.Query $ T.unwords
- [ "CREATE TRIGGER IF NOT EXISTS update_aorb_mean"
- , "AFTER INSERT ON aorb_answers BEGIN"
- , "UPDATE aorb"
- , "SET mean = (SELECT AVG(answer)"
- , "FROM aorb_answers"
- , "WHERE aorb_id = NEW.aorb_id)"
- , "WHERE id = NEW.aorb_id;"
- , "END"
- ]
+initAorbMeanTrigger conn = do
+  SQL.execute_ conn $ SQL.Query $ T.unwords
+    [ "CREATE TRIGGER IF NOT EXISTS update_aorb_mean_insert"
+    , "AFTER INSERT ON aorb_answers BEGIN"
+    , "  UPDATE aorb"
+    , "  SET mean = (SELECT AVG(answer)"
+    , "              FROM aorb_answers"
+    , "              WHERE aorb_id = NEW.aorb_id)"
+    , "  WHERE id = NEW.aorb_id;"
+    , "END"
+    ]
+  SQL.execute_ conn $ SQL.Query $ T.unwords
+    [ "CREATE TRIGGER IF NOT EXISTS update_aorb_mean_update"
+    , "AFTER UPDATE ON aorb_answers BEGIN"
+    , "  UPDATE aorb"
+    , "  SET mean = (SELECT AVG(answer)"
+    , "              FROM aorb_answers"
+    , "              WHERE aorb_id = NEW.aorb_id)"
+    , "  WHERE id = NEW.aorb_id;"
+    , "END"
+    ]
+  SQL.execute_ conn $ SQL.Query $ T.unwords
+    [ "CREATE TRIGGER IF NOT EXISTS update_aorb_mean_delete"
+    , "AFTER DELETE ON aorb_answers BEGIN"
+    , "  UPDATE aorb"
+    , "  SET mean = COALESCE((SELECT AVG(answer)"
+    , "                       FROM aorb_answers"
+    , "                       WHERE aorb_id = OLD.aorb_id),"
+    , "                      0.500000000000000)"
+    , "  WHERE id = OLD.aorb_id;"
+    , "END"
+    ]
 
 -- | Base data management
 
@@ -384,7 +401,7 @@ getUserTopXMostControversial conn uid x = do
   SQL.query conn query (uid, x)
 
 getUserAorbsFromControversialToCommonPlace :: SQL.Connection -> UserID
-                                          -> IO [AorbWithAnswer]
+                                           -> IO [AorbWithAnswer]
 getUserAorbsFromControversialToCommonPlace conn uid = do
   let query = SQL.Query $ T.unwords
         [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, ans.answer"
@@ -395,8 +412,9 @@ getUserAorbsFromControversialToCommonPlace conn uid = do
         ]
   SQL.query conn query [uid]
 
-getMatchesMainAorbs :: SQL.Connection -> UserID -> UserID
-                    -> IO (Maybe (MatchingAorbWithAnswer, MatchingAorbWithAnswer))
+getMatchesMainAorbs ::
+  SQL.Connection -> UserID -> UserID
+  -> IO (Maybe (MatchingAorbWithAnswer, MatchingAorbWithAnswer))
 getMatchesMainAorbs conn uid1 uid2 = do
   let userQuery = SQL.Query "SELECT aorb_id FROM users WHERE id IN (?, ?)"
   aorbIds <- SQL.query conn userQuery (uid1, uid2) :: IO [SQL.Only Int]

@@ -1,15 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Web.Handlers
-  ( -- * Public Handlers
-    rootTemplateRoute
+  ( rootTemplateRoute
+  , roadmapTemplateRoute
   , loginGetRoute
   , loginPostRoute
   , registerGetRoute
   , registerPostRoute
   , authHashRoute
   , sharedProfileTemplateRoute
-    -- * Protected Handlers
   , accountTemplateRoute
   , logoutGetRoute
   , logoutConfirmRoute
@@ -23,7 +22,6 @@ module Web.Handlers
   , submitAnswerRoute
   , editAnswerRoute
   , setFavoriteAorbRoute
-    -- * Response Helpers
   , redirectToLogin
   , invalidSubmissionResponse
   , notFoundResponse
@@ -32,6 +30,7 @@ module Web.Handlers
 
 import qualified Control.Monad as Monad
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Maybe as Maybe
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Time as Time
@@ -70,10 +69,23 @@ rootTemplateRoute state conn _ = do
       let (shuffledAorbs, _) = fisherYatesShuffle gen as
       putInCache "root_aorbs" shuffledAorbs (appRootCache state)
       return shuffledAorbs
+  activeUsers <- SQL.query_ conn
+    "SELECT COUNT(DISTINCT user_id) FROM aorb_answers" :: IO [SQL.Only Int]
+  let totalActiveUsers = maybe 0 SQL.fromOnly (Maybe.listToMaybe activeUsers)
   return $ Wai.responseLBS
     HTTP.status200
     [(Headers.hContentType, BS.pack "text/html")]
-    (R.renderHtml $ rootTemplate aorbs)
+    (R.renderHtml $ rootTemplate totalActiveUsers aorbs)
+
+roadmapTemplateRoute :: SQL.Connection -> Wai.Request -> IO Wai.Response
+roadmapTemplateRoute conn _ = do
+  activeUsers <- SQL.query_ conn
+    "SELECT COUNT(DISTINCT user_id) FROM aorb_answers" :: IO [SQL.Only Int]
+  let totalActiveUsers = maybe 0 SQL.fromOnly (Maybe.listToMaybe activeUsers)
+  return $ Wai.responseLBS
+    HTTP.status200
+    [(Headers.hContentType, BS.pack "text/html")]
+    (R.renderHtml $ roadmapTemplate totalActiveUsers)
 
 profileTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
                      -> IO Wai.Response

@@ -51,6 +51,7 @@ executable anorby
                     containers,
                     cookie,
                     directory,
+                    extra,
                     http-types,
                     mime-mail,
                     random,
