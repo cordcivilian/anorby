@@ -56,6 +56,7 @@ initDB db clean = do
           ]
     mapM_ (SQL.execute_ conn . SQL.Query . T.pack) cleanupQueries
     initTables conn
+    ingestBaseAorbData conn
   initSQLitePragmas conn
   return conn
 

@@ -75,8 +75,6 @@ mockBase conn n = do
   initTables conn
   putStrLn "Generating mock users..."
   mockUsers conn n
-  putStrLn "Ingesting base A/B data..."
-  ingestBaseAorbData conn
   putStrLn "Mock base generation complete."
 
 mockBaseAorbAnswers :: SQL.Connection -> Int -> IO ()

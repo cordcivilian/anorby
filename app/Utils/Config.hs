@@ -6,6 +6,7 @@ import qualified System.Environment as Env
 import qualified System.Exit as Exit
 import qualified Data.Maybe as Maybe
 import qualified Control.Monad as Monad
+import qualified System.Directory as Dir
 
 data Environment = Production | TestWithAnswers | TestWithoutAnswers
   deriving (Show, Eq)
@@ -38,8 +39,23 @@ getEnvironment = do
     (Nothing, Just "1") -> TestWithAnswers
     (Nothing, _) -> TestWithoutAnswers
 
+checkRequiredFiles :: IO ()
+checkRequiredFiles = do
+  dataExists <- Dir.doesDirectoryExist "data"
+  baseJsonExists <- Dir.doesFileExist "data/base.json"
+
+  Monad.when (not dataExists) $ do
+    putStrLn "ERROR: /data directory is missing"
+    Exit.exitWith (Exit.ExitFailure 1)
+
+  Monad.when (not baseJsonExists) $ do
+    putStrLn "ERROR: base aorbs file is missing"
+    Exit.exitWith (Exit.ExitFailure 1)
+
 getConfig :: IO Config
 getConfig = do
+  checkRequiredFiles
+
   env <- getEnvironment
   newFlag <- Maybe.isJust <$> Env.lookupEnv "NEW"
   xDbFlag <- Maybe.isJust <$> Env.lookupEnv "XDB"
