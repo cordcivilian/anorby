@@ -407,7 +407,7 @@ getNextUnansweredAorb conn uid = do
             , "  WHERE ans.aorb_id = a.id"
             , "  AND ans.user_id = ?"
             , ")"
-            , "ORDER BY RANDOM()"
+            , "ORDER BY a.id"
             , "LIMIT 1"
             ]
       results <- SQL.query c query [u] :: IO [Aorb]
