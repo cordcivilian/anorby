@@ -7,6 +7,9 @@ module Types
   , Contingency
   , WeightVector
   , WeightedContingency
+  , ValidPairCount
+  , WeightedValidPairCount
+  , WeightedContingencyWithValid
   , SimilarityScore
   , BinaryVectorSimilarity
   , AssociationScheme(..)
@@ -48,12 +51,17 @@ newtype AorbAnswer = AorbAnswer Word.Word8
   deriving (Show, Eq, Ord)
 
 type BinaryVector = [AorbAnswer]
+type ValidPairCount = Int
+type WeightedValidPairCount = Int
 type Contingency = (Int, Int, Int, Int)
-type WeightVector = [Double]
-type WeightedContingency = (Double, Double, Double, Double)
+type WeightVector = [Int]
+type WeightedContingency = (Int, Int, Int, Int)
 type SimilarityScore = Double
 type BinaryVectorSimilarity =
   BinaryVector -> BinaryVector -> WeightVector -> SimilarityScore
+
+type WeightedContingencyWithValid =
+  (WeightedContingency, WeightedValidPairCount)
 
 data AssociationScheme = PPPod | Balance | Bipolar
   deriving (Eq, Show, Enum, Bounded)

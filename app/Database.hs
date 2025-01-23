@@ -347,7 +347,7 @@ getUsersAnswers conn users aorbIds = do
     map (\ans -> (aorbUserId ans, [ans])) answers
 
 getUsersAorbIdAndAssoc :: SQL.Connection -> [UserID]
-                     -> IO (Map.Map UserID (AorbID, AssociationScheme))
+                       -> IO (Map.Map UserID (AorbID, AssociationScheme))
 getUsersAorbIdAndAssoc conn users = do
   let placeholders = replicate (length users) "?"
       inClause = T.intercalate "," placeholders

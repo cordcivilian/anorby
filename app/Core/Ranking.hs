@@ -21,7 +21,7 @@ makeRanking submissions allUsers uid = (uid, randomizedRanking)
   where
     (userVector, weightIndex, scheme) = submissions Map.! uid
     (baseline, similarityFunc) = associate scheme
-    userWeights = createWeightVector (length userVector) weightIndex 10.0
+    userWeights = createWeightVector (length userVector) weightIndex 10
 
     similarityScores =
       map (calculateScore submissions userVector userWeights similarityFunc)
