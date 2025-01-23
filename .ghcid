@@ -1,4 +1,3 @@
---setup=":set -fobject-code -O2"
 --test-message="Running anorby..."
 --test=Main.main
 --restart=./anorby.cabal

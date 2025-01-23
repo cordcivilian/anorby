@@ -309,8 +309,8 @@ localSearchRound group1Rankings group2Rankings marriages
                 batchSize
 
 findMultipleBlockingPairs :: Random.RandomGen g
-                         => g -> Rankings -> Rankings -> Marriages -> Int
-                         -> IO [(UserID, UserID)]
+                          => g -> Rankings -> Rankings -> Marriages -> Int
+                          -> IO [(UserID, UserID)]
 findMultipleBlockingPairs
   gen group1Rankings group2Rankings marriages batchSize = do
   let allPairs =

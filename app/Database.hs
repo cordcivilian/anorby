@@ -326,22 +326,31 @@ getUserFromAuthHash conn hash = do
 
 getNextUnansweredAorb :: SQL.Connection -> UserID -> IO (Maybe Aorb)
 getNextUnansweredAorb conn uid = do
-  let query = SQL.Query $ T.unwords
-        [ "SELECT a.*"
-        , "FROM aorb a"
-        , "WHERE NOT EXISTS ("
-        , "  SELECT 1"
-        , "  FROM aorb_answers ans"
-        , "  WHERE ans.aorb_id = a.id"
-        , "  AND ans.user_id = ?"
-        , ")"
-        , "ORDER BY RANDOM()"
-        , "LIMIT 1"
-        ]
-  results <- SQL.query conn query [uid] :: IO [Aorb]
-  return $ case results of
-    (x:_) -> Just x
-    [] -> Nothing
+  baseAorb <- getUnansweredAorbWhere conn uid "a.id <= 100"
+  case baseAorb of
+    Just aorb -> return $ Just aorb
+    Nothing -> getUnansweredAorbWhere conn uid "a.id > 100"
+  where
+    getUnansweredAorbWhere :: SQL.Connection -> UserID -> T.Text
+                           -> IO (Maybe Aorb)
+    getUnansweredAorbWhere c u condition = do
+      let query = SQL.Query $ T.unwords
+            [ "SELECT a.*"
+            , "FROM aorb a"
+            , "WHERE " <> condition
+            , "AND NOT EXISTS ("
+            , "  SELECT 1"
+            , "  FROM aorb_answers ans"
+            , "  WHERE ans.aorb_id = a.id"
+            , "  AND ans.user_id = ?"
+            , ")"
+            , "ORDER BY RANDOM()"
+            , "LIMIT 1"
+            ]
+      results <- SQL.query c query [u] :: IO [Aorb]
+      return $ case results of
+        (x:_) -> Just x
+        [] -> Nothing
 
 getDailyAnswerCount :: SQL.Connection -> UserID -> IO Int
 getDailyAnswerCount conn uid = do
@@ -500,7 +509,7 @@ getLargestIntersection conn uid1 uid2 = do
   return $ map SQL.fromOnly rows
 
 getLargestIntersectionAnswers :: SQL.Connection -> UserID -> UserID
-                             -> IO ([AorbAnswer], [AorbAnswer])
+                              -> IO ([AorbAnswer], [AorbAnswer])
 getLargestIntersectionAnswers conn uid1 uid2 = do
   intersection <- getLargestIntersection conn uid1 uid2
   if null intersection
