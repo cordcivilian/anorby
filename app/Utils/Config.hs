@@ -8,7 +8,10 @@ import qualified Data.Maybe as Maybe
 import qualified Control.Monad as Monad
 import qualified System.Directory as Dir
 
-data Environment = Production | TestWithAnswers | TestWithoutAnswers
+data Environment = Production
+                 | TestWithAnswers
+                 | TestWithoutAnswers
+                 | TestWithCustomData
   deriving (Show, Eq)
 
 data Config = Config
@@ -34,10 +37,12 @@ getEnvironment :: IO Environment
 getEnvironment = do
   secret <- Env.lookupEnv "ANORBY"
   withAnswers <- Env.lookupEnv "ANS"
-  return $ case (secret, withAnswers) of
-    (Just _, _) -> Production
-    (Nothing, Just "1") -> TestWithAnswers
-    (Nothing, _) -> TestWithoutAnswers
+  overrideDb <- Env.lookupEnv "XDB"
+  return $ case (secret, withAnswers, overrideDb) of
+    (Just _, _, _) -> Production
+    (Nothing, _, Just "1") -> TestWithCustomData
+    (Nothing, Just "1", _) -> TestWithAnswers
+    (Nothing, _, _) -> TestWithoutAnswers
 
 checkRequiredFiles :: IO ()
 checkRequiredFiles = do
@@ -73,11 +78,11 @@ getConfig = do
     putStrLn "ERROR: SMTP=1 must be set in production"
     Exit.exitWith (Exit.ExitFailure 1)
 
-  let dbPath' = case (env, xDbFlag) of
-        (Production, _) -> productionDbPath
-        (_, True) -> testOverrideDbPath
-        (TestWithAnswers, False) -> testWithAnswersDbPath
-        (TestWithoutAnswers, False) -> testWithoutAnswersDbPath
+  let dbPath' = case env of
+                  Production -> productionDbPath
+                  TestWithCustomData -> testOverrideDbPath
+                  TestWithAnswers -> testWithAnswersDbPath
+                  TestWithoutAnswers -> testWithoutAnswersDbPath
 
   return $ Config
     { environment = env

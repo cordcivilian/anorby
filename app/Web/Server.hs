@@ -75,6 +75,8 @@ initDatabasePool config =
           mockBase conn (userCount config)
           SQL.close conn
         initPool (dbPath config)
+      TestWithCustomData -> do
+        initPool (dbPath config)
 
 -- | Application setup
 
