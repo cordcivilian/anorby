@@ -15,6 +15,7 @@ module Database
   , getUserUuidById
   , getUserTotalAnswerCount
   , getUserFromAuthHash
+  , getUsersWithCompletedAnswers
   , getNextUnansweredAorb
   , getDailyAnswerCount
   , getUserAorbAndAssoc
@@ -237,19 +238,33 @@ getUsersWithAnswers conn aorbIds = do
   users <- SQL.query conn query params :: IO [SQL.Only UserID]
   return $ map SQL.fromOnly users
 
-getUsersAnswers :: SQL.Connection -> [UserID]
+getUsersAnswers :: SQL.Connection
+                -> [UserID]
+                -> [AorbID]
                 -> IO (Map.Map UserID [AorbAnswers])
-getUsersAnswers conn users = do
-  let placeholders = replicate (length users) "?"
-      inClause = T.intercalate "," placeholders
+getUsersAnswers conn users aorbIds = do
+  let userPlaceholders = replicate (length users) "?"
+      aorbPlaceholders = replicate (length aorbIds) "?"
+      userClause = T.intercalate "," userPlaceholders
+      aorbClause = T.intercalate "," aorbPlaceholders
       query = SQL.Query $ T.unwords
-        [ "SELECT user_id, aorb_id, answer"
-        , "FROM aorb_answers"
-        , "WHERE user_id IN (" <> inClause <> ")"
+        [ "WITH ordered_aorbs AS ("
+        , "  SELECT aorb_id, row_number() OVER () as ord"
+        , "  FROM (VALUES " <>
+          T.intercalate "," (map (\_ -> "(?)") aorbIds) <>
+          ") as t(aorb_id)"
+        , ")"
+        , "SELECT aa.user_id, aa.aorb_id, aa.answer, aa.answered_on"
+        , "FROM aorb_answers aa"
+        , "JOIN ordered_aorbs oa ON aa.aorb_id = oa.aorb_id"
+        , "WHERE aa.user_id IN (" <> userClause <> ")"
+        , "AND aa.aorb_id IN (" <> aorbClause <> ")"
+        , "ORDER BY aa.user_id, oa.ord"
         ]
-  answers <- SQL.query conn query users :: IO [AorbAnswers]
-  return $
-    Map.fromListWith (++) $ map (\ans -> (aorbUserId ans, [ans])) answers
+  let params = users ++ aorbIds ++ aorbIds
+  answers <- SQL.query conn query params :: IO [AorbAnswers]
+  return $ Map.fromListWith (++) $
+    map (\ans -> (aorbUserId ans, [ans])) answers
 
 getUsersAorbIdAndAssoc :: SQL.Connection -> [UserID]
                      -> IO (Map.Map UserID (AorbID, AssociationScheme))
@@ -268,7 +283,7 @@ getUsersAorbIdAndAssoc conn users = do
 baseAorbsToSubmissions :: SQL.Connection -> IO Submissions
 baseAorbsToSubmissions conn = do
   basedUsers <- getUsersWithAnswers conn [1..100]
-  basedUsersAnswers <- getUsersAnswers conn basedUsers
+  basedUsersAnswers <- getUsersAnswers conn basedUsers [1..100]
   basedUsersAorbIdAssoc <- getUsersAorbIdAndAssoc conn basedUsers
   return $ Map.mapWithKey (\uid (aid, assoc) ->
     let answers =
@@ -321,6 +336,34 @@ getUserFromAuthHash conn hash = do
         (now, hash)
       return $ Just user
     _ -> return Nothing
+
+getUsersWithCompletedAnswers :: SQL.Connection -> IO [UserID]
+getUsersWithCompletedAnswers conn = do
+
+  dailyLimitUsers <- SQL.query_ conn $ SQL.Query $ T.unwords
+    [ "SELECT DISTINCT user_id"
+    , "FROM aorb_answers"
+    , "WHERE date(substr(answered_on, 1, 10)) = date('now')"
+    , "GROUP BY user_id"
+    , "HAVING COUNT(*) >= 10"
+    ]
+
+  allQuestionsUsers <- SQL.query_ conn $ SQL.Query $ T.unwords
+    [ "SELECT DISTINCT aa.user_id"
+    , "FROM aorb_answers aa"
+    , "GROUP BY aa.user_id"
+    , "HAVING COUNT(DISTINCT aa.aorb_id) = ("
+    , "  SELECT COUNT(*)"
+    , "  FROM aorb"
+    , ")"
+    ]
+
+  let dailyLimitIds =
+        map SQL.fromOnly (dailyLimitUsers :: [SQL.Only UserID])
+      allQuestionsIds =
+        map SQL.fromOnly (allQuestionsUsers :: [SQL.Only UserID])
+
+  return $ List.nub $ dailyLimitIds ++ allQuestionsIds
 
 -- | Aorb query functions
 
