@@ -66,11 +66,26 @@ validateWeights xs ys weights
     Left "weights must be non-negative"
   | otherwise = validateInputs xs ys
 
-adjustScore :: Double -> Double -> Double -> Double 
-adjustScore rawScore completeness neutral = 
-  let deviation = abs (rawScore - neutral)
-      factor = (2 * deviation * completeness) + 0.5
-  in neutral + (factor * (rawScore - neutral))
+-- | Smoothly clamp values to [0,1] range using sigmoid
+clampUnit :: Double -> Double
+clampUnit x = 1 / (1 + exp(-6 * x))  -- 6 controls steepness
+
+-- | Smoothly clamp values to [-1,1] range using tanh
+clampBipolar :: Double -> Double
+clampBipolar x = tanh (1.5 * x)  -- 1.5 controls steepness
+
+-- | Adjust similarity scores based on completeness with smooth clamping
+adjustScore :: Double -> Double -> Double -> Double
+adjustScore rawScore completeness neutral =
+  let
+    deviation = abs (rawScore - neutral)
+    factor = (2 * deviation * completeness) + 0.5
+    adjusted = neutral + (factor * (rawScore - neutral))
+  in
+    case neutral of
+      0.0 -> clampBipolar adjusted      -- Yule's Q range [-1,1]
+      0.5 -> clampUnit adjusted         -- Sokal/Rogers range [0,1]
+      _ -> adjusted
 
 weightedSokalSneath :: BinaryVectorSimilarity
 weightedSokalSneath xs ys weights =
