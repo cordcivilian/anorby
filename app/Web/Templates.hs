@@ -488,9 +488,16 @@ matchTemplate = H.docTypeHtml $ H.html $ do
              ]
       H.h1 "match"
       H.div $ do
-        H.a H.! A.href "/match/type" $ "type"
-    H.span H.! A.id "top" $ ""
-    H.div H.! A.class_ "frame" $ ""
+        H.a H.! A.href "/match/type" $ "past"
+        H.span H.! A.class_ "link-separator" $ " | "
+        H.a H.! A.href "/match/type" $ "present"
+        H.span H.! A.class_ "link-separator" $ " | "
+        H.a H.! A.href "/match/type" $ "future"
+    H.span H.! A.id "today" $ ""
+    H.div H.! A.class_ "frame" $ do
+      H.h1 "today"
+      H.div $ do
+        H.a H.! A.href "" $ "join or ans"
 
 matchTypeTemplate :: User -> H.Html
 matchTypeTemplate user = H.docTypeHtml $ H.html $ do

@@ -43,6 +43,7 @@ baseCSS = combineCSS
   , frameCSS
   , linkCSS
   , hrCSS
+  , scrollbarCSS
   ]
 
 rootCSS :: T.Text
@@ -82,6 +83,11 @@ hrCSS = cssEntry "hr"
   , cssProperty "height" "2px"
   , cssProperty "background-color" "lightgrey"
   , cssProperty "margin" "30px auto"
+  ]
+
+scrollbarCSS :: T.Text
+scrollbarCSS = cssEntry "html"
+  [ cssProperty "scrollbar-gutter" "stable"
   ]
 
 -- | Navigation CSS
@@ -489,7 +495,7 @@ clickableAorbCSS = combineCSS
 
 -- | Match CSS
 
-matchPageCSS :: T.Text  
+matchPageCSS :: T.Text
 matchPageCSS = combineCSS
   [ baseCSS
   , navBarCSS
