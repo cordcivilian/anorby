@@ -499,6 +499,79 @@ matchPageCSS :: T.Text
 matchPageCSS = combineCSS
   [ baseCSS
   , navBarCSS
+  , matchTypeCSS
+  ]
+
+matchTypeCSS :: T.Text
+matchTypeCSS = combineCSS
+  [ cssEntry ".scheme-grid"
+    [ cssProperty "display" "grid"
+    , cssProperty "grid-template-columns" "1fr"
+    , cssProperty "gap" "2rem"
+    , cssProperty "margin" "2rem auto"
+    , cssProperty "max-width" "1200px"
+    ]
+  , cssMediaQuery "(min-width: 900px)"
+    [ cssEntry ".scheme-grid"
+      [ cssProperty "grid-template-columns" "repeat(3, 1fr)"
+      ]
+    ]
+  , cssEntry ".scheme-card"
+    [ cssProperty "border" "1px solid #ddd"
+    , cssProperty "padding" "2rem"
+    , cssProperty "border-radius" "0.5rem"
+    , cssProperty "cursor" "pointer"
+    , cssProperty "outline" "2px solid #ddd"
+    , cssProperty "outline-offset" "2px"
+    , cssProperty "transition" "all 0.2s"
+    , cssProperty "display" "block"
+    , cssProperty "width" "100%"
+    , cssProperty "text-decoration" "none"
+    , cssProperty "color" "inherit"
+    , cssProperty "font-family" "inherit"
+    , cssProperty "font-size" "inherit"
+    , cssProperty "background" "none"
+    ]
+  , cssEntry ".scheme-card:hover"
+    [ cssProperty "background-color" "#f5f5f5"
+    , cssProperty "outline-color" "#aaa"
+    ]
+  , cssEntry ".scheme-card.selected"
+    [ cssProperty "border-color" "orange"
+    , cssProperty "outline-color" "orange"
+    , cssProperty "color" "orange"
+    , cssProperty "font-weight" "bold"
+    ]
+  , cssEntry ".back-link"
+    [ cssProperty "display" "block"
+    , cssProperty "margin" "1rem 0"
+    ]
+  , cssEntry ".description-frame"
+    [ cssProperty "margin-top" "4rem"
+    , cssProperty "padding" "2rem"
+    , cssProperty "background-color" "#f5f5f5"
+    , cssProperty "border-radius" "0.5rem"
+    ]
+  , cssEntry ".scheme-name.PPPod"
+    [ cssProperty "font-family" "'Times New Roman', serif"
+    , cssProperty "font-size" "1.5rem"
+    ]
+  , cssEntry ".scheme-name.Fencer"
+    [ cssProperty "font-family" "'Courier New', monospace"
+    , cssProperty "font-size" "1.5rem"
+    ]
+  , cssEntry ".scheme-name.Bipolar"
+    [ cssProperty "font-family" "'Arial Black', sans-serif"
+    , cssProperty "font-size" "1.5rem"
+    ]
+  , cssMediaQuery "(prefers-color-scheme: dark)"
+    [ cssEntry ".scheme-card:hover"
+      [ cssProperty "background-color" "#2a2a2a"
+      ]
+    , cssEntry ".description-frame"
+      [ cssProperty "background-color" "#2a2a2a"
+      ]
+    ]
   ]
 
 -- | Auth CSS

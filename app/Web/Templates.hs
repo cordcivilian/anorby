@@ -502,56 +502,72 @@ matchTemplate = H.docTypeHtml $ H.html $ do
 matchTypeTemplate :: User -> H.Html
 matchTypeTemplate user = H.docTypeHtml $ H.html $ do
   H.head $ do
-    H.title "match"
+    H.title "match type"
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
       A.content "width=device-width, initial-scale=1.0"
     H.style $ H.text matchPageCSS
   H.body $ do
     H.div H.! A.class_ "frame" $ do
-      navBar [ NavLink "/" "home" False
-             , NavLink "/whoami" "whoami" False
-             , NavLink "/ans" "answer" False
-             , NavLink "/match" "match" True
-             ]
-      H.h1 "match"
-      H.div H.! A.class_ "match-form" $ do
-        H.form H.! A.method "POST" H.! A.action "/match" $ do
-          H.div H.! A.class_ "scheme-selector" $ do
-            H.h3 "choose your association scheme:"
-            schemeOption PPPod "PPPod" (userAssoc user)
-            schemeDescription PPPod
-            schemeOption Balance "Balance" (userAssoc user)
-            schemeDescription Balance
-            schemeOption Bipolar "Bipolar" (userAssoc user)
-            schemeDescription Bipolar
-            H.button H.! A.type_ "submit"
-                    H.! A.class_ "match-button" $ "save"
+      navBar [ NavLink "/match" "back" False ]
+      H.h1 "match type"
 
-schemeOption :: AssociationScheme -> T.Text -> Maybe AssociationScheme
-             -> H.Html
-schemeOption scheme name currentScheme =
-  H.div H.! A.class_ "scheme-option" $ do
-    H.input H.! A.type_ "radio"
-           H.! A.name "assoc"
-           H.! A.value (H.textValue name)
-           H.! A.id (H.textValue name)
-           H.! checked
-    H.label H.! A.for (H.textValue name) $ H.toHtml name
-    where
-      checked = if currentScheme == Just scheme
-                then A.checked "checked"
-                else mempty
+      H.div H.! A.class_ "scheme-grid" $ do
+        schemeCard PPPod (userAssoc user)
+        schemeCard Fencer (userAssoc user)
+        schemeCard Bipolar (userAssoc user)
 
-schemeDescription :: AssociationScheme -> H.Html
-schemeDescription scheme =
-  H.div H.! A.class_ "scheme-description" $ case scheme of
-    PPPod ->
-      "Match with users who agree with you on commonplace questions"
-    Balance ->
-      "Match with users who balance agreeing and disagreeing with you"
-    Bipolar ->
-      "Match with users who disagree with you on controversial questions"
+      H.div $ do H.a H.! A.href "#explained" $ "explain"
+
+    H.span H.! A.id "explained" $ ""
+    H.div H.! A.class_ "frame" $ do
+      H.div H.! A.class_ "description-frame" $ do
+        H.h2 "how it works"
+        H.p "each type determines how you'll be matched with other users:"
+        schemeDetailedDescription PPPod
+        schemeDetailedDescription Fencer
+        schemeDetailedDescription Bipolar
+
+schemeCard :: AssociationScheme -> Maybe AssociationScheme -> H.Html
+schemeCard scheme currentScheme =
+  let isSelected = currentScheme == Just scheme
+      cardClass = "scheme-card" <> if isSelected then " selected" else ""
+      schemeName = show scheme
+  in H.form H.! A.method "POST" H.! A.action "/match/type" $ do
+       H.button
+         H.! A.type_ "submit"
+         H.! A.name "assoc"
+         H.! A.value (H.toValue schemeName)
+         H.! A.class_ (H.textValue cardClass) $ do
+           H.div H.! A.class_ (H.textValue $ "scheme-name " <> T.pack schemeName) $
+             H.toHtml schemeName
+
+schemeDetailedDescription :: AssociationScheme -> H.Html
+schemeDetailedDescription scheme =
+  H.div H.! A.style "margin: 2rem 0" $ do
+    H.h3 H.! A.style (H.textValue $ fontFamily scheme) $
+      H.toHtml $ schemeName scheme
+    H.p $ H.toHtml $ schemeDetail scheme
+  where
+    fontFamily :: AssociationScheme -> T.Text
+    fontFamily PPPod = "font-family: 'Times New Roman', serif"
+    fontFamily Fencer = "font-family: 'Courier New', monospace"
+    fontFamily Bipolar = "font-family: 'Arial Black', sans-serif"
+
+    schemeName :: AssociationScheme -> T.Text
+    schemeName PPPod = "PPPod"
+    schemeName Fencer = "Fencer"
+    schemeName Bipolar = "Bipolar"
+
+    schemeDetail :: AssociationScheme -> T.Text
+    schemeDetail PPPod = T.unlines
+      [ ]
+
+    schemeDetail Fencer = T.unlines
+      [ ]
+
+    schemeDetail Bipolar = T.unlines
+      [ ]
 
 -- | Auth Templates
 

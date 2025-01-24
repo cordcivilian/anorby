@@ -285,7 +285,7 @@ matchTypeUpdateRoute conn uid req = do
             (scheme, uid)
           return $ Wai.responseLBS
             HTTP.status303
-            [ (Headers.hLocation, "/match")
+            [ (Headers.hLocation, "/match/type")
             , (Headers.hContentType, "text/html")
             ]
             ""
@@ -294,7 +294,7 @@ matchTypeUpdateRoute conn uid req = do
   where
     parseAssociationScheme :: T.Text -> Maybe AssociationScheme
     parseAssociationScheme "PPPod" = Just PPPod
-    parseAssociationScheme "Balance" = Just Balance
+    parseAssociationScheme "Fencer" = Just Fencer
     parseAssociationScheme "Bipolar" = Just Bipolar
     parseAssociationScheme _ = Nothing
 
