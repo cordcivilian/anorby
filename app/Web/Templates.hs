@@ -1,25 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Web.Templates
-  ( rootTemplate
-  , roadmapTemplate
-  , profileTemplate
-  , ansTemplate
-  , existingAnswerTemplate
-  , loginTemplate
-  , registerTemplate
-  , accountTemplate
-  , confirmTemplate
-  , MessageTemplate(..)
-  , msgTemplate
-  , emailSentTemplate
-  , dailyLimitTemplate
-  , noMoreQuestionsTemplate
-  , alreadyAnsweredTemplate
-  , invalidTokenTemplate
-  , invalidSubmissionTemplate
-  , notFoundTemplate
-  ) where
+module Web.Templates where
 
 import qualified Control.Monad as Monad
 import qualified Data.List as List
@@ -73,6 +54,7 @@ rootTemplate userCount aorbs = H.docTypeHtml $ H.html $ do
       navBar [ NavLink "/" "home" True
              , NavLink "/whoami" "whoami" False
              , NavLink "/ans" "answer" False
+             , NavLink "/match" "match" False
              ]
       H.h1 $ do
         H.span H.! A.class_ "underline" $ "a"
@@ -221,6 +203,7 @@ profileHeadline maybeUuid children = do
            , NavLink "/whoami" "whoami"
               (case maybeUuid of Just _ -> False ; _ -> True)
            , NavLink "/ans" "answer" False
+           , NavLink "/match" "match" False
            ]
     H.h1 $ case maybeUuid of
       Just uuid -> H.text $ "#" <> uuid
@@ -372,15 +355,15 @@ aorbWithAnswerWithOrders awas = aorbsWithOrders awas aorbWithAnswerOrderings
 
 aorbOrderings :: [OrderingFunction Aorb]
 aorbOrderings =
-  [ id  -- byDice
-  , List.sortOn (\a -> abs (aorbMean a - 0.5))  -- byPolar
+  [ id                                                     -- byDice
+  , List.sortOn (\a -> abs (aorbMean a - 0.5))             -- byPolar
   , List.sortOn (Ord.Down . \a -> abs (aorbMean a - 0.5))  -- bySided
   ]
 
 aorbWithAnswerOrderings :: [OrderingFunction AorbWithAnswer]
 aorbWithAnswerOrderings =
-  [ reverse  -- byBasic
-  , id  -- byFlake
+  [ reverse   -- byBasic
+  , id        -- byFlake
   ]
 
 ansTemplate :: Aorb -> Bool -> T.Text -> H.Html
@@ -396,6 +379,7 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
       navBar [ NavLink "/" "home" False
              , NavLink "/whoami" "whoami" False
              , NavLink "/ans" "answer" True
+             , NavLink "/match" "match" False
              ]
       H.div H.! A.class_ "ans-context" $
         H.toHtml (aorbCtx aorb)
@@ -444,6 +428,7 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token =
       navBar [ NavLink "/" "home" False
              , NavLink "/whoami" "whoami" False
              , NavLink "/ans" "answer" True
+             , NavLink "/match" "match" False
              ]
       H.div H.! A.class_ "ans-context" $
         H.toHtml (aorbCtx aorb)
@@ -484,6 +469,82 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token =
                     then " selected" <> if favorite then " favorite" else ""
                     else "") $
           H.toHtml choice
+
+matchTemplate :: H.Html
+matchTemplate = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.title "match"
+    H.style $ H.text matchPageCSS
+  H.body $ do
+    H.span H.! A.id "top" $ ""
+    H.div H.! A.class_ "frame" $ do
+      navBar [ NavLink "/" "home" False
+             , NavLink "/whoami" "whoami" False
+             , NavLink "/ans" "answer" False
+             , NavLink "/match" "match" True
+             ]
+      H.h1 "match"
+      H.div $ do
+        H.a H.! A.href "/match/type" $ "type"
+    H.span H.! A.id "top" $ ""
+    H.div H.! A.class_ "frame" $ ""
+
+matchTypeTemplate :: User -> H.Html
+matchTypeTemplate user = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "match"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ H.text matchPageCSS
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      navBar [ NavLink "/" "home" False
+             , NavLink "/whoami" "whoami" False
+             , NavLink "/ans" "answer" False
+             , NavLink "/match" "match" True
+             ]
+      H.h1 "match"
+      H.div H.! A.class_ "match-form" $ do
+        H.form H.! A.method "POST" H.! A.action "/match" $ do
+          H.div H.! A.class_ "scheme-selector" $ do
+            H.h3 "choose your association scheme:"
+            schemeOption PPPod "PPPod" (userAssoc user)
+            schemeDescription PPPod
+            schemeOption Balance "Balance" (userAssoc user)
+            schemeDescription Balance
+            schemeOption Bipolar "Bipolar" (userAssoc user)
+            schemeDescription Bipolar
+            H.button H.! A.type_ "submit"
+                    H.! A.class_ "match-button" $ "save"
+
+schemeOption :: AssociationScheme -> T.Text -> Maybe AssociationScheme
+             -> H.Html
+schemeOption scheme name currentScheme =
+  H.div H.! A.class_ "scheme-option" $ do
+    H.input H.! A.type_ "radio"
+           H.! A.name "assoc"
+           H.! A.value (H.textValue name)
+           H.! A.id (H.textValue name)
+           H.! checked
+    H.label H.! A.for (H.textValue name) $ H.toHtml name
+    where
+      checked = if currentScheme == Just scheme
+                then A.checked "checked"
+                else mempty
+
+schemeDescription :: AssociationScheme -> H.Html
+schemeDescription scheme =
+  H.div H.! A.class_ "scheme-description" $ case scheme of
+    PPPod ->
+      "Match with users who agree with you on commonplace questions"
+    Balance ->
+      "Match with users who balance agreeing and disagreeing with you"
+    Bipolar ->
+      "Match with users who disagree with you on controversial questions"
 
 -- | Auth Templates
 
@@ -556,6 +617,7 @@ accountTemplate user = H.docTypeHtml $ H.html $ do
       navBar [ NavLink "/" "home" False
              , NavLink "/whoami" "whoami" False
              , NavLink "/ans" "answer" False
+             , NavLink "/match" "match" False
              ]
       H.div H.! A.class_ "account-section" $ do
         H.h2 H.! A.class_ "account-heading" $ "account information"

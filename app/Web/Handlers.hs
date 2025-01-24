@@ -1,32 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Web.Handlers
-  ( rootTemplateRoute
-  , roadmapTemplateRoute
-  , loginGetRoute
-  , loginPostRoute
-  , registerGetRoute
-  , registerPostRoute
-  , authHashRoute
-  , sharedProfileTemplateRoute
-  , accountTemplateRoute
-  , logoutGetRoute
-  , logoutConfirmRoute
-  , logoutConfirmPostRoute
-  , deleteGetRoute
-  , deleteConfirmRoute
-  , deleteConfirmPostRoute
-  , profileTemplateRoute
-  , ansTemplateRoute
-  , existingAnswerTemplateRoute
-  , submitAnswerRoute
-  , editAnswerRoute
-  , setFavoriteAorbRoute
-  , redirectToLogin
-  , invalidSubmissionResponse
-  , notFoundResponse
-  , notFoundTemplateRoute
-  ) where
+module Web.Handlers where
 
 import qualified Control.Monad as Monad
 import qualified Data.ByteString.Char8 as BS
@@ -112,6 +86,23 @@ profileTemplateRoute conn uid _ = do
             (R.renderHtml $
               profileTemplate myAorbs (userAorbId user) Nothing shareUrl False)
     [] -> return $ Wai.responseLBS
+      HTTP.status404
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml notFoundTemplate)
+
+sharedProfileTemplateRoute :: SQL.Connection -> T.Text -> Wai.Request
+                          -> IO Wai.Response
+sharedProfileTemplateRoute conn uuid _ = do
+  maybeUser <- getUserByUuid conn uuid
+  case maybeUser of
+    Just user -> do
+      myAorbs <- getUserAorbsFromControversialToCommonPlace conn (userId user)
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $
+          profileTemplate myAorbs (userAorbId user) (Just uuid) Nothing False)
+    Nothing -> return $ Wai.responseLBS
       HTTP.status404
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml notFoundTemplate)
@@ -259,6 +250,54 @@ setFavoriteAorbRoute conn uid aid _ = do
     ]
     ""
 
+matchTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
+                   -> IO Wai.Response
+matchTemplateRoute _ _ _ = return $ Wai.responseLBS
+  HTTP.status200
+  [(Headers.hContentType, BS.pack "text/html")]
+  (R.renderHtml matchTemplate)
+
+matchTypeTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
+                       -> IO Wai.Response
+matchTypeTemplateRoute conn uid _ = do
+  userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
+  case userQ of
+    (user:_) -> return $ Wai.responseLBS
+      HTTP.status200
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml $ matchTypeTemplate user)
+    [] -> return $ Wai.responseLBS
+      HTTP.status404
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml notFoundTemplate)
+
+matchTypeUpdateRoute :: SQL.Connection -> UserID -> Wai.Request
+                     -> IO Wai.Response
+matchTypeUpdateRoute conn uid req = do
+  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  case lookup "assoc" params of
+    Just assocBS -> do
+      let assocText = TE.decodeUtf8 assocBS
+      case parseAssociationScheme assocText of
+        Just scheme -> do
+          SQL.execute conn
+            "UPDATE users SET assoc = ? WHERE id = ?"
+            (scheme, uid)
+          return $ Wai.responseLBS
+            HTTP.status303
+            [ (Headers.hLocation, "/match")
+            , (Headers.hContentType, "text/html")
+            ]
+            ""
+        Nothing -> return invalidSubmissionResponse
+    Nothing -> return invalidSubmissionResponse
+  where
+    parseAssociationScheme :: T.Text -> Maybe AssociationScheme
+    parseAssociationScheme "PPPod" = Just PPPod
+    parseAssociationScheme "Balance" = Just Balance
+    parseAssociationScheme "Bipolar" = Just Bipolar
+    parseAssociationScheme _ = Nothing
+
 -- | Response Helpers
 
 redirectToLogin :: Wai.Response
@@ -283,6 +322,8 @@ notFoundTemplateRoute _ = Wai.responseLBS
   HTTP.status404
   [(Headers.hContentType, BS.pack "text/html")]
   (R.renderHtml notFoundTemplate)
+
+-- | Protected Route Handlers
 
 loginGetRoute :: SQL.Connection -> Wai.Request -> IO Wai.Response
 loginGetRoute conn req = do
@@ -464,25 +505,6 @@ authHashRoute conn hash _ = do
         , (Headers.hContentType, "text/html")
         ]
         ""
-
-sharedProfileTemplateRoute :: SQL.Connection -> T.Text -> Wai.Request
-                          -> IO Wai.Response
-sharedProfileTemplateRoute conn uuid _ = do
-  maybeUser <- getUserByUuid conn uuid
-  case maybeUser of
-    Just user -> do
-      myAorbs <- getUserAorbsFromControversialToCommonPlace conn (userId user)
-      return $ Wai.responseLBS
-        HTTP.status200
-        [(Headers.hContentType, BS.pack "text/html")]
-        (R.renderHtml $
-          profileTemplate myAorbs (userAorbId user) (Just uuid) Nothing False)
-    Nothing -> return $ Wai.responseLBS
-      HTTP.status404
-      [(Headers.hContentType, BS.pack "text/html")]
-      (R.renderHtml notFoundTemplate)
-
--- | Protected Route Handlers
 
 accountTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
                     -> IO Wai.Response

@@ -1,24 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Web.Styles
-  ( baseCSS
-  , combineCSS
-  , rootPageCSS
-  , roadmapCSS
-  , profilePageCSS
-  , ansPageCSS
-  , authPageCSS
-  , accountPageCSS
-  , navBarCSS
-  , clickableAorbCSS
-  , ansComponentsCSS
-  , cssEntry
-  , cssMediaQuery
-  , cssProperty
-  , inlineCSSEntry
-  , cssMaxWidth
-  , aorbDynamicCSS
-  ) where
+module Web.Styles where
 
 import qualified Data.Text as T
 import qualified Text.Blaze.Html5 as H
@@ -503,6 +485,14 @@ clickableAorbCSS = combineCSS
     , cssProperty "font-family" "inherit"
     , cssProperty "transition" "all 0.2s"
     ]
+  ]
+
+-- | Match CSS
+
+matchPageCSS :: T.Text  
+matchPageCSS = combineCSS
+  [ baseCSS
+  , navBarCSS
   ]
 
 -- | Auth CSS

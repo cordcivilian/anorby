@@ -1,11 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Web.Server
-  ( -- * Server
-    runServer
-  , application
-  , monolith
-  ) where
+module Web.Server where
 
 import qualified Network.HTTP.Types as HTTP
 import qualified Data.ByteString.Char8 as BS
@@ -202,6 +197,15 @@ application _ state request respond = do
     ("POST", p) | Just aid <- readFavoriteAorbId p ->
       runProtectedHandlerWithConn (\conn uid ->
         setFavoriteAorbRoute conn uid aid)
+
+    ("GET", "/match") ->
+      runProtectedHandlerWithConn matchTemplateRoute
+
+    ("GET", "/match/type") ->
+      runProtectedHandlerWithConn matchTypeTemplateRoute
+
+    ("POST", "/match/type") ->
+      runProtectedHandlerWithConn matchTypeUpdateRoute
 
     -- Not found
     _ -> respond notFoundResponse
