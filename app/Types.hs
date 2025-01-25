@@ -5,7 +5,6 @@ module Types where
 import qualified Data.Aeson as JSON
 import qualified Data.Map as Map
 import qualified Data.Text as T
-import qualified Data.Time as Time
 import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Word as Word
 import qualified System.Random as Random

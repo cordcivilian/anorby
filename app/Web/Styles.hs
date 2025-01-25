@@ -632,6 +632,58 @@ matchTypeCSS = combineCSS
     ]
   ]
 
+matchFoundCSS :: T.Text
+matchFoundCSS = combineCSS
+  [ cssEntry ".match-grid"
+    [ cssProperty "display" "grid"
+    , cssProperty "grid-template-columns" "1fr"
+    , cssProperty "gap" "2rem"
+    , cssProperty "margin" "2rem auto"
+    , cssProperty "max-width" "800px"
+    ]
+  , cssEntry ".match-card"
+    [ cssProperty "border" "1px solid #ddd"
+    , cssProperty "padding" "1.5rem"
+    , cssProperty "border-radius" "0.5rem"
+    , cssProperty "cursor" "pointer"
+    , cssProperty "outline" "2px solid #ddd"
+    , cssProperty "outline-offset" "2px"
+    , cssProperty "transition" "all 0.2s"
+    , cssProperty "text-decoration" "none"
+    , cssProperty "color" "inherit"
+    ]
+  , cssEntry ".match-card:hover"
+    [ cssProperty "background-color" "#f5f5f5"
+    , cssProperty "outline-color" "#aaa"
+    , cssProperty "transform" "translateY(-2px)"
+    ]
+  , cssEntry ".match-date"
+    [ cssProperty "font-size" "0.9em"
+    , cssProperty "color" "gray"
+    , cssProperty "margin-bottom" "0.5rem"
+    ]
+  , cssEntry ".match-score"
+    [ cssProperty "color" "#4169e1"
+    , cssProperty "font-weight" "bold"
+    ]
+  , cssEntry ".no-matches"
+    [ cssProperty "text-align" "center"
+    , cssProperty "padding" "2rem"
+    , cssProperty "background-color" "#f5f5f5"
+    , cssProperty "border-radius" "0.5rem"
+    , cssProperty "margin" "2rem auto"
+    , cssProperty "max-width" "600px"
+    ]
+  , cssMediaQuery "(prefers-color-scheme: dark)"
+    [ cssEntry ".match-card:hover"
+      [ cssProperty "background-color" "#2a2a2a"
+      ]
+    , cssEntry ".no-matches"
+      [ cssProperty "background-color" "#2a2a2a"
+      ]
+    ]
+  ]
+
 -- | Auth CSS
 
 authPageCSS :: T.Text

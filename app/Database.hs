@@ -8,7 +8,6 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Map.Strict as StrictMap
-import qualified Data.Maybe as Maybe
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
 import qualified Data.Time.Clock.POSIX as POSIXTime

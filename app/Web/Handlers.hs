@@ -340,6 +340,15 @@ matchTypeUpdateRoute config conn uid req = do
     parseAssociationScheme "Bipolar" = Just Bipolar
     parseAssociationScheme _ = Nothing
 
+matchFoundTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
+                       -> IO Wai.Response
+matchFoundTemplateRoute conn uid _ = do
+  matches <- getUserMatches conn uid
+  return $ Wai.responseLBS
+    HTTP.status200
+    [(Headers.hContentType, BS.pack "text/html")]
+    (R.renderHtml $ matchFoundTemplate matches)
+
 -- | Response Helpers
 
 redirectToLogin :: Wai.Response

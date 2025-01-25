@@ -2,26 +2,26 @@
 
 module Web.Server where
 
-import qualified Network.HTTP.Types as HTTP
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.Time.Clock as Clock
-import qualified Data.List as List
 import qualified Control.Monad as Monad
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.List as List
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
-import qualified Text.Read as Read
-import qualified Data.Word as Word
+import qualified Data.Time.Clock as Clock
 import qualified Data.Time.Clock.POSIX as POSIXTime
+import qualified Data.Word as Word
 import qualified Database.SQLite.Simple as SQL
+import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.RequestLogger as Mid
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
 import qualified System.IO.Unsafe as Unsafe
+import qualified Text.Read as Read
 
 import Auth
 import Database
@@ -212,6 +212,9 @@ application _ state request respond = do
     ("POST", "/match/type") ->
       runProtectedHandlerWithConn (\conn uid ->
         matchTypeUpdateRoute config conn uid)
+
+    ("GET", "/match/found") ->
+      runProtectedHandlerWithConn matchFoundTemplateRoute
 
     _ -> respond notFoundResponse
 

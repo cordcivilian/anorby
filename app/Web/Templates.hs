@@ -7,7 +7,10 @@ import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Ord as Ord
 import qualified Data.Text as T
+import qualified Data.Time.Clock.POSIX as POSIXTime
+import qualified Data.Time.Format as DateTimeFormat
 import qualified Data.Word as Word
+import qualified System.IO.Unsafe as Unsafe
 import qualified Text.Printf as Text
 
 import qualified Text.Blaze.Html5 as H
@@ -573,6 +576,48 @@ schemeDetailedDescription scheme =
 
     schemeDetail Bipolar = T.unlines
       [ ]
+
+matchFoundTemplate :: [Match] -> H.Html
+matchFoundTemplate matches = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "matches"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.style $ H.text $ combineCSS [baseCSS, navBarCSS, matchFoundCSS]
+  H.body $ do
+    H.div H.! A.class_ "frame" $ do
+      navBar [ NavLink "/match" "back" False ]
+      H.h1 "matches"
+
+      if null matches
+        then H.div H.! A.class_ "no-matches" $ do
+          H.p "no matches found"
+        else H.div H.! A.class_ "match-grid" $ do
+          mapM_ matchCard $ take 7 matches
+
+matchCard :: Match -> H.Html
+matchCard match =
+  H.a H.! A.class_ "match-card" H.!
+      A.href (H.textValue $ "/match/view/" <> T.pack (show $ matchUserId match)) $ do
+    H.div H.! A.class_ "match-date" $
+      H.toHtml $ formatMatchDate (matchTimestamp match)
+    H.div H.! A.class_ "match-score" $
+      H.toHtml ("87% similarity" :: String) -- Placeholder
+  where
+    formatMatchDate :: POSIXTime.POSIXTime -> T.Text
+    formatMatchDate timestamp = do
+      let days = floor $ (now - timestamp) / (24 * 60 * 60)
+      case days :: Int of
+        0 -> "today"
+        1 -> "yesterday"
+        _ -> T.pack $
+          DateTimeFormat.formatTime
+          DateTimeFormat.defaultTimeLocale
+          "%Y-%m-%d"
+          timestamp
+      where
+        now = Unsafe.unsafePerformIO POSIXTime.getPOSIXTime
 
 -- | Auth Templates
 
