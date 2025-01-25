@@ -18,7 +18,7 @@ associate :: AssociationScheme -> (Double, BinaryVectorSimilarity)
 associate scheme =
   case scheme of
     PPPod -> (1.0, weightedSokalSneath)       -- [ 0, 1]
-    Fencer -> (0.0, weightedYuleQ)           -- [-1, 1]
+    Fencer -> (0.0, weightedYuleQ)            -- [-1, 1]
     Bipolar -> (0.0, weightedRogersTanimoto)  -- [ 0, 1]
 
 createWeightVector :: Int -> Int -> Int -> WeightVector

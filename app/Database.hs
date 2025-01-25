@@ -348,18 +348,18 @@ getUsersAnswers conn users aorbIds = do
         [ ((aorbUserId ans, aorbAorbId ans), ans)
         | ans <- existingAnswers
         ]
-      allPairs = [(user, aorb) | user <- users, aorb <- aorbIds]
-      answers =
-        [ maybe (defaultAnswer user aorb) id $
-            Map.lookup (user, aorb) existingMap
-        | (user, aorb) <- allPairs
-        ]
       defaultAnswer uid aid = AorbAnswers
         { aorbUserId = uid
         , aorbAorbId = aid
         , aorbAnswer = AorbAnswer 255
         , aorbAnsweredOn = 0
         }
+      allPairs = [(user, aorb) | user <- users, aorb <- aorbIds]
+      answers =
+        [ maybe (defaultAnswer user aorb) id $
+            Map.lookup (user, aorb) existingMap
+        | (user, aorb) <- allPairs
+        ]
   return $ Map.fromListWith (++)
     [ (uid, [ans]) | ans <- answers , let uid = aorbUserId ans ]
   where
@@ -377,7 +377,7 @@ getUsersAorbIdAndAssoc conn users = do
   let placeholders = replicate (length users) "?"
       inClause = T.intercalate "," placeholders
       query = SQL.Query $ T.unwords
-        [ "SELECT id, aorb_id, assoc"
+        [ "SELECT id, COALESCE(aorb_id, 1), assoc"
         , "FROM users"
         , "WHERE id IN (" <> inClause <> ")"
         ]
@@ -523,7 +523,7 @@ getUserAorbAndAssoc conn uid = do
   case aorbIdAssoc of
     [(aid, assoc)] -> do
       let aorbQuery = SQL.Query $ T.unwords
-                    [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean"
+                    [ "SELECT id, context, subtext, a, b, mean"
                     , "FROM aorb"
                     , "WHERE id = ?"
                     ]

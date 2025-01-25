@@ -569,16 +569,16 @@ schemeDetailedDescription scheme =
 
     schemeDetail :: AssociationScheme -> T.Text
     schemeDetail PPPod = T.unlines
-      [ ]
+      [ "..." ]
 
     schemeDetail Fencer = T.unlines
-      [ ]
+      [ "..." ]
 
     schemeDetail Bipolar = T.unlines
-      [ ]
+      [ "..." ]
 
-matchFoundTemplate :: [Match] -> H.Html
-matchFoundTemplate matches = H.docTypeHtml $ H.html $ do
+matchFoundTemplate :: [(Match, Double)] -> H.Html
+matchFoundTemplate matchScores = H.docTypeHtml $ H.html $ do
   H.head $ do
     H.title "matches"
     H.link H.! A.rel "icon" H.! A.href "data:,"
@@ -589,26 +589,33 @@ matchFoundTemplate matches = H.docTypeHtml $ H.html $ do
     H.div H.! A.class_ "frame" $ do
       navBar [ NavLink "/match" "back" False ]
       H.h1 "matches"
-
-      if null matches
+      if null matchScores
         then H.div H.! A.class_ "no-matches" $ do
           H.p "no matches found"
-        else H.div H.! A.class_ "match-grid" $ do
-          mapM_ matchCard $ take 7 matches
+        else do
+          H.h4 "(agreement rate)"
+          H.div H.! A.class_ "match-grid" $ do
+            mapM_ (\(m, s) -> matchCard m s) $ take 7 matchScores
 
-matchCard :: Match -> H.Html
-matchCard match =
-  H.a H.! A.class_ "match-card" H.!
-      A.href (H.textValue $ "/match/view/" <> T.pack (show $ matchUserId match)) $ do
+matchCard :: Match -> Double -> H.Html
+matchCard match score =
+  H.a H.! A.class_ "match-card"
+    H.! A.href
+      (H.textValue $ "/match/found/t-" <>
+        T.pack (show $ formatMatchDelta $ matchTimestamp match)
+      ) $ do
     H.div H.! A.class_ "match-date" $
       H.toHtml $ formatMatchDate (matchTimestamp match)
     H.div H.! A.class_ "match-score" $
-      H.toHtml ("87% similarity" :: String) -- Placeholder
+      H.toHtml $ formatSimilarityScore score
   where
+    formatMatchDelta :: POSIXTime.POSIXTime -> Int
+    formatMatchDelta timestamp =
+      let now = Unsafe.unsafePerformIO POSIXTime.getPOSIXTime
+      in floor $ (now - timestamp) / (24 * 60 * 60)
     formatMatchDate :: POSIXTime.POSIXTime -> T.Text
     formatMatchDate timestamp = do
-      let days = floor $ (now - timestamp) / (24 * 60 * 60)
-      case days :: Int of
+      case formatMatchDelta timestamp of
         0 -> "today"
         1 -> "yesterday"
         _ -> T.pack $
@@ -616,8 +623,9 @@ matchCard match =
           DateTimeFormat.defaultTimeLocale
           "%Y-%m-%d"
           timestamp
-      where
-        now = Unsafe.unsafePerformIO POSIXTime.getPOSIXTime
+    formatSimilarityScore :: Double -> T.Text
+    formatSimilarityScore s =
+      T.pack $ Text.printf "%.0f%%" ((s + 1) * 50)
 
 -- | Auth Templates
 

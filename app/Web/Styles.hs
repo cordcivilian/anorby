@@ -634,7 +634,11 @@ matchTypeCSS = combineCSS
 
 matchFoundCSS :: T.Text
 matchFoundCSS = combineCSS
-  [ cssEntry ".match-grid"
+  [ cssEntry ".frame"
+    [ cssProperty "min-height" "80dvh"
+    , cssProperty "margin-top" "10dvh"
+    ]
+  , cssEntry ".match-grid"
     [ cssProperty "display" "grid"
     , cssProperty "grid-template-columns" "1fr"
     , cssProperty "gap" "2rem"

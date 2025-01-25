@@ -20,6 +20,7 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as R
 
 import Auth
 import Core.Matching
+import Core.Similarity
 import Database
 import Types
 import Utils.Config
@@ -341,13 +342,28 @@ matchTypeUpdateRoute config conn uid req = do
     parseAssociationScheme _ = Nothing
 
 matchFoundTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
-                       -> IO Wai.Response
+                        -> IO Wai.Response
 matchFoundTemplateRoute conn uid _ = do
   matches <- getUserMatches conn uid
+  matchScores <- mapM (calculateMatchScore conn uid) matches
   return $ Wai.responseLBS
     HTTP.status200
     [(Headers.hContentType, BS.pack "text/html")]
-    (R.renderHtml $ matchFoundTemplate matches)
+    (R.renderHtml $ matchFoundTemplate matchScores)
+  where
+    calculateMatchScore :: SQL.Connection -> UserID -> Match
+                        -> IO (Match, Double)
+    calculateMatchScore conn' uid' match' = do
+      let targetId = if matchUserId match' == uid' then matchTargetId match'
+                                          else matchUserId match'
+      (answers1, answers2) <- getLargestIntersectionAnswers conn' uid' targetId
+      userAorbInfo <- getUserAorbAndAssoc conn' uid'
+      let weights = case userAorbInfo of
+            Just (aorb, _) ->
+              map (\(i,_) -> if i == aorbId aorb then 5 else 1)
+                  (zip [0..] answers1)
+            Nothing -> replicate (length answers1) 1
+      return (match', weightedYuleQ answers1 answers2 weights)
 
 -- | Response Helpers
 
