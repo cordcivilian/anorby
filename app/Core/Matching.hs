@@ -8,16 +8,16 @@ import qualified Data.Maybe as Maybe
 
 import Types
 
-fisherYatesShuffle :: (Random.RandomGen g) => g -> [a] -> ([a], g)
+fisherYatesShuffle :: Random.RandomGen g => g -> [a] -> ([a], g)
 fisherYatesShuffle gen [] = ([], gen)
-fisherYatesShuffle gen [x] = ([x], gen)
-fisherYatesShuffle gen lst =
-  let len = length lst
-      (index, newGen) = Random.randomR (0, len - 1) gen
-      element = lst !! index
-      remaining = take index lst ++ drop (index + 1) lst
-      (shuffledRest, finalGen) = fisherYatesShuffle newGen remaining
-  in (element : shuffledRest, finalGen)
+fisherYatesShuffle gen xs = go gen (length xs) [] xs
+  where
+    go g 0 acc _ = (acc, g)
+    go g n acc ys =
+      let (i, g') = Random.randomR (0, n-1) g
+          y = ys !! i
+          ys' = take i ys ++ drop (i+1) ys
+      in go g' (n-1) (y:acc) ys'
 
 preference :: Rankings -> UserID -> UserID -> UserID -> Ordering
 preference ranking me p1 p2 =
