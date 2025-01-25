@@ -252,10 +252,29 @@ setFavoriteAorbRoute conn uid aid _ = do
 
 matchTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
                    -> IO Wai.Response
-matchTemplateRoute _ _ _ = return $ Wai.responseLBS
-  HTTP.status200
-  [(Headers.hContentType, BS.pack "text/html")]
-  (R.renderHtml matchTemplate)
+matchTemplateRoute conn uid _ = do
+  assocResult <- SQL.query conn
+    "SELECT assoc FROM users WHERE id = ?"
+    (SQL.Only uid) :: IO [SQL.Only (Maybe AssociationScheme)]
+  case assocResult of
+    [] -> return $ Wai.responseLBS
+      HTTP.status404
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml notFoundTemplate)
+    [SQL.Only Nothing] -> return $ Wai.responseLBS
+      HTTP.status303
+      [ (Headers.hLocation, "/match/type")
+      , (Headers.hContentType, "text/html")
+      ]
+      ""
+    [SQL.Only (Just _)] -> return $ Wai.responseLBS
+      HTTP.status200
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml matchTemplate)
+    _ -> return $ Wai.responseLBS
+      HTTP.status500
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml internalErrorTemplate)
 
 matchTypeTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
                        -> IO Wai.Response
@@ -363,11 +382,7 @@ loginPostRoute conn req = do
             [] -> return $ Wai.responseLBS
               HTTP.status404
               [(Headers.hContentType, "text/html")]
-              (R.renderHtml $ msgTemplate MessageTemplate
-                { messageTitle = "user not found"
-                , messageHeading = "User not found"
-                , messageLink = ("/register", "Register")
-                })
+              (R.renderHtml userNotFoundTemplate)
             [user] -> do
               let query = SQL.Query $ T.unwords
                     [ "INSERT INTO auth"
@@ -391,7 +406,7 @@ loginPostRoute conn req = do
             _ -> return $ Wai.responseLBS
               HTTP.status500
               [(Headers.hContentType, "text/html")]
-              (R.renderHtml notFoundTemplate)
+              (R.renderHtml internalErrorTemplate)
     _ -> return $ Wai.responseLBS
       HTTP.status400
       [(Headers.hContentType, "text/html")]
@@ -435,11 +450,7 @@ registerPostRoute conn req = do
             (_:_) -> return $ Wai.responseLBS
               HTTP.status409
               [(Headers.hContentType, "text/html")]
-              (R.renderHtml $ msgTemplate MessageTemplate
-                { messageTitle = "email exists"
-                , messageHeading = "Email already registered"
-                , messageLink = ("/login", "Login")
-                })
+              (R.renderHtml emailExistsTemplate)
             [] -> do
               now <- Time.getCurrentTime
               uuid <- UUID.toString <$> UUID.nextRandom
@@ -480,7 +491,7 @@ registerPostRoute conn req = do
                 _ -> return $ Wai.responseLBS
                   HTTP.status500
                   [(Headers.hContentType, "text/html")]
-                  (R.renderHtml notFoundTemplate)
+                  (R.renderHtml internalErrorTemplate)
     _ -> return $ Wai.responseLBS
       HTTP.status400
       [(Headers.hContentType, "text/html")]
@@ -507,7 +518,7 @@ authHashRoute conn hash _ = do
         ""
 
 accountTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
-                    -> IO Wai.Response
+                     -> IO Wai.Response
 accountTemplateRoute conn uid _ = do
   userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
   case userQ of

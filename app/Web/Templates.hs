@@ -718,30 +718,39 @@ noMoreQuestionsTemplate = msgTemplate MessageTemplate
   , messageLink = ("/whoami", "back to profile")
   }
 
-alreadyAnsweredTemplate :: H.Html
-alreadyAnsweredTemplate = msgTemplate MessageTemplate
-  { messageTitle = "already answered"
-  , messageHeading = "403 - question already answered"
-  , messageLink = ("/ans", "next question")
+errorTemplateWithLink :: Int -> T.Text -> (T.Text, T.Text) -> H.Html
+errorTemplateWithLink code message link = msgTemplate MessageTemplate
+  { messageTitle = message
+  , messageHeading = T.pack (show code) <> " - " <> message
+  , messageLink = link
   }
+
+errorTemplate :: Int -> T.Text -> H.Html
+errorTemplate code message =
+  errorTemplateWithLink code message ("/", "go home")
+
+alreadyAnsweredTemplate :: H.Html
+alreadyAnsweredTemplate = errorTemplateWithLink
+  403 "question already answered" ("/ans", "next question")
 
 invalidTokenTemplate :: H.Html
-invalidTokenTemplate = msgTemplate MessageTemplate
-  { messageTitle = "invalid token"
-  , messageHeading = "403 - invalid or expired token"
-  , messageLink = ("/ans", "try again")
-  }
+invalidTokenTemplate = errorTemplateWithLink
+  403 "invalid or expired token" ("/ans", "try again")
 
 invalidSubmissionTemplate :: H.Html
-invalidSubmissionTemplate = msgTemplate MessageTemplate
-  { messageTitle = "invalid submission"
-  , messageHeading = "400 - invalid submission format"
-  , messageLink = ("/ans", "try again")
-  }
+invalidSubmissionTemplate = errorTemplateWithLink
+  400 "invalid submission format" ("/ans", "try again")
+
+userNotFoundTemplate :: H.Html
+userNotFoundTemplate =
+  errorTemplateWithLink 404 "user not found" ("/register", "register")
+
+emailExistsTemplate :: H.Html
+emailExistsTemplate =
+  errorTemplateWithLink 409 "email already registered" ("/login", "login")
 
 notFoundTemplate :: H.Html
-notFoundTemplate = msgTemplate MessageTemplate
-  { messageTitle = "error"
-  , messageHeading = "404 - not found"
-  , messageLink = ("/", "go home")
-  }
+notFoundTemplate = errorTemplate 404 "not found"
+
+internalErrorTemplate :: H.Html
+internalErrorTemplate = errorTemplate 500 "internal server error"
