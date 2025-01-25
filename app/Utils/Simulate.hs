@@ -1,25 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Utils.Simulate
-  ( -- * Mock Data Generation
-    mockery
-  , mockDB
-  , mockBase
-  , mockBaseAorbAnswers
-    -- * Testing Functions
-  , testUserAorbs
-  , testAorbGaleShapley
-  , testRandomSubmissionsGaleShapley
-  , testRandomRankingsGaleShapley
-  , testAorbLocalSearch
-  , testRandomSubmissionsLocalSearch
-  , testRandomRankingsLocalSearch
-  ) where
+module Utils.Simulate where
 
 import qualified Control.Monad as Monad
 import qualified Data.Map as Map
 import qualified Data.Text as T
-import qualified Data.Time as Time
+import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Time.Format as DateTimeFormat
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
@@ -60,7 +46,7 @@ mockery n answers = do
 
 mockDB :: FilePath -> IO SQL.Connection
 mockDB prefix = do
-  now <- Time.getCurrentTime
+  now <- POSIXTime.getPOSIXTime
   let timestamp = DateTimeFormat.formatTime
                   DateTimeFormat.defaultTimeLocale
                   "%Y%m%d%H%M%S"
@@ -163,7 +149,7 @@ mockAorbAnswers conn aorbs users = do
     ++ show (length aorbs)
     ++ " A/B items..."
   gen <- Random.getStdGen
-  now <- Time.getCurrentTime
+  now <- POSIXTime.getPOSIXTime
   putStrLn "Generating mock answers..."
   (answers, _) <- generateMockAnswers gen now
   putStrLn $
@@ -179,7 +165,7 @@ mockAorbAnswers conn aorbs users = do
     ) answers
   putStrLn "Answer generation complete."
   where
-    generateMockAnswers :: Random.StdGen -> Time.UTCTime
+    generateMockAnswers :: Random.StdGen -> POSIXTime.POSIXTime
                         -> IO ([AorbAnswers], Random.StdGen)
     generateMockAnswers g currentTime = do
       putStrLn "Starting answer generation loop..."
@@ -302,7 +288,7 @@ testAorbGaleShapley :: Int -> IO ()
 testAorbGaleShapley n
   | n <= 1 = putStrLn "number of matching entities must be greater than two"
   | otherwise = do
-  now <- Time.getCurrentTime
+  now <- POSIXTime.getPOSIXTime
   let timestamp = DateTimeFormat.formatTime
                   DateTimeFormat.defaultTimeLocale
                   "%Y%m%d%H%M%S"
@@ -336,7 +322,7 @@ testAorbLocalSearch n maxIterations maxBlockingPercentage batchSize
   | maxBlockingPercentage <= 0.0 = putStrLn "max blocking % must be positive"
   | batchSize <= 1 = putStrLn "batch size must be at least one"
   | otherwise = do
-  now <- Time.getCurrentTime
+  now <- POSIXTime.getPOSIXTime
   let timestamp = DateTimeFormat.formatTime
                   DateTimeFormat.defaultTimeLocale
                   "%Y%m%d%H%M%S"

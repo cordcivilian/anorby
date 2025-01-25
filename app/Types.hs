@@ -1,36 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Types
-  ( -- * Core Types
-    AorbAnswer(..)
-  , BinaryVector
-  , Contingency
-  , WeightVector
-  , WeightedContingency
-  , ValidPairCount
-  , WeightedValidPairCount
-  , WeightedContingencyWithValid
-  , SimilarityScore
-  , BinaryVectorSimilarity
-  , AssociationScheme(..)
-  , AorbID
-  , UserID
-  , UserSubmission
-  , Submissions
-  , Ranking
-  , Rankings
-  , Marriages
-  , OrderingFunction
-    -- * Database Types
-  , User(..)
-  , Aorb(..)
-  , AorbAnswers(..)
-  , AorbWithAnswer(..)
-  , MatchingAorbWithAnswer(..)
-    -- * Auth Types
-  , AnswerToken(..)
-  , SubmitAnswer(..)
-  ) where
+module Types where
 
 import qualified Data.Aeson as JSON
 import qualified Data.Map as Map
@@ -100,7 +70,7 @@ data AorbAnswers = AorbAnswers
   { aorbUserId :: UserID
   , aorbAorbId :: AorbID
   , aorbAnswer :: AorbAnswer
-  , aorbAnsweredOn :: Time.UTCTime
+  , aorbAnsweredOn :: POSIXTime.POSIXTime
   } deriving (Show)
 
 data AorbWithAnswer = AorbWithAnswer
@@ -208,14 +178,17 @@ instance SQL.FromRow AorbAnswers where
     <$> SQL.field
     <*> SQL.field
     <*> SQL.field
-    <*> SQL.field
+    <*> (utcToPosix <$> SQL.field)
+    where
+      utcToPosix :: Time.UTCTime -> POSIXTime.POSIXTime
+      utcToPosix = POSIXTime.utcTimeToPOSIXSeconds
 
 instance SQL.ToRow AorbAnswers where
   toRow ans =
     [ SQL.SQLInteger (fromIntegral $ aorbUserId ans)
     , SQL.SQLInteger (fromIntegral $ aorbAorbId ans)
     , SQL.toField (aorbAnswer ans)
-    , SQL.SQLText (T.pack $ show $ aorbAnsweredOn ans)
+    , SQL.SQLInteger (floor $ aorbAnsweredOn ans)
     ]
 
 instance SQL.FromField AorbAnswer where

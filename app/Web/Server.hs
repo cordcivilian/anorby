@@ -107,12 +107,13 @@ application _ state request respond = do
             Nothing -> return redirectToLogin
             Just user -> do
               now <- POSIXTime.getPOSIXTime
+              let timestamp = floor now :: Integer
               case getCookie request of
                 Just cookieBS -> do
                   let hash = TE.decodeUtf8 cookieBS
                   SQL.execute conn
                     "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-                    (show now :: String, hash)
+                    (timestamp, hash)
                 Nothing -> return ()
               handler conn (userId user) request) >>= respond
 

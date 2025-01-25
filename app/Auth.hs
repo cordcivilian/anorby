@@ -54,7 +54,7 @@ generateAnswerToken uid aid = do
       tokenData = BSL.concat
         [ Builder.toLazyByteString $ Builder.putWord64host $ fromIntegral uid
         , Builder.toLazyByteString $ Builder.putWord64host $ fromIntegral aid
-        , Builder.toLazyByteString $ Builder.putWord64host $ truncate expiry
+        , Builder.toLazyByteString $ Builder.putWord64host $ floor expiry
         ]
       secret = BSL.fromStrict $ TE.encodeUtf8 $
         T.pack $ maybe "no-secret" id maybeSecret
@@ -112,7 +112,7 @@ generateAuthHash email = do
         , BSL.fromStrict nonce
         , BSL.fromStrict $ TE.encodeUtf8 email
         , Builder.toLazyByteString $
-            Builder.putWord64host $ truncate now
+            Builder.putWord64host $ floor now
         ]
       hash1 = SHA.sha512 hashData
       hash2 = SHA.hmacSha512 secret

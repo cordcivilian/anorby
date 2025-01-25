@@ -9,7 +9,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
-import qualified Data.Time as Time
+import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Database.SQLite.Simple as SQL
 
 import Types
@@ -237,13 +237,15 @@ getUserFromAuthHash conn hash = do
         , "JOIN auth ON users.id = auth.user_id"
         , "WHERE auth.hash = ?"
         ]
-  now <- Time.getCurrentTime
+  now <- POSIXTime.getPOSIXTime
+  let timestamp :: Integer
+      timestamp = floor now
   results <- SQL.query conn query (SQL.Only hash) :: IO [User]
   case results of
     [user] -> do
       SQL.execute conn
         "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-        (now, hash)
+        (timestamp, hash)
       return $ Just user
     _ -> return Nothing
 
@@ -253,12 +255,12 @@ getUsersWithCompletedAnswers :: SQL.Connection -> IO [UserID]
 getUsersWithCompletedAnswers conn = do
 
   dailyLimitUsers <- SQL.query_ conn $ SQL.Query $ T.unwords
-    [ "SELECT DISTINCT user_id"
-    , "FROM aorb_answers"
-    , "WHERE date(substr(answered_on, 1, 10)) = date('now')"
-    , "GROUP BY user_id"
-    , "HAVING COUNT(*) >= 10"
-    ]
+      [ "SELECT DISTINCT user_id"
+      , "FROM aorb_answers"
+      , "WHERE date(datetime(answered_on, 'unixepoch')) = date('now')"
+      , "GROUP BY user_id"
+      , "HAVING COUNT(*) >= 10"
+      ]
 
   allQuestionsUsers <- SQL.query_ conn $ SQL.Query $ T.unwords
     [ "SELECT DISTINCT aa.user_id"
@@ -307,7 +309,7 @@ getUsersAnswers conn users aorbIds = do
         , "    u.id as user_id,"
         , "    oa.aorb_id,"
         , "    COALESCE(aa.answer, 255) as answer,"
-        , "    COALESCE(aa.answered_on, '1970-01-01') as answered_on"
+        , "    COALESCE(aa.answered_on, '0') as answered_on"
         , "  FROM (VALUES "
           <> T.intercalate "," (replicate (length users) "?") <>
           ") as u(id)"
@@ -394,13 +396,19 @@ getNextUnansweredAorb conn uid = do
 
 getDailyAnswerCount :: SQL.Connection -> UserID -> IO Int
 getDailyAnswerCount conn uid = do
+  now <- POSIXTime.getPOSIXTime
+  let secondsInDay = floor POSIXTime.posixDayLength :: Integer
+      startOfDay = floor (now / POSIXTime.posixDayLength) * secondsInDay
+      endOfDay = startOfDay + secondsInDay
   let query = SQL.Query $ T.unwords
         [ "SELECT COUNT(*)"
         , "FROM aorb_answers"
         , "WHERE user_id = ?"
-        , "AND date(substr(answered_on, 1, 10)) = date('now')"
+        , "AND answered_on >= ?"
+        , "AND answered_on < ?"
         ]
-  counts <- SQL.query conn query [uid] :: IO [SQL.Only Int]
+  counts <- SQL.query conn query
+             (uid, startOfDay, endOfDay) :: IO [SQL.Only Int]
   case counts of
     (count:_) -> return $ SQL.fromOnly count
     [] -> return 0

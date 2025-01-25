@@ -89,7 +89,7 @@ getConfig = do
   return $ Config
     { environment = env
     , dbPath = dbPath'
-    , userCount = 1337
+    , userCount = 137
     , newDb = newFlag
     , profileThreshold = 10
     , matchThreshold = 20

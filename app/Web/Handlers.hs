@@ -7,7 +7,7 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import qualified Data.Time as Time
+import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Database.SQLite.Simple as SQL
@@ -187,8 +187,9 @@ submitAnswerRoute conn uid aid answer token _ = do
               [(Headers.hContentType, BS.pack "text/html")]
               (R.renderHtml alreadyAnsweredTemplate)
             [] -> do
-              now <- Time.getCurrentTime
-              let ans = AorbAnswers
+              now <- POSIXTime.getPOSIXTime
+              let timestamp = floor now :: Integer
+                  ans = AorbAnswers
                     { aorbUserId = uid
                     , aorbAorbId = aid
                     , aorbAnswer = answer
@@ -199,7 +200,8 @@ submitAnswerRoute conn uid aid answer token _ = do
                     , "(user_id, aorb_id, answer, answered_on)"
                     , "VALUES (?, ?, ?, ?)"
                     ]
-              SQL.execute conn query ans
+              SQL.execute conn query
+                (aorbUserId ans, aorbAorbId ans, aorbAnswer ans, timestamp)
               return $ Wai.responseLBS
                 HTTP.status303
                 [ (Headers.hLocation, BS.pack "/ans")
@@ -217,8 +219,9 @@ editAnswerRoute conn uid aid answer token _ = do
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml invalidTokenTemplate)
     else do
-      now <- Time.getCurrentTime
-      let ans = AorbAnswers
+      now <- POSIXTime.getPOSIXTime
+      let timestamp = floor now :: Integer
+          ans = AorbAnswers
             { aorbUserId = uid
             , aorbAorbId = aid
             , aorbAnswer = answer
@@ -230,7 +233,7 @@ editAnswerRoute conn uid aid answer token _ = do
             , "WHERE user_id = ? AND aorb_id = ?"
             ]
       SQL.execute conn query
-        (aorbAnswer ans, aorbAnsweredOn ans, aorbUserId ans, aorbAorbId ans)
+        (aorbAnswer ans, timestamp, aorbUserId ans, aorbAorbId ans)
       return $ Wai.responseLBS
         HTTP.status303
         [ (Headers.hLocation, BS.pack $ "/ans/" ++ show aid)
@@ -404,19 +407,16 @@ loginPostRoute conn req = do
               [(Headers.hContentType, "text/html")]
               (R.renderHtml userNotFoundTemplate)
             [user] -> do
-              let query = SQL.Query $ T.unwords
+              now <- POSIXTime.getPOSIXTime
+              let timestamp = floor now :: Integer
+                  query = SQL.Query $ T.unwords
                     [ "INSERT INTO auth"
                     , "(user_id, hash, created_on, last_accessed)"
                     , "VALUES (?, ?, ?, ?)"
                     ]
               hash <- generateAuthHash (TE.decodeUtf8 email)
-              now <- Time.getCurrentTime
               SQL.execute conn query
-                ( userId user
-                , hash:: T.Text
-                , show now :: String
-                , show now :: String
-                )
+                (userId user , hash :: T.Text , timestamp , timestamp)
               emailConfig <- getEmailConfig
               sendAuthEmail emailConfig (TE.decodeUtf8 email) hash
               return $ Wai.responseLBS
@@ -472,9 +472,10 @@ registerPostRoute conn req = do
               [(Headers.hContentType, "text/html")]
               (R.renderHtml emailExistsTemplate)
             [] -> do
-              now <- Time.getCurrentTime
+              now <- POSIXTime.getPOSIXTime
               uuid <- UUID.toString <$> UUID.nextRandom
-              let newUser = User
+              let timestamp = floor now :: Integer
+                  newUser = User
                     { userId = 0
                     , userName = TE.decodeUtf8 email
                     , userEmail = TE.decodeUtf8 email
@@ -497,11 +498,7 @@ registerPostRoute conn req = do
                         ]
                   hash <- generateAuthHash (userEmail newUser)
                   SQL.execute conn query
-                    ( userId user
-                    , hash :: T.Text
-                    , show now :: String
-                    , show now :: String
-                    )
+                    ( userId user , hash :: T.Text , timestamp , timestamp)
                   emailConfig <- getEmailConfig
                   sendAuthEmail emailConfig (userEmail newUser) hash
                   return $ Wai.responseLBS
@@ -526,10 +523,11 @@ authHashRoute conn hash _ = do
       [(Headers.hContentType, "text/html")]
       (R.renderHtml notFoundTemplate)
     Just _ -> do
-      now <- Time.getCurrentTime
+      now <- POSIXTime.getPOSIXTime
+      let timestamp = floor now :: Integer
       SQL.execute conn
         "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-        (show now :: String, hash)
+        (timestamp, hash)
       return $ setCookie hash $ Wai.responseLBS
         HTTP.status303
         [ (Headers.hLocation, "/whoami")
