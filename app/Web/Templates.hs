@@ -492,11 +492,11 @@ matchTemplate = H.docTypeHtml $ H.html $ do
              , NavLink "/match" "match" True
              ]
       H.h1 "match"
-      H.div $ do
-        H.a H.! A.href "/match/type" $ "past"
-        H.span H.! A.class_ "link-separator" $ " | "
-        H.a H.! A.href "/match/type" $ "present"
-        H.span H.! A.class_ "link-separator" $ " | "
+      H.div H.! A.class_ "secondary-nav" $ do
+        H.a H.! A.href "/match/found" $ "past"
+        H.span H.! A.class_ "nav-divider" $ "|"
+        H.a H.! A.href "#today" $ "present"
+        H.span H.! A.class_ "nav-divider" $ "|"
         H.a H.! A.href "/match/type" $ "future"
     H.span H.! A.id "today" $ ""
     H.div H.! A.class_ "frame" $ do

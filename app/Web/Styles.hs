@@ -113,7 +113,7 @@ navBarCSS = T.unlines
   , cssEntry ".nav-link.active"
     [ cssProperty "color" "orange"
     ]
-  , cssMaxWidth 350
+  , cssMaxWidth 500
     [ cssEntry ".nav-bar"
         [ cssProperty "flex-direction" "column"
         ]
@@ -123,6 +123,40 @@ navBarCSS = T.unlines
     , cssEntry ".nav-separator"
         [ cssProperty "display" "none"
         ]
+    ]
+  ]
+
+secondaryNavCSS :: T.Text
+secondaryNavCSS = combineCSS
+  [ cssEntry ".secondary-nav"
+    [ cssProperty "display" "flex"
+    , cssProperty "justify-content" "center"
+    , cssProperty "gap" "1rem"
+    , cssProperty "flex-wrap" "wrap"
+    ]
+  , cssEntry ".secondary-nav a"
+    [ cssProperty "text-decoration" "none"
+    , cssProperty "color" "#4169e1"
+    , cssProperty "padding" "0.5rem 1rem"
+    , cssProperty "border-radius" "4px"
+    , cssProperty "transition" "background-color 0.2s"
+    ]
+  , cssEntry ".secondary-nav a:hover"
+    [ cssProperty "background-color" "rgba(65, 105, 225, 0.1)"
+    ]
+  , cssEntry ".nav-divider"
+    [ cssProperty "color" "gray"
+    , cssProperty "align-content" "center"
+    ]
+  , cssMaxWidth 500
+    [ cssEntry ".secondary-nav"
+      [ cssProperty "flex-direction" "column"
+      , cssProperty "align-items" "center"
+      , cssProperty "gap" "0.5rem"
+      ]
+    , cssEntry ".nav-divider"
+      [ cssProperty "display" "none"
+      ]
     ]
   ]
 
@@ -460,11 +494,11 @@ ansComponentsCSS = combineCSS
     ]
   , cssMediaQuery "(prefers-color-scheme: dark)"
     [ cssEntry ".ans-choice"
-      [ cssProperty "border-color" "#333"
+      [ cssProperty "background-color" "#2a2a2a"
       , cssProperty "outline-color" "#333"
       ]
     , cssEntry ".ans-choice:hover"
-      [ cssProperty "background-color" "#2a2a2a"
+      [ cssProperty "background-color" "buttonface"
       , cssProperty "outline-color" "#444"
       ]
     ]
@@ -502,6 +536,18 @@ clickableAorbCSS = combineCSS
     , cssProperty "font-family" "inherit"
     , cssProperty "transition" "all 0.2s"
     ]
+  , cssMediaQuery "(prefers-color-scheme: dark)"
+    [ cssEntry ".aorb-clickable"
+      [ cssProperty "border-color" "#333"
+      , cssProperty "outline-color" "#333"
+      ]
+    , cssEntry ".aorb-clickable:hover"
+      [ cssProperty "outline-color" "#aaa"
+      ]
+  , cssEntry ".aorb:hover"
+    [ cssProperty "background-color" "darkgrey"
+    ]
+    ]
   ]
 
 -- | Match CSS
@@ -511,6 +557,7 @@ matchPageCSS = combineCSS
   [ baseCSS
   , navBarCSS
   , matchTypeCSS
+  , secondaryNavCSS
   ]
 
 matchTypeCSS :: T.Text
