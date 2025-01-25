@@ -84,6 +84,12 @@ data MatchingAorbWithAnswer = MatchingAorbWithAnswer
   , otherUserAnswer :: AorbAnswer
   } deriving (Show)
 
+data Match = Match
+  { matchUserId :: UserID
+  , matchTargetId :: UserID
+  , matchTimestamp :: POSIXTime.POSIXTime
+  } deriving (Show, Eq)
+
 -- | Auth Types
 
 data AnswerToken = AnswerToken
@@ -99,7 +105,7 @@ data SubmitAnswer = SubmitAnswer
   } deriving (Show)
 
 -- | Type Class Instances (Random)
---
+
 instance Random.Random AorbAnswer where
   random g =
     case Random.random g of
@@ -178,10 +184,7 @@ instance SQL.FromRow AorbAnswers where
     <$> SQL.field
     <*> SQL.field
     <*> SQL.field
-    <*> (utcToPosix <$> SQL.field)
-    where
-      utcToPosix :: Time.UTCTime -> POSIXTime.POSIXTime
-      utcToPosix = POSIXTime.utcTimeToPOSIXSeconds
+    <*> (POSIXTime.utcTimeToPOSIXSeconds <$> SQL.field)
 
 instance SQL.ToRow AorbAnswers where
   toRow ans =
@@ -223,6 +226,19 @@ instance SQL.FromRow MatchingAorbWithAnswer where
           <*> SQL.field)
     <*> SQL.field
     <*> SQL.field
+
+instance SQL.FromRow Match where
+  fromRow = Match
+    <$> SQL.field
+    <*> SQL.field
+    <*> (POSIXTime.utcTimeToPOSIXSeconds <$> SQL.field)
+
+instance SQL.ToRow Match where
+  toRow match =
+    [ SQL.SQLInteger (fromIntegral $ matchUserId match)
+    , SQL.SQLInteger (fromIntegral $ matchTargetId match)
+    , SQL.SQLInteger (floor $ matchTimestamp match)
+    ]
 
 instance JSON.FromJSON Aorb where
   parseJSON = JSON.withObject "Aorb" $ \v -> Aorb

@@ -7,6 +7,8 @@ import qualified Data.Aeson as JSON
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Map.Strict as StrictMap
+import qualified Data.Maybe as Maybe
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
 import qualified Data.Time.Clock.POSIX as POSIXTime
@@ -89,6 +91,37 @@ initTables conn = SQL.withTransaction conn $ do
   initAorbAnswersTable conn
   initAorbMeanTrigger conn
   initAuthTable conn
+  initMatchedTable conn
+  initIndexes conn
+
+initIndexes :: SQL.Connection -> IO ()
+initIndexes conn = do
+
+  -- relatively low write volume
+  SQL.execute_ conn $ SQL.Query
+    "CREATE INDEX IF NOT EXISTS idx_auth_hash ON auth(hash)"
+  SQL.execute_ conn $ SQL.Query
+    "CREATE INDEX IF NOT EXISTS idx_auth_user ON auth(user_id)"
+
+  -- low write volume table
+  SQL.execute_ conn $ SQL.Query
+    "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)"
+  SQL.execute_ conn $ SQL.Query
+    "CREATE INDEX IF NOT EXISTS idx_users_uuid ON users(uuid)"
+
+  -- high write volume
+  SQL.execute_ conn $ SQL.Query $ T.unwords
+    [ "CREATE INDEX IF NOT EXISTS idx_answers_user_recent"
+    , "ON aorb_answers(user_id, answered_on DESC)"
+    ]
+
+  -- medium write volume during matching events
+  SQL.execute_ conn $ SQL.Query
+    "CREATE INDEX IF NOT EXISTS idx_matched_user ON matched(user_id)"
+  SQL.execute_ conn $ SQL.Query $ T.unwords
+    [ "CREATE INDEX IF NOT EXISTS idx_matched_user_time"
+    , "ON matched(user_id, matched_on DESC)"
+    ]
 
 initAuthTable :: SQL.Connection -> IO ()
 initAuthTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
@@ -137,6 +170,18 @@ initAorbAnswersTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
  , "FOREIGN KEY (aorb_id) REFERENCES aorb(id),"
  , "UNIQUE(user_id, aorb_id))"
  ]
+
+initMatchedTable :: SQL.Connection -> IO ()
+initMatchedTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+  [ "CREATE TABLE IF NOT EXISTS matched"
+  , "(id INTEGER PRIMARY KEY,"
+  , "user_id INTEGER NOT NULL,"
+  , "target_id INTEGER NOT NULL,"
+  , "matched_on TEXT NOT NULL,"
+  , "FOREIGN KEY (user_id) REFERENCES users(id),"
+  , "FOREIGN KEY (target_id) REFERENCES users(id),"
+  , "UNIQUE(user_id, target_id))"
+  ]
 
 initAorbMeanTrigger :: SQL.Connection -> IO ()
 initAorbMeanTrigger conn = do
@@ -363,6 +408,62 @@ allAorbsToSubmissions conn users = do
     let answers = maybe [] (map aorbAnswer) $ Map.lookup uid usersAnswers
     in (answers, aid, assoc)
     ) usersAorbIdAssoc
+
+-- | Match query functions
+
+getUserMatches :: SQL.Connection -> UserID -> IO [Match]
+getUserMatches conn uid = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT user_id, target_id, matched_on"
+        , "FROM matched"
+        , "WHERE user_id = ?"
+        , "ORDER BY matched_on DESC"
+        ]
+  SQL.query conn query [uid]
+
+getMatchBetweenUsers :: SQL.Connection -> UserID -> UserID -> IO (Maybe Match)
+getMatchBetweenUsers conn uid1 uid2 = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT user_id, target_id, matched_on"
+        , "FROM matched"
+        , "WHERE (user_id = ? AND target_id = ?)"
+        , "ORDER BY matched_on DESC"
+        , "LIMIT 1"
+        ]
+  matches <- SQL.query conn query (uid1, uid2) :: IO [Match]
+  return $ case matches of
+    (match:_) -> Just match
+    [] -> Nothing
+
+-- | Match ingestion functions
+
+insertMatches :: SQL.Connection -> Marriages -> IO ()
+insertMatches conn marriages = do
+  now <- POSIXTime.getPOSIXTime
+  let matches = marriagesToMatches now marriages
+  SQL.withTransaction conn $ do
+    SQL.execute_ conn "DELETE FROM matched"
+    SQL.executeMany conn
+      (SQL.Query $ T.unwords
+        [ "INSERT INTO matched"
+        , "(user_id, target_id, matched_on)"
+        , "VALUES (?, ?, ?)"
+        ]
+      ) matches
+
+marriagesToMatches :: POSIXTime.POSIXTime -> Marriages -> [Match]
+marriagesToMatches timestamp marriages =
+  [ Match uid tid timestamp
+  | (uid, Just tid) <- StrictMap.toList marriages
+  , uid < tid
+  ] >>= makeSymmetric
+  where
+    makeSymmetric match =
+      [ match
+      , match { matchUserId = matchTargetId match
+              , matchTargetId = matchUserId match
+              }
+      ]
 
 -- | Aorb query functions
 

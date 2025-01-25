@@ -87,7 +87,7 @@ monolith pool =
 
 application :: Logger -> AppState -> Wai.Application
 application _ state request respond = do
-  -- Parse request body
+
   _ <- Wai.lazyRequestBody request
 
   config <- getConfig
@@ -121,7 +121,6 @@ application _ state request respond = do
       path = BS.unpack $ Wai.rawPathInfo request
       pool = appPool state
 
-  -- Route handling
   case (method, path) of
     -- Public routes
     ("GET", "/") ->
@@ -214,7 +213,6 @@ application _ state request respond = do
       runProtectedHandlerWithConn (\conn uid ->
         matchTypeUpdateRoute config conn uid)
 
-    -- Not found
     _ -> respond notFoundResponse
 
   where
