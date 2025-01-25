@@ -207,15 +207,30 @@ profileHeadline maybeUuid children = do
     children
 
 profileMainAorb :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
-profileMainAorb mAid aorbs maybeUuid = case mAid of
-  Just aid -> do
-    H.span H.! A.id "main" $ ""
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "main"
-      H.div H.! A.class_ "aorbs-container" $ do
-        mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) $
-          filter (\awa -> aorbId (aorbData awa) == aid) aorbs
-  Nothing -> mempty
+profileMainAorb mAid aorbs maybeUuid =
+  case (mAid, maybeUuid) of
+    (Just aid, Just _) -> do
+      H.span H.! A.id "main" $ ""
+      H.div H.! A.class_ "frame" $ do
+        H.h1 "main"
+        H.div H.! A.class_ "aorbs-container" $ do
+          mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) $
+            filter (\awa -> aorbId (aorbData awa) == aid) aorbs
+    (Nothing, Just _) -> mempty
+    (Just aid, Nothing) -> do
+      H.span H.! A.id "main" $ ""
+      H.div H.! A.class_ "frame" $ do
+        H.h1 "main"
+        H.div H.! A.class_ "aorbs-container" $ do
+          mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) $
+            filter (\awa -> aorbId (aorbData awa) == aid) aorbs
+    (Nothing, Nothing) -> do
+      H.span H.! A.id "main" $ ""
+      H.div H.! A.class_ "frame" $ do
+        H.h1 "main"
+        H.div H.! A.class_ "no-main-instructions" $ do
+          H.p "you haven't selected your main question yet"
+          H.p "pick from the answers below"
 
 profileCommonplaceAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text
                        -> H.Html

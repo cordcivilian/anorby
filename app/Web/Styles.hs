@@ -287,6 +287,16 @@ aorbDisplayCSS = combineCSS
     ]
   ]
 
+noMainInstructionsCSS :: T.Text
+noMainInstructionsCSS = cssEntry ".no-main-instructions"
+  [ cssProperty "text-align" "center"
+  , cssProperty "padding" "2rem"
+  , cssProperty "background-color" "#f5f5f5"
+  , cssProperty "border-radius" "0.5rem"
+  , cssProperty "margin" "1rem auto"
+  , cssProperty "max-width" "600px"
+  ]
+
 notchCSS :: T.Text
 notchCSS = cssEntry ".notch"
   [ cssProperty "position" "sticky"
@@ -311,6 +321,7 @@ profilePageCSS maybeUuid = combineCSS
   , byFlakeTargetCSS
   , aorbsContainerCSS
   , aorbDisplayCSS
+  , noMainInstructionsCSS
   , clickableAorbCSS
   , notchCSS
   , case maybeUuid of
