@@ -1,34 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Database
-  ( initDB
-  , initConn
-  , initPool
-  , initTables
-  , readBaseAorbs
-  , ingestBaseAorbData
-  , getUsersWithAnswers
-  , getUsersAnswers
-  , getUsersAorbIdAndAssoc
-  , baseAorbsToSubmissions
-  , allAorbsToSubmissions
-  , getUserByUuid
-  , getUserUuidById
-  , getUserTotalAnswerCount
-  , getUserFromAuthHash
-  , getUsersWithCompletedAnswers
-  , getNextUnansweredAorb
-  , getDailyAnswerCount
-  , getUserAorbAndAssoc
-  , getUserTopXMostCommonplace
-  , getUserTopXMostControversial
-  , getUserAorbsFromControversialToCommonPlace
-  , getMatchesMainAorbs
-  , getMatchesTopXCommonDisagreement
-  , getMatchesTopXUniqueAgreement
-  , getLargestIntersection
-  , getLargestIntersectionAnswers
-  ) where
+module Database where
 
 import qualified Control.Monad as Monad
 import qualified Data.Aeson as JSON
@@ -251,6 +223,11 @@ getUserTotalAnswerCount conn uid = do
   case counts of
     (count:_) -> return $ SQL.fromOnly count
     [] -> return 0
+
+hasThresholdAccess :: SQL.Connection -> UserID -> Int -> IO Bool
+hasThresholdAccess conn uid threshold = do
+  count <- getUserTotalAnswerCount conn uid
+  return $ count >= threshold
 
 getUserFromAuthHash :: SQL.Connection -> T.Text -> IO (Maybe User)
 getUserFromAuthHash conn hash = do

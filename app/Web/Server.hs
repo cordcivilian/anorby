@@ -90,6 +90,8 @@ application _ state request respond = do
   -- Parse request body
   _ <- Wai.lazyRequestBody request
 
+  config <- getConfig
+
   let runHandlerWithConn :: (SQL.Connection -> Wai.Request -> IO Wai.Response)
                         -> IO Wai.ResponseReceived
       runHandlerWithConn handler =
@@ -169,7 +171,8 @@ application _ state request respond = do
       runProtectedHandlerWithConn deleteConfirmPostRoute
 
     ("GET", "/whoami") ->
-      runProtectedHandlerWithConn profileTemplateRoute
+      runProtectedHandlerWithConn (\conn uid ->
+        profileTemplateRoute config conn uid)
 
     ("GET", "/ans") ->
       runProtectedHandlerWithConn ansTemplateRoute
@@ -199,13 +202,16 @@ application _ state request respond = do
         setFavoriteAorbRoute conn uid aid)
 
     ("GET", "/match") ->
-      runProtectedHandlerWithConn matchTemplateRoute
+      runProtectedHandlerWithConn (\conn uid ->
+        matchTemplateRoute config conn uid)
 
     ("GET", "/match/type") ->
-      runProtectedHandlerWithConn matchTypeTemplateRoute
+      runProtectedHandlerWithConn (\conn uid ->
+        matchTypeTemplateRoute config conn uid)
 
     ("POST", "/match/type") ->
-      runProtectedHandlerWithConn matchTypeUpdateRoute
+      runProtectedHandlerWithConn (\conn uid ->
+        matchTypeUpdateRoute config conn uid)
 
     -- Not found
     _ -> respond notFoundResponse

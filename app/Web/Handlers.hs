@@ -61,19 +61,18 @@ roadmapTemplateRoute conn _ = do
     [(Headers.hContentType, BS.pack "text/html")]
     (R.renderHtml $ roadmapTemplate totalActiveUsers)
 
-profileTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
+profileTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
                      -> IO Wai.Response
-profileTemplateRoute conn uid _ = do
-  config <- getConfig
+profileTemplateRoute config conn uid _ = do
+  hasAccess <- hasThresholdAccess conn uid (profileThreshold config)
   userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
   case userQ of
     (user:_) -> do
-      answerCount <- getUserTotalAnswerCount conn uid
-      if answerCount < 10
+      if not hasAccess
         then return $ Wai.responseLBS
           HTTP.status200
           [(Headers.hContentType, BS.pack "text/html")]
-          (R.renderHtml $ profileTemplate [] Nothing Nothing Nothing True)
+          (R.renderHtml $ profileNotYetActive (profileThreshold config))
         else do
           myAorbs <- getUserAorbsFromControversialToCommonPlace conn uid
           let shareBaseUrl = if environment config == Production
@@ -84,7 +83,7 @@ profileTemplateRoute conn uid _ = do
             HTTP.status200
             [(Headers.hContentType, BS.pack "text/html")]
             (R.renderHtml $
-              profileTemplate myAorbs (userAorbId user) Nothing shareUrl False)
+              profileTemplate myAorbs (userAorbId user) Nothing shareUrl)
     [] -> return $ Wai.responseLBS
       HTTP.status404
       [(Headers.hContentType, BS.pack "text/html")]
@@ -101,7 +100,7 @@ sharedProfileTemplateRoute conn uuid _ = do
         HTTP.status200
         [(Headers.hContentType, BS.pack "text/html")]
         (R.renderHtml $
-          profileTemplate myAorbs (userAorbId user) (Just uuid) Nothing False)
+          profileTemplate myAorbs (userAorbId user) (Just uuid) Nothing)
     Nothing -> return $ Wai.responseLBS
       HTTP.status404
       [(Headers.hContentType, BS.pack "text/html")]
@@ -250,66 +249,87 @@ setFavoriteAorbRoute conn uid aid _ = do
     ]
     ""
 
-matchTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
+matchTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
                    -> IO Wai.Response
-matchTemplateRoute conn uid _ = do
-  assocResult <- SQL.query conn
-    "SELECT assoc FROM users WHERE id = ?"
-    (SQL.Only uid) :: IO [SQL.Only (Maybe AssociationScheme)]
-  case assocResult of
-    [] -> return $ Wai.responseLBS
-      HTTP.status404
-      [(Headers.hContentType, BS.pack "text/html")]
-      (R.renderHtml notFoundTemplate)
-    [SQL.Only Nothing] -> return $ Wai.responseLBS
-      HTTP.status303
-      [ (Headers.hLocation, "/match/type")
-      , (Headers.hContentType, "text/html")
-      ]
-      ""
-    [SQL.Only (Just _)] -> return $ Wai.responseLBS
+matchTemplateRoute config conn uid _ = do
+  hasAccess <- hasThresholdAccess conn uid (matchThreshold config)
+  if not hasAccess
+    then return $ Wai.responseLBS
       HTTP.status200
       [(Headers.hContentType, BS.pack "text/html")]
-      (R.renderHtml matchTemplate)
-    _ -> return $ Wai.responseLBS
-      HTTP.status500
-      [(Headers.hContentType, BS.pack "text/html")]
-      (R.renderHtml internalErrorTemplate)
+      (R.renderHtml $ matchNotYetActive (matchThreshold config))
+    else do
+      assocResult <- SQL.query conn
+        "SELECT assoc FROM users WHERE id = ?"
+        (SQL.Only uid) :: IO [SQL.Only (Maybe AssociationScheme)]
+      case assocResult of
+        [] -> return $ Wai.responseLBS
+          HTTP.status404
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml notFoundTemplate)
+        [SQL.Only Nothing] -> return $ Wai.responseLBS
+          HTTP.status303
+          [ (Headers.hLocation, "/match/type")
+          , (Headers.hContentType, "text/html")
+          ]
+          ""
+        [SQL.Only (Just _)] -> return $ Wai.responseLBS
+          HTTP.status200
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml matchTemplate)
+        _ -> return $ Wai.responseLBS
+          HTTP.status500
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml internalErrorTemplate)
 
-matchTypeTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
-                       -> IO Wai.Response
-matchTypeTemplateRoute conn uid _ = do
-  userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
-  case userQ of
-    (user:_) -> return $ Wai.responseLBS
+matchTypeTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
+                      -> IO Wai.Response
+matchTypeTemplateRoute config conn uid _ = do
+  hasAccess <- hasThresholdAccess conn uid (matchThreshold config)
+  if not hasAccess
+    then return $ Wai.responseLBS
       HTTP.status200
       [(Headers.hContentType, BS.pack "text/html")]
-      (R.renderHtml $ matchTypeTemplate user)
-    [] -> return $ Wai.responseLBS
-      HTTP.status404
-      [(Headers.hContentType, BS.pack "text/html")]
-      (R.renderHtml notFoundTemplate)
+      (R.renderHtml $ matchNotYetActive (matchThreshold config))
+    else do
+      userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
+      case userQ of
+        (user:_) -> return $ Wai.responseLBS
+          HTTP.status200
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml $ matchTypeTemplate user)
+        [] -> return $ Wai.responseLBS
+          HTTP.status404
+          [(Headers.hContentType, BS.pack "text/html")]
+          (R.renderHtml notFoundTemplate)
 
-matchTypeUpdateRoute :: SQL.Connection -> UserID -> Wai.Request
-                     -> IO Wai.Response
-matchTypeUpdateRoute conn uid req = do
-  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
-  case lookup "assoc" params of
-    Just assocBS -> do
-      let assocText = TE.decodeUtf8 assocBS
-      case parseAssociationScheme assocText of
-        Just scheme -> do
-          SQL.execute conn
-            "UPDATE users SET assoc = ? WHERE id = ?"
-            (scheme, uid)
-          return $ Wai.responseLBS
-            HTTP.status303
-            [ (Headers.hLocation, "/match/type")
-            , (Headers.hContentType, "text/html")
-            ]
-            ""
+matchTypeUpdateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
+                    -> IO Wai.Response
+matchTypeUpdateRoute config conn uid req = do
+  hasAccess <- hasThresholdAccess conn uid (matchThreshold config)
+  if not hasAccess
+    then return $ Wai.responseLBS
+      HTTP.status200
+      [(Headers.hContentType, BS.pack "text/html")]
+      (R.renderHtml $ matchNotYetActive (matchThreshold config))
+    else do
+      (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+      case lookup "assoc" params of
+        Just assocBS -> do
+          let assocText = TE.decodeUtf8 assocBS
+          case parseAssociationScheme assocText of
+            Just scheme -> do
+              SQL.execute conn
+                "UPDATE users SET assoc = ? WHERE id = ?"
+                (scheme, uid)
+              return $ Wai.responseLBS
+                HTTP.status303
+                [ (Headers.hLocation, "/match/type")
+                , (Headers.hContentType, "text/html")
+                ]
+                ""
+            Nothing -> return invalidSubmissionResponse
         Nothing -> return invalidSubmissionResponse
-    Nothing -> return invalidSubmissionResponse
   where
     parseAssociationScheme :: T.Text -> Maybe AssociationScheme
     parseAssociationScheme "PPPod" = Just PPPod

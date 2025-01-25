@@ -171,19 +171,15 @@ publicAorbs aorbs = do
                   H.toHtml (aorbB aorb)
 
 profileTemplate :: [AorbWithAnswer] -> Maybe AorbID
-                -> Maybe T.Text -> Maybe T.Text -> Bool
+                -> Maybe T.Text -> Maybe T.Text
                 -> H.Html
-profileTemplate aorbs mAid maybeUuid shareUrl showMinimal =
+profileTemplate aorbs mAid maybeUuid shareUrl =
   H.docTypeHtml $ H.html $ do
     profileHead maybeUuid
     H.body $ do
-      profileHeadline maybeUuid $
-        if showMinimal
-          then profileNotYetActive
-          else H.div $ do H.a H.! A.href "#main" $ "begin"
-      if showMinimal
-         then mempty
-         else profileFullView mAid aorbs maybeUuid shareUrl
+      profileHeadline maybeUuid $ H.div $ do
+        H.a H.! A.href "#main" $ "begin"
+      profileFullView mAid aorbs maybeUuid shareUrl
 
 profileHead :: Maybe T.Text -> H.Html
 profileHead maybeUuid = H.head $ do
@@ -209,12 +205,6 @@ profileHeadline maybeUuid children = do
       Just uuid -> H.text $ "#" <> uuid
       Nothing -> "whoami"
     children
-
-profileNotYetActive :: H.Html
-profileNotYetActive = H.div $ do
-  H.p "your profile will be activated after answering 10 questions"
-  H.div $ do
-    H.a H.! A.href "/ans" $ "begin"
 
 profileMainAorb :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileMainAorb mAid aorbs maybeUuid = case mAid of
@@ -716,6 +706,23 @@ noMoreQuestionsTemplate = msgTemplate MessageTemplate
   { messageTitle = "no more questions"
   , messageHeading = "no more questions"
   , messageLink = ("/whoami", "back to profile")
+  }
+
+profileNotYetActive :: Int -> H.Html
+profileNotYetActive threshold = msgTemplate MessageTemplate
+  { messageTitle = "profile not yet active"
+  , messageHeading = T.pack $
+      "your profile will be activated after answering "
+      ++ show threshold ++ " questions"
+  , messageLink = ("/ans", "answer more questions")
+  }
+matchNotYetActive :: Int -> H.Html
+matchNotYetActive threshold = msgTemplate MessageTemplate
+  { messageTitle = "match not yet active"
+  , messageHeading = T.pack $
+      "matching will be activated after answering "
+      ++ show threshold ++ " questions"
+  , messageLink = ("/ans", "answer more questions")
   }
 
 errorTemplateWithLink :: Int -> T.Text -> (T.Text, T.Text) -> H.Html

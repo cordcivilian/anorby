@@ -19,6 +19,8 @@ data Config = Config
   , dbPath :: FilePath
   , userCount :: Int
   , newDb :: Bool
+  , matchThreshold :: Int
+  , profileThreshold :: Int
   } deriving (Show)
 
 productionDbPath :: FilePath
@@ -89,4 +91,6 @@ getConfig = do
     , dbPath = dbPath'
     , userCount = 1337
     , newDb = newFlag
+    , profileThreshold = 10
+    , matchThreshold = 20
     }
