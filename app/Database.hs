@@ -341,33 +341,35 @@ getUsersWithAnswers conn aorbIds = do
 getUsersAnswers :: SQL.Connection -> [UserID] -> [AorbID]
                 -> IO (Map.Map UserID [AorbAnswers])
 getUsersAnswers conn users aorbIds = do
-  let query = SQL.Query $ T.unwords
-        [ "WITH ordered_aorbs AS ("
-        , "  SELECT aorb_id, row_number() OVER () as ord"
-        , "  FROM (VALUES "
-          <> T.intercalate "," (map (\_ -> "(?)") aorbIds) <>
-          ") as t(aorb_id)"
-        , "),"
-        , "user_answers AS ("
-        , "  SELECT"
-        , "    u.id as user_id,"
-        , "    oa.aorb_id,"
-        , "    COALESCE(aa.answer, 255) as answer,"
-        , "    COALESCE(aa.answered_on, '0') as answered_on"
-        , "  FROM (VALUES "
-          <> T.intercalate "," (replicate (length users) "?") <>
-          ") as u(id)"
-        , "  CROSS JOIN ordered_aorbs oa"
-        , "  LEFT JOIN aorb_answers aa ON"
-        , "    aa.user_id = u.id AND aa.aorb_id = oa.aorb_id"
-        , ")"
-        , "SELECT user_id, aorb_id, answer, answered_on"
-        , "FROM user_answers"
-        , "ORDER BY user_id, ord"
+  existingAnswers <- if null users || null aorbIds
+    then return []
+    else SQL.query conn query (users ++ aorbIds) :: IO [AorbAnswers]
+  let existingMap = Map.fromList
+        [ ((aorbUserId ans, aorbAorbId ans), ans)
+        | ans <- existingAnswers
         ]
-  answers <- SQL.query conn query (users ++ aorbIds) :: IO [AorbAnswers]
-  return $ Map.fromListWith (++) $
-    map (\ans -> (aorbUserId ans, [ans])) answers
+      allPairs = [(user, aorb) | user <- users, aorb <- aorbIds]
+      answers =
+        [ maybe (defaultAnswer user aorb) id $
+            Map.lookup (user, aorb) existingMap
+        | (user, aorb) <- allPairs
+        ]
+      defaultAnswer uid aid = AorbAnswers
+        { aorbUserId = uid
+        , aorbAorbId = aid
+        , aorbAnswer = AorbAnswer 255
+        , aorbAnsweredOn = 0
+        }
+  return $ Map.fromListWith (++)
+    [ (uid, [ans]) | ans <- answers , let uid = aorbUserId ans ]
+  where
+    query = SQL.Query $ T.unwords
+      [ "SELECT user_id, aorb_id, answer, answered_on"
+      , "FROM aorb_answers"
+      , "WHERE user_id IN (" <> placeholders (length users) <> ")"
+      , "AND aorb_id IN (" <> placeholders (length aorbIds) <> ")"
+      ]
+    placeholders n = T.intercalate "," (replicate n "?")
 
 getUsersAorbIdAndAssoc :: SQL.Connection -> [UserID]
                        -> IO (Map.Map UserID (AorbID, AssociationScheme))

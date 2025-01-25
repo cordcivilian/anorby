@@ -183,14 +183,14 @@ instance SQL.FromRow AorbAnswers where
     <$> SQL.field
     <*> SQL.field
     <*> SQL.field
-    <*> (POSIXTime.utcTimeToPOSIXSeconds <$> SQL.field)
+    <*> (read . T.unpack <$> SQL.field)
 
 instance SQL.ToRow AorbAnswers where
   toRow ans =
     [ SQL.SQLInteger (fromIntegral $ aorbUserId ans)
     , SQL.SQLInteger (fromIntegral $ aorbAorbId ans)
     , SQL.toField (aorbAnswer ans)
-    , SQL.SQLInteger (floor $ aorbAnsweredOn ans)
+    , SQL.SQLText $ T.pack $ show $ aorbAnsweredOn ans
     ]
 
 instance SQL.FromField AorbAnswer where
@@ -230,13 +230,13 @@ instance SQL.FromRow Match where
   fromRow = Match
     <$> SQL.field
     <*> SQL.field
-    <*> (POSIXTime.utcTimeToPOSIXSeconds <$> SQL.field)
+    <*> (read . T.unpack <$> SQL.field)
 
 instance SQL.ToRow Match where
   toRow match =
     [ SQL.SQLInteger (fromIntegral $ matchUserId match)
     , SQL.SQLInteger (fromIntegral $ matchTargetId match)
-    , SQL.SQLInteger (floor $ matchTimestamp match)
+    , SQL.SQLText $ T.pack $ show $ matchTimestamp match
     ]
 
 instance JSON.FromJSON Aorb where

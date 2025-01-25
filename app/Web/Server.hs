@@ -72,6 +72,20 @@ initDatabasePool config =
         initPool (dbPath config)
       TestWithCustomData -> do
         initPool (dbPath config)
+      TestWithMatches 1 -> do
+        Monad.when (newDb config || not dbExists) $ do
+          putStrLn "Creating new test database with Gale-Shapley matching..."
+          conn <- initDB (dbPath config) True
+          mockBaseAorbAnswersWithGaleShapley conn (userCount config)
+          SQL.close conn
+        initPool (dbPath config)
+      TestWithMatches _ -> do
+        Monad.when (newDb config || not dbExists) $ do
+          putStrLn "Creating new test database with Local Search matching..."
+          conn <- initDB (dbPath config) True
+          mockBaseAorbAnswersWithLocalSearch conn (userCount config)
+          SQL.close conn
+        initPool (dbPath config)
 
 -- | Application setup
 

@@ -17,6 +17,7 @@ import Types
 import Database
 import Core.Matching
 import Core.Ranking
+import Utils.Config
 
 randomRankings :: (Random.RandomGen g) => g -> Int -> Rankings
 randomRankings gen n =
@@ -36,12 +37,15 @@ randomRankings gen n =
 
 -- | Mock Data Generation
 
-mockery :: Int -> Bool -> IO ()
-mockery n answers = do
+mockery :: Int -> Environment -> IO ()
+mockery n env = do
   conn <- mockDB "mock"
-  case answers of
-    True -> mockBaseAorbAnswers conn n
-    False -> mockBase conn n
+  case env of
+    TestWithAnswers -> mockBaseAorbAnswers conn n
+    TestWithoutAnswers -> mockBase conn n
+    TestWithMatches 1 -> mockBaseAorbAnswersWithGaleShapley conn n
+    TestWithMatches 2 -> mockBaseAorbAnswersWithLocalSearch conn n
+    _ -> mockBase conn n
   SQL.close conn
 
 mockDB :: FilePath -> IO SQL.Connection
@@ -79,6 +83,28 @@ mockBaseAorbAnswers conn n = do
   mockAssociations conn users
   putStrLn "Mock data generation complete."
 
+mockBaseAorbAnswersWithGaleShapley :: SQL.Connection -> Int -> IO ()
+mockBaseAorbAnswersWithGaleShapley conn n = do
+  mockBaseAorbAnswers conn n
+  putStrLn "Running Gale-Shapley matching..."
+  submissions <- baseAorbsToSubmissions conn
+  marriages <- galeShapley
+    (fst $ splitRankings $ submissionsToRankings submissions)
+    (snd $ splitRankings $ submissionsToRankings submissions)
+  insertMatches conn marriages
+  putStrLn "Mock data with Gale-Shapley matching complete."
+
+mockBaseAorbAnswersWithLocalSearch :: SQL.Connection -> Int -> IO ()
+mockBaseAorbAnswersWithLocalSearch conn n = do
+  mockBaseAorbAnswers conn n
+  putStrLn "Running Local Search matching..."
+  submissions <- baseAorbsToSubmissions conn
+  let rankings = submissionsToRankings submissions
+      (group1Rankings, group2Rankings) = splitRankings rankings
+  marriages <- localSearch group1Rankings group2Rankings 1000 1.0 5
+  insertMatches conn marriages
+  putStrLn "Mock data with Local Search matching complete."
+
 mockUsers :: SQL.Connection -> Int -> IO ()
 mockUsers conn n = do
   putStrLn $ "Getting random seed for " ++ show n ++ " users..."
@@ -114,31 +140,27 @@ mockUsers conn n = do
         ) ([], g) [0..count-1]
 
 mockMainAorbs :: SQL.Connection -> [User] -> IO ()
-mockMainAorbs conn users = do
-  gen <- Random.getStdGen
+mockMainAorbs conn users =
   Monad.forM_ users $ \user -> do
     answeredAorbs <- SQL.query conn
       "SELECT DISTINCT aorb_id FROM aorb_answers WHERE user_id = ?"
       (SQL.Only $ userId user) :: IO [SQL.Only Int]
     Monad.unless (null answeredAorbs) $ do
-      let (shouldSetMain, g2) = Random.random gen
-      Monad.when (shouldSetMain && (length answeredAorbs > 0)) $ do
-        let (idx, _) = Random.randomR (0, length answeredAorbs - 1) g2
-            SQL.Only favoriteId = answeredAorbs !! idx
-        SQL.execute conn
-          "UPDATE users SET aorb_id = ? WHERE id = ?"
-          (favoriteId, userId user)
+      let gen = Random.mkStdGen (userId user)
+          (idx, _) = Random.randomR (0, length answeredAorbs - 1) gen
+          SQL.Only favoriteId = answeredAorbs !! idx
+      SQL.execute conn
+        "UPDATE users SET aorb_id = ? WHERE id = ?"
+        (favoriteId, userId user)
 
 mockAssociations :: SQL.Connection -> [User] -> IO ()
-mockAssociations conn users = do
-  gen <- Random.getStdGen
+mockAssociations conn users =
   Monad.forM_ users $ \user -> do
-    let (shouldSetAssoc, g2) = Random.random gen
-        (assocScheme, _) = Random.random g2
-    Monad.when shouldSetAssoc $ do
-      SQL.execute conn
-        "UPDATE users SET assoc = ? WHERE id = ?"
-        (assocScheme :: AssociationScheme, userId user)
+    let gen = Random.mkStdGen (userId user)
+        (assocScheme, _) = Random.random gen
+    SQL.execute conn
+      "UPDATE users SET assoc = ? WHERE id = ?"
+      (assocScheme :: AssociationScheme, userId user)
 
 mockAorbAnswers :: SQL.Connection -> [Aorb] -> [User] -> IO ()
 mockAorbAnswers conn aorbs users = do

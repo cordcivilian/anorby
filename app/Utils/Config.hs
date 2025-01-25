@@ -12,7 +12,8 @@ data Environment = Production
                  | TestWithAnswers
                  | TestWithoutAnswers
                  | TestWithCustomData
-  deriving (Show, Eq)
+                 | TestWithMatches Int
+                 deriving (Show, Eq)
 
 data Config = Config
   { environment :: Environment
@@ -21,6 +22,15 @@ data Config = Config
   , newDb :: Bool
   , matchThreshold :: Int
   , profileThreshold :: Int
+  } deriving (Show)
+
+data EnvFlags = EnvFlags
+  { hasANORBY :: Bool
+  , hasANS :: Bool
+  , hasXDB :: Bool
+  , hasMCH :: Maybe String
+  , hasNEW :: Bool
+  , hasSMTP :: Bool
   } deriving (Show)
 
 productionDbPath :: FilePath
@@ -35,16 +45,63 @@ testWithoutAnswersDbPath = "data/anorby-test.db"
 testOverrideDbPath :: FilePath
 testOverrideDbPath = "data/mock-anorby-20250118114756.db"
 
-getEnvironment :: IO Environment
+testWithMatchesDbPath :: Int -> FilePath
+testWithMatchesDbPath n = "data/anorby-test-mch" ++ show n ++ ".db"
+
+-- | Environment validation
+
+getEnvironment :: IO (Environment, Bool)
 getEnvironment = do
+  flags <- getEnvFlags
+  validateEnvCombination flags
+  env <- determineEnvironment flags
+  return (env, hasNEW flags)
+
+getEnvFlags :: IO EnvFlags
+getEnvFlags = do
   secret <- Env.lookupEnv "ANORBY"
-  withAnswers <- Env.lookupEnv "ANS"
-  overrideDb <- Env.lookupEnv "XDB"
-  return $ case (secret, withAnswers, overrideDb) of
-    (Just _, _, _) -> Production
-    (Nothing, _, Just "1") -> TestWithCustomData
-    (Nothing, Just "1", _) -> TestWithAnswers
-    (Nothing, _, _) -> TestWithoutAnswers
+  answers <- Env.lookupEnv "ANS"
+  override <- Env.lookupEnv "XDB"
+  matching <- Env.lookupEnv "MCH"
+  new <- Env.lookupEnv "NEW"
+  smtp <- Env.lookupEnv "SMTP"
+  return $ EnvFlags
+    { hasANORBY = Maybe.isJust secret
+    , hasANS = Maybe.isJust answers
+    , hasXDB = Maybe.isJust override
+    , hasMCH = matching
+    , hasNEW = Maybe.isJust new
+    , hasSMTP = Maybe.isJust smtp
+    }
+
+validateEnvCombination :: EnvFlags -> IO ()
+validateEnvCombination flags = do
+  -- Production incompatibilities
+  Monad.when (hasANORBY flags) $ do
+    Monad.when (Maybe.isJust $ hasMCH flags) $
+      error "MCH cannot be used in production"
+    Monad.when (hasNEW flags) $
+      error "NEW=1 cannot be used in production"
+    Monad.when (hasXDB flags) $
+      error "XDB=1 cannot be used in production"
+    Monad.when (not $ hasSMTP flags) $
+      error "SMTP=1 must be set in production"
+
+determineEnvironment :: EnvFlags -> IO Environment
+determineEnvironment flags
+  | hasANORBY flags = return Production
+  | Maybe.isJust (hasMCH flags) = parseMatchingEnv flags
+  | hasXDB flags = return TestWithCustomData
+  | hasANS flags = return TestWithAnswers
+  | otherwise = return TestWithoutAnswers
+
+parseMatchingEnv :: EnvFlags -> IO Environment
+parseMatchingEnv flags = case hasMCH flags of
+  Just n -> case (reads n :: [(Int, String)]) of
+    [(1, "")] -> return $ TestWithMatches 1
+    [(2, "")] -> return $ TestWithMatches 2
+    _ -> error "MCH must be 1 (Gale-Shapley) or 2 (Local Search)"
+  Nothing -> error "Invalid MCH value"
 
 checkRequiredFiles :: IO ()
 checkRequiredFiles = do
@@ -62,29 +119,14 @@ checkRequiredFiles = do
 getConfig :: IO Config
 getConfig = do
   checkRequiredFiles
-
-  env <- getEnvironment
-  newFlag <- Maybe.isJust <$> Env.lookupEnv "NEW"
-  xDbFlag <- Maybe.isJust <$> Env.lookupEnv "XDB"
-  smtpFlag <- Maybe.isJust <$> Env.lookupEnv "SMTP"
-
-  Monad.when (env == Production && newFlag) $ do
-    putStrLn "ERROR: NEW=1 cannot be used in production"
-    Exit.exitWith (Exit.ExitFailure 1)
-
-  Monad.when (env == Production && xDbFlag) $ do
-    putStrLn "ERROR: XDB=1 cannot be used in production"
-    Exit.exitWith (Exit.ExitFailure 1)
-
-  Monad.when (env == Production && not smtpFlag) $ do
-    putStrLn "ERROR: SMTP=1 must be set in production"
-    Exit.exitWith (Exit.ExitFailure 1)
+  (env, newFlag) <- getEnvironment
 
   let dbPath' = case env of
-                  Production -> productionDbPath
-                  TestWithCustomData -> testOverrideDbPath
-                  TestWithAnswers -> testWithAnswersDbPath
-                  TestWithoutAnswers -> testWithoutAnswersDbPath
+        Production -> productionDbPath
+        TestWithCustomData -> testOverrideDbPath
+        TestWithAnswers -> testWithAnswersDbPath
+        TestWithoutAnswers -> testWithoutAnswersDbPath
+        TestWithMatches n -> testWithMatchesDbPath n
 
   return $ Config
     { environment = env
