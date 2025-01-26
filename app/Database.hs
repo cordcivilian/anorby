@@ -297,15 +297,17 @@ getUserFromAuthHash conn hash = do
 
 getUsersWithCompletedAnswers :: SQL.Connection -> IO [UserID]
 getUsersWithCompletedAnswers conn = do
-
   dailyLimitUsers <- SQL.query_ conn $ SQL.Query $ T.unwords
       [ "SELECT DISTINCT user_id"
       , "FROM aorb_answers"
-      , "WHERE date(datetime(answered_on, 'unixepoch')) = date('now')"
+      , "WHERE date(datetime(CAST(SUBSTR(answered_on, 1, "
+      , "      CASE WHEN INSTR(answered_on, 's') > 0"
+      , "           THEN INSTR(answered_on, 's') - 1"
+      , "           ELSE LENGTH(answered_on)"
+      , "      END) AS FLOAT), 'unixepoch')) = date('now')"
       , "GROUP BY user_id"
       , "HAVING COUNT(*) >= 10"
       ]
-
   allQuestionsUsers <- SQL.query_ conn $ SQL.Query $ T.unwords
     [ "SELECT DISTINCT aa.user_id"
     , "FROM aorb_answers aa"
@@ -315,12 +317,10 @@ getUsersWithCompletedAnswers conn = do
     , "  FROM aorb"
     , ")"
     ]
-
   let dailyLimitIds =
         map SQL.fromOnly (dailyLimitUsers :: [SQL.Only UserID])
       allQuestionsIds =
         map SQL.fromOnly (allQuestionsUsers :: [SQL.Only UserID])
-
   return $ List.nub $ dailyLimitIds ++ allQuestionsIds
 
 getUsersWithAnswers :: SQL.Connection -> [AorbID] -> IO [UserID]
