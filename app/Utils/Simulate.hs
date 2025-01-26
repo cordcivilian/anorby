@@ -54,7 +54,7 @@ mockDB prefix = do
   let timestamp = DateTimeFormat.formatTime
                   DateTimeFormat.defaultTimeLocale
                   "%Y%m%d%H%M%S"
-                  now
+                  (POSIXTime.posixSecondsToUTCTime now)
       dbName = "data/" ++ prefix ++ "-anorby-" ++ timestamp ++ ".db"
   putStrLn $ "Creating test database: " ++ dbName
   initDB dbName False
@@ -348,7 +348,7 @@ testAorbLocalSearch n maxIterations maxBlockingPercentage batchSize
   let timestamp = DateTimeFormat.formatTime
                   DateTimeFormat.defaultTimeLocale
                   "%Y%m%d%H%M%S"
-                  now
+                  (POSIXTime.posixSecondsToUTCTime now)
       dbName = "data/test-anorby-" ++ timestamp ++ ".db"
   conn <- initDB dbName False
   mockBaseAorbAnswers conn n

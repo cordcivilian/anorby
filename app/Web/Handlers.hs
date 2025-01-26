@@ -231,7 +231,11 @@ editAnswerRoute conn uid aid answer token _ = do
             , "WHERE user_id = ? AND aorb_id = ?"
             ]
       SQL.execute conn query
-        (aorbAnswer ans, floor now :: Integer, aorbUserId ans, aorbAorbId ans)
+        ( aorbAnswer ans
+        , show $ aorbAnsweredOn ans
+        , aorbUserId ans
+        , aorbAorbId ans
+        )
       return $ Wai.responseLBS
         HTTP.status303
         [ (Headers.hLocation, BS.pack $ "/ans/" ++ show aid)
@@ -437,11 +441,7 @@ loginPostRoute conn req = do
                     ]
               hash <- generateAuthHash (TE.decodeUtf8 email)
               SQL.execute conn query
-                ( userId user
-                , hash :: T.Text
-                , floor now :: Integer
-                , floor now :: Integer
-                )
+                (userId user, hash :: T.Text, show now, show now)
               emailConfig <- getEmailConfig
               sendAuthEmail emailConfig (TE.decodeUtf8 email) hash
               return $ Wai.responseLBS
@@ -522,11 +522,7 @@ registerPostRoute conn req = do
                         ]
                   hash <- generateAuthHash (userEmail newUser)
                   SQL.execute conn query
-                    ( userId user
-                    , hash :: T.Text
-                    , floor now :: Integer
-                    , floor now :: Integer
-                    )
+                    (userId user, hash :: T.Text, show now, show now)
                   emailConfig <- getEmailConfig
                   sendAuthEmail emailConfig (userEmail newUser) hash
                   return $ Wai.responseLBS
@@ -553,8 +549,7 @@ authHashRoute conn hash _ = do
     Just _ -> do
       now <- POSIXTime.getPOSIXTime
       SQL.execute conn
-        "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-        (floor now :: Integer, hash)
+        "UPDATE auth SET last_accessed = ? WHERE hash = ?" (show now, hash)
       return $ setCookie hash $ Wai.responseLBS
         HTTP.status303
         [ (Headers.hLocation, "/whoami")
