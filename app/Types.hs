@@ -83,6 +83,11 @@ data MatchingAorbWithAnswer = MatchingAorbWithAnswer
   , otherUserAnswer :: AorbAnswer
   } deriving (Show)
 
+data PreMatch = PreMatch
+  { prematchUserId :: UserID
+  , prematchDate :: POSIXTime.POSIXTime
+  } deriving (Show)
+
 data Match = Match
   { matchUserId :: UserID
   , matchTargetId :: UserID
@@ -225,6 +230,17 @@ instance SQL.FromRow MatchingAorbWithAnswer where
           <*> SQL.field)
     <*> SQL.field
     <*> SQL.field
+
+instance SQL.FromRow PreMatch where
+  fromRow = PreMatch
+    <$> SQL.field
+    <*> (read . T.unpack <$> SQL.field)
+
+instance SQL.ToRow PreMatch where
+  toRow prematch =
+    [ SQL.SQLInteger (fromIntegral $ prematchUserId prematch)
+    , SQL.SQLText $ T.pack $ show $ prematchDate prematch
+    ]
 
 instance SQL.FromRow Match where
   fromRow = Match

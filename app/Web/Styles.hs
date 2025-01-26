@@ -558,6 +558,56 @@ matchPageCSS = combineCSS
   , navBarCSS
   , matchTypeCSS
   , secondaryNavCSS
+  , matchTodayCSS
+  ]
+
+matchTodayCSS :: T.Text
+matchTodayCSS = combineCSS
+  [ cssEntry ".today-status"
+    [ cssProperty "text-align" "center"
+    , cssProperty "padding" "2rem"
+    , cssProperty "max-width" "600px"
+    , cssProperty "margin" "0 auto"
+    , cssProperty "display" "flex"
+    , cssProperty "flex-direction" "column"
+    , cssProperty "gap" "1.5rem"
+    ]
+  , cssEntry ".status-box"
+    [ cssProperty "padding" "1.5rem"
+    , cssProperty "border-radius" "0.5rem"
+    , cssProperty "transition" "all 0.2s ease-in-out"
+    ]
+  , cssEntry ".enrolled-status"
+    [ cssProperty "background-color" "rgba(65, 105, 225, 0.1)"
+    , cssProperty "border" "2px solid #4169e1"
+    , cssProperty "color" "#4169e1"
+    ]
+  , cssEntry ".pending-status"
+    [ cssProperty "background-color" "#f5f5f5"
+    ]
+  , cssEntry ".count-status"
+    [ cssProperty "background-color" "#f5f5f5"
+    , cssProperty "font-size" "0.9em"
+    , cssProperty "color" "gray"
+    ]
+  , cssEntry ".time-status"
+    [ cssProperty "background-color" "#f5f5f5"
+    , cssProperty "font-size" "0.9em"
+    ]
+  , cssEntry ".time-until"
+    [ cssProperty "font-weight" "bold"
+    ]
+  , cssEntry ".exact-time"
+    [ cssProperty "color" "gray"
+    ]
+  , cssMediaQuery "(prefers-color-scheme: dark)"
+    [ cssEntry ".enrolled-status"
+      [ cssProperty "background-color" "rgba(65, 105, 225, 0.2)"
+      ]
+    , cssEntry ".pending-status, .count-status, .time-status"
+      [ cssProperty "background-color" "#2a2a2a"
+      ]
+    ]
   ]
 
 matchTypeCSS :: T.Text

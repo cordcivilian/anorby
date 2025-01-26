@@ -21,6 +21,7 @@ import qualified Text.Blaze.Internal as I
 import Types
 import Web.Styles
 import Web.Types
+import Utils.Time
 
 -- | Navigation Components
 
@@ -479,8 +480,9 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token =
                     else "") $
           H.toHtml choice
 
-matchTemplate :: H.Html
-matchTemplate = H.docTypeHtml $ H.html $ do
+matchTemplate :: Int -> Int -> Int -> T.Text -> H.Html
+matchTemplate answerCount totalQuestions enrolledCount matchTime =
+  H.docTypeHtml $ H.html $ do
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
@@ -505,8 +507,46 @@ matchTemplate = H.docTypeHtml $ H.html $ do
     H.span H.! A.id "today" $ ""
     H.div H.! A.class_ "frame" $ do
       H.h1 "today"
-      H.div $ do
-        H.a H.! A.href "" $ "join or ans"
+      matchTodaySection answerCount totalQuestions enrolledCount matchTime
+
+matchTodaySection :: Int -> Int -> Int -> T.Text -> H.Html
+matchTodaySection answerCount totalQs enrolled matchTime =
+  let remainingToday = 10 - answerCount
+      hasAnsweredAll = answerCount >= totalQs
+      isEnrolled = hasAnsweredAll || answerCount >= 10
+      otherUsersCount = max 0 (enrolled - 1)
+      enrolledText = if otherUsersCount == 1
+                    then "1 other user enrolled"
+                    else T.pack
+                      (show otherUsersCount) <> " other users enrolled"
+  in H.div H.! A.class_ "today-status" $ do
+
+       H.div H.! A.class_ "status-box count-status" $
+         H.text enrolledText
+
+       H.div H.! A.class_ (if isEnrolled
+                          then "status-box enrolled-status"
+                          else "status-box pending-status") $ do
+         if isEnrolled
+           then H.text "you are enrolled for today's matching"
+           else do
+             H.text $ T.pack $
+               "answer " <> show remainingToday <>
+               " more questions to join today's matching pool"
+             H.br
+             H.a H.! A.href "/ans" $ "answer more questions"
+
+       H.div H.! A.class_ "status-box time-status" $ do
+         let timeUntil = Unsafe.unsafePerformIO $ do
+               now <- POSIXTime.getPOSIXTime
+               mTargetTime <- parseMatchTime matchTime
+               case mTargetTime of
+                 Just targetTime -> return $ formatTimeUntil now targetTime
+                 Nothing -> return "soon"
+         H.span H.! A.class_ "time-until" $
+           H.text $ "matching in " <> timeUntil
+         H.span H.! A.class_ "exact-time" $
+           H.text $ " (" <> matchTime <> " UTC)"
 
 matchTypeTemplate :: User -> H.Html
 matchTypeTemplate user = H.docTypeHtml $ H.html $ do

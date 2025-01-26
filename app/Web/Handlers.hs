@@ -278,10 +278,17 @@ matchTemplateRoute config conn uid _ = do
           , (Headers.hContentType, "text/html")
           ]
           ""
-        [SQL.Only (Just _)] -> return $ Wai.responseLBS
-          HTTP.status200
-          [(Headers.hContentType, BS.pack "text/html")]
-          (R.renderHtml matchTemplate)
+        [SQL.Only (Just _)] -> do
+          answerCount <- getDailyAnswerCount conn uid
+          [SQL.Only totalQuestions] <- SQL.query_ conn
+            "SELECT COUNT(*) FROM aorb" :: IO [SQL.Only Int]
+          enrolledCount <- getEnrolledCount conn
+          Monad.when (answerCount >= 10 || answerCount >= totalQuestions) $ do
+            insertOrUpdatePreMatch conn uid
+          return $ Wai.responseLBS
+            HTTP.status200
+            [(Headers.hContentType, BS.pack "text/html")]
+            (R.renderHtml $ matchTemplate answerCount totalQuestions enrolledCount "20:00")
         _ -> return $ Wai.responseLBS
           HTTP.status500
           [(Headers.hContentType, BS.pack "text/html")]
