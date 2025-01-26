@@ -91,7 +91,6 @@ initTables conn = SQL.withTransaction conn $ do
   initAorbMeanTrigger conn
   initAuthTable conn
   initMatchedTable conn
-  initPreMatchTable conn
   initIndexes conn
 
 initIndexes :: SQL.Connection -> IO ()
@@ -181,16 +180,6 @@ initMatchedTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   , "FOREIGN KEY (user_id) REFERENCES users(id),"
   , "FOREIGN KEY (target_id) REFERENCES users(id),"
   , "UNIQUE(user_id, target_id))"
-  ]
-
-initPreMatchTable :: SQL.Connection -> IO ()
-initPreMatchTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
-  [ "CREATE TABLE IF NOT EXISTS prematch"
-  , "(user_id INTEGER NOT NULL,"
-  , "match_date TEXT NOT NULL,"
-  , "created_on TEXT NOT NULL,"
-  , "FOREIGN KEY (user_id) REFERENCES users(id),"
-  , "UNIQUE(user_id, match_date))"
   ]
 
 initAorbMeanTrigger :: SQL.Connection -> IO ()
@@ -420,52 +409,6 @@ allAorbsToSubmissions conn users = do
     let answers = maybe [] (map aorbAnswer) $ Map.lookup uid usersAnswers
     in (answers, aid, assoc)
     ) usersAorbIdAssoc
-
--- | PreMatch query functions
-
-getTodayPreMatch :: SQL.Connection -> UserID -> IO (Maybe PreMatch)
-getTodayPreMatch conn uid = do
-  now <- POSIXTime.getPOSIXTime
-  let startOfDay = (floor (now / 86400) * 86400) :: Integer
-      endOfDay = startOfDay + 86400
-  let query = SQL.Query $ T.unwords
-        [ "SELECT user_id, match_date"
-        , "FROM prematch"
-        , "WHERE user_id = ?"
-        , "AND CAST(match_date AS INTEGER) >= ?"
-        , "AND CAST(match_date AS INTEGER) < ?"
-        , "LIMIT 1"
-        ]
-  results <- SQL.query conn query (uid, startOfDay, endOfDay) :: IO [PreMatch]
-  return $ case results of
-    (match:_) -> Just match
-    [] -> Nothing
-
-getEnrolledCount :: SQL.Connection -> IO Int
-getEnrolledCount conn = do
-  now <- POSIXTime.getPOSIXTime
-  let startOfDay = (floor (now / 86400) * 86400) :: Integer
-      endOfDay = startOfDay + 86400
-  let query = SQL.Query $ T.unwords
-        [ "SELECT COUNT(DISTINCT user_id)"
-        , "FROM prematch"
-        , "WHERE CAST(match_date AS INTEGER) >= ?"
-        , "AND CAST(match_date AS INTEGER) < ?"
-        ]
-  [SQL.Only count] <-
-    SQL.query conn query (startOfDay, endOfDay) :: IO [SQL.Only Int]
-  return count
-
-insertOrUpdatePreMatch :: SQL.Connection -> UserID -> IO ()
-insertOrUpdatePreMatch conn uid = do
-  now <- POSIXTime.getPOSIXTime
-  let startOfDay = (floor (now / 86400) * 86400) :: Integer
-  let query = SQL.Query $ T.unwords
-        [ "INSERT OR REPLACE INTO prematch"
-        , "(user_id, match_date, created_on)"
-        , "VALUES (?, ?, ?)"
-        ]
-  SQL.execute conn query (uid, show startOfDay, show now)
 
 -- | Match query functions
 

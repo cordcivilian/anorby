@@ -283,7 +283,7 @@ matchTemplateRoute config conn uid _ = do
           answerCount <- getDailyAnswerCount conn uid
           [SQL.Only totalQuestions] <- SQL.query_ conn
             "SELECT COUNT(*) FROM aorb" :: IO [SQL.Only Int]
-          enrolledCount <- getEnrolledCount conn
+          enrolled <- getUsersWithCompletedAnswers conn
 
           maybeCutoffTime <- parseMatchTime (matchCutoffTime config)
           maybeReleaseTime <- parseMatchTime (matchReleaseTime config)
@@ -316,8 +316,8 @@ matchTemplateRoute config conn uid _ = do
               return $ Just (match, weightedYuleQ answers1 answers2 weights)
             [] -> return Nothing
 
-          Monad.when (answerCount >= 10 || answerCount >= totalQuestions) $ do
-            insertOrUpdatePreMatch conn uid
+          -- Remove prematch insert since enrollment is automatic now
+          -- Based on getUsersWithCompletedAnswers criteria
 
           return $ Wai.responseLBS
             HTTP.status200
@@ -330,7 +330,7 @@ matchTemplateRoute config conn uid _ = do
                 maybeReleaseTime
                 answerCount
                 totalQuestions
-                enrolledCount
+                (length enrolled)
                 maybeMatchScore)
         _ -> return $ Wai.responseLBS
           HTTP.status500
