@@ -559,6 +559,7 @@ matchPageCSS = combineCSS
   , matchTypeCSS
   , secondaryNavCSS
   , matchTodayCSS
+  , matchCardCSS
   ]
 
 matchTodayCSS :: T.Text
@@ -682,20 +683,9 @@ matchTypeCSS = combineCSS
     ]
   ]
 
-matchFoundCSS :: T.Text
-matchFoundCSS = combineCSS
-  [ cssEntry ".frame"
-    [ cssProperty "min-height" "80dvh"
-    , cssProperty "margin-top" "10dvh"
-    ]
-  , cssEntry ".match-grid"
-    [ cssProperty "display" "grid"
-    , cssProperty "grid-template-columns" "1fr"
-    , cssProperty "gap" "2rem"
-    , cssProperty "margin" "2rem auto"
-    , cssProperty "max-width" "800px"
-    ]
-  , cssEntry ".match-card"
+matchCardCSS :: T.Text
+matchCardCSS = combineCSS
+  [ cssEntry ".match-card"
     [ cssProperty "border" "1px solid #ddd"
     , cssProperty "padding" "1.5rem"
     , cssProperty "border-radius" "0.5rem"
@@ -719,6 +709,21 @@ matchFoundCSS = combineCSS
   , cssEntry ".match-score"
     [ cssProperty "color" "#4169e1"
     , cssProperty "font-weight" "bold"
+    ]
+  ]
+
+matchFoundCSS :: T.Text
+matchFoundCSS = combineCSS
+  [ cssEntry ".frame"
+    [ cssProperty "min-height" "80dvh"
+    , cssProperty "margin-top" "10dvh"
+    ]
+  , cssEntry ".match-grid"
+    [ cssProperty "display" "grid"
+    , cssProperty "grid-template-columns" "1fr"
+    , cssProperty "gap" "2rem"
+    , cssProperty "margin" "2rem auto"
+    , cssProperty "max-width" "800px"
     ]
   , cssEntry ".no-matches"
     [ cssProperty "text-align" "center"

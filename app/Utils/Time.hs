@@ -36,18 +36,18 @@ parseMatchTime timeStr = do
   now <- POSIXTime.getPOSIXTime
   let todayUtc = POSIXTime.posixSecondsToUTCTime now
       today = Clock.utctDay todayUtc
-  case T.splitOn ":" timeStr of
-    [hourStr, minStr] -> do
-      let mHour = readMaybe $ T.unpack hourStr
-          mMin = readMaybe $ T.unpack minStr
-      case (mHour, mMin) of
-        (Just hour, Just mins)
-          | hour >= 0 && hour < 24 && mins >= 0 && mins < 60 -> do
-          let timeOfDay = LocalTime.TimeOfDay hour mins 0
-              localTime = LocalTime.LocalTime today timeOfDay
-              utcTime = LocalTime.localTimeToUTC LocalTime.utc localTime
-          return $ Just $ POSIXTime.utcTimeToPOSIXSeconds utcTime
-        _ -> return Nothing
+      (hourStr, minStr) = case T.splitOn ":" timeStr of
+        [h, m] -> (h, m)
+        _ -> (T.empty, T.empty)
+      mHour = readMaybe $ T.unpack hourStr
+      mMin = readMaybe $ T.unpack minStr
+  case (mHour, mMin) of
+    (Just hour, Just mins)
+      | hour >= 0 && hour < 24 && mins >= 0 && mins < 60 -> do
+        let timeOfDay = LocalTime.TimeOfDay hour mins 0
+            localTime = LocalTime.LocalTime today timeOfDay
+            utcTime = LocalTime.localTimeToUTC LocalTime.utc localTime
+        return $ Just $ POSIXTime.utcTimeToPOSIXSeconds utcTime
     _ -> return Nothing
   where
     readMaybe :: Read a => String -> Maybe a

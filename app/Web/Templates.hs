@@ -22,6 +22,7 @@ import Types
 import Web.Styles
 import Web.Types
 import Utils.Time
+import Utils.Config
 
 -- | Navigation Components
 
@@ -46,7 +47,7 @@ navBar links = H.div H.! A.class_ "nav-bar" $ do
 -- | Core Templates
 
 rootTemplate :: Int -> [Aorb] -> H.Html  -- Add Int parameter for user count
-rootTemplate userCount aorbs = H.docTypeHtml $ H.html $ do
+rootTemplate userCount' aorbs = H.docTypeHtml $ H.html $ do
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
@@ -74,7 +75,7 @@ rootTemplate userCount aorbs = H.docTypeHtml $ H.html $ do
       H.h1 "baseline_100"
       H.h4 "what is this... blah blah blah"
       H.a H.! A.href "/roadmap" $ do
-        H.h4 $ H.text $ T.pack $ "# of responses: " ++ show userCount
+        H.h4 $ H.text $ T.pack $ "# of responses: " ++ show userCount'
       H.div H.! A.id "sorter" $ do
         H.div H.! A.class_ "sort-by" $ "sort by:"
         H.a H.! A.class_ "sort-by" H.! A.href "#by-sided" $ "> most one-sided"
@@ -90,7 +91,7 @@ rootTemplate userCount aorbs = H.docTypeHtml $ H.html $ do
       publicAorbs aorbs
 
 roadmapTemplate :: Int -> H.Html
-roadmapTemplate userCount = H.docTypeHtml $ H.html $ do
+roadmapTemplate userCount' = H.docTypeHtml $ H.html $ do
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
@@ -105,25 +106,25 @@ roadmapTemplate userCount = H.docTypeHtml $ H.html $ do
       H.div $ do
         H.a H.! A.href "#milestone-100" $ "begin"
     milestoneFrame
-      "100" userCount "#milestone-500" False
+      "100" userCount' "#milestone-500" False
       (Just "weekly matching begins")
     milestoneFrame
-      "500" userCount "#milestone-1000" False
+      "500" userCount' "#milestone-1000" False
       (Just "weekly new questions")
     milestoneFrame
-      "1000" userCount "#milestone-5000" False
+      "1000" userCount' "#milestone-5000" False
       (Just "daily matching begins")
     milestoneFrame
-      "5000" userCount "#top" True
+      "5000" userCount' "#top" True
       (Just "daily new questions")
 
 milestoneFrame :: T.Text -> Int -> T.Text -> Bool -> Maybe T.Text -> H.Html
-milestoneFrame threshold userCount nextLink bottom maybeProgressText = do
+milestoneFrame threshold userCount' nextLink bottom maybeProgressText = do
   let users = read (T.unpack threshold) :: Int
       progress :: Int
-      progress = min 100 $ round ((fromIntegral userCount /
+      progress = min 100 $ round ((fromIntegral userCount' /
                                  fromIntegral users) * 100 :: Double)
-      progressClass = if userCount >= users
+      progressClass = if userCount' >= users
                      then "milestone-complete"
                      else "milestone-incomplete"
       progressText = case maybeProgressText of
@@ -480,13 +481,17 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token =
                     else "") $
           H.toHtml choice
 
-matchTemplate :: Int -> Int -> Int -> T.Text -> H.Html
-matchTemplate answerCount totalQuestions enrolledCount matchTime =
+matchTemplate :: Config -> POSIXTime.POSIXTime
+              -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime
+              -> Int -> Int -> Int -> Maybe (Match, Double) -> H.Html
+matchTemplate
+  config now maybeCutoffTime maybeReleaseTime
+  answerCount totalQuestions enrolledCount maybeMatchScore =
   H.docTypeHtml $ H.html $ do
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
-      A.content "width=device-width, initial-scale=1.0"
+        A.content "width=device-width, initial-scale=1.0"
     H.title "match"
     H.style $ H.text matchPageCSS
   H.body $ do
@@ -507,46 +512,87 @@ matchTemplate answerCount totalQuestions enrolledCount matchTime =
     H.span H.! A.id "today" $ ""
     H.div H.! A.class_ "frame" $ do
       H.h1 "today"
-      matchTodaySection answerCount totalQuestions enrolledCount matchTime
+      matchTodaySection
+        config
+        now
+        maybeCutoffTime
+        maybeReleaseTime
+        answerCount
+        totalQuestions
+        enrolledCount
+        maybeMatchScore
 
-matchTodaySection :: Int -> Int -> Int -> T.Text -> H.Html
-matchTodaySection answerCount totalQs enrolled matchTime =
+matchTodaySection :: Config -> POSIXTime.POSIXTime
+                  -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime
+                  -> Int -> Int -> Int -> Maybe (Match, Double) -> H.Html
+matchTodaySection config now maybeCutoffTime maybeReleaseTime
+  answerCount totalQs enrolled maybeMatchScore =
   let remainingToday = 10 - answerCount
       hasAnsweredAll = answerCount >= totalQs
       isEnrolled = hasAnsweredAll || answerCount >= 10
       otherUsersCount = max 0 (enrolled - 1)
-      enrolledText = if otherUsersCount == 1
-                    then "1 other user enrolled"
-                    else T.pack
-                      (show otherUsersCount) <> " other users enrolled"
+      enrolledText =
+        if otherUsersCount == 1
+        then "1 other user enrolled"
+        else T.pack (show otherUsersCount) <> " other users enrolled"
+      isBeforeCutoff = case maybeCutoffTime of
+        Just ct -> now < ct
+        Nothing -> True
+      isBeforeRelease = case maybeReleaseTime of
+        Just rt -> now < rt
+        Nothing -> True
+      timeUntilCutoff = case maybeCutoffTime of
+        Just ct -> formatTimeUntil now ct
+        Nothing -> "soon"
+      timeUntilRelease = case maybeReleaseTime of
+        Just rt -> formatTimeUntil now rt
+        Nothing -> "soon"
+
   in H.div H.! A.class_ "today-status" $ do
+      Monad.when isBeforeRelease $
+        H.div H.! A.class_ "status-box count-status" $
+          H.text enrolledText
 
-       H.div H.! A.class_ "status-box count-status" $
-         H.text enrolledText
+      Monad.when isBeforeRelease $
+        H.div H.! A.class_ (if isEnrolled
+                            then "status-box enrolled-status"
+                            else "status-box pending-status") $ do
+          if isBeforeCutoff
+            then if isEnrolled
+              then H.text "you are enrolled for today's matching"
+              else do
+                H.text $ T.pack $
+                  "answer " <> show remainingToday <>
+                  " more questions to join today's matching pool"
+                H.br
+                H.a H.! A.href "/ans" $ "answer more questions"
+            else if isEnrolled
+              then H.text "you are enrolled for today's matching"
+              else H.text "missed today's matching cutoff"
 
-       H.div H.! A.class_ (if isEnrolled
-                          then "status-box enrolled-status"
-                          else "status-box pending-status") $ do
-         if isEnrolled
-           then H.text "you are enrolled for today's matching"
-           else do
-             H.text $ T.pack $
-               "answer " <> show remainingToday <>
-               " more questions to join today's matching pool"
-             H.br
-             H.a H.! A.href "/ans" $ "answer more questions"
+      Monad.when isBeforeRelease $
+        H.div H.! A.class_ "status-box time-status" $ do
+          let displayTime = if isBeforeCutoff && not isEnrolled
+                            then (timeUntilCutoff, matchCutoffTime config)
+                            else (timeUntilRelease, matchReleaseTime config)
+          case displayTime of
+            (timeLeft, timeStr) -> do
+              if isBeforeCutoff || isEnrolled
+                then do
+                  H.span H.! A.class_ "time-until" $
+                    if isEnrolled
+                      then H.text $ "matches released in " <> timeLeft
+                      else H.text $ "cutoff in " <> timeLeft
+                  H.span H.! A.class_ "exact-time" $
+                    H.text $ " (" <> timeStr <> " UTC)"
+                else
+                  H.text "answer your questions before tomorrow's cutoff"
 
-       H.div H.! A.class_ "status-box time-status" $ do
-         let timeUntil = Unsafe.unsafePerformIO $ do
-               now <- POSIXTime.getPOSIXTime
-               mTargetTime <- parseMatchTime matchTime
-               case mTargetTime of
-                 Just targetTime -> return $ formatTimeUntil now targetTime
-                 Nothing -> return "soon"
-         H.span H.! A.class_ "time-until" $
-           H.text $ "matching in " <> timeUntil
-         H.span H.! A.class_ "exact-time" $
-           H.text $ " (" <> matchTime <> " UTC)"
+      Monad.unless isBeforeRelease $
+        case maybeMatchScore of
+          Just matchScore -> matchCard (fst matchScore) (snd matchScore)
+          Nothing -> H.div H.! A.class_ "status-box pending-status" $
+            H.text "no match found for today"
 
 matchTypeTemplate :: User -> H.Html
 matchTypeTemplate user = H.docTypeHtml $ H.html $ do
@@ -626,7 +672,8 @@ matchFoundTemplate matchScores = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
       A.content "width=device-width, initial-scale=1.0"
-    H.style $ H.text $ combineCSS [baseCSS, navBarCSS, matchFoundCSS]
+    H.style $ H.text $ combineCSS
+      [baseCSS, navBarCSS, matchFoundCSS, matchCardCSS]
   H.body $ do
     H.div H.! A.class_ "frame" $ do
       navBar [ NavLink "/match" "back" False ]

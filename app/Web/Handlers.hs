@@ -279,16 +279,59 @@ matchTemplateRoute config conn uid _ = do
           ]
           ""
         [SQL.Only (Just _)] -> do
+          now <- POSIXTime.getPOSIXTime
           answerCount <- getDailyAnswerCount conn uid
           [SQL.Only totalQuestions] <- SQL.query_ conn
             "SELECT COUNT(*) FROM aorb" :: IO [SQL.Only Int]
           enrolledCount <- getEnrolledCount conn
+
+          maybeCutoffTime <- parseMatchTime (matchCutoffTime config)
+          maybeReleaseTime <- parseMatchTime (matchReleaseTime config)
+
+          let startOfDay = (floor (now / 86400) * 86400) :: Integer
+              endOfDay = startOfDay + 86400
+          matches <- SQL.query conn
+            (SQL.Query $ T.unwords
+              [ "SELECT user_id, target_id, matched_on"
+              , "FROM matched"
+              , "WHERE (user_id = ? OR target_id = ?)"
+              , "AND matched_on >= ? AND matched_on < ?"
+              , "ORDER BY matched_on DESC LIMIT 1"
+              ])
+            (uid, uid, startOfDay, endOfDay) :: IO [Match]
+
+          maybeMatchScore <- case matches of
+            (match:_) -> do
+              let targetId = if matchUserId match == uid
+                           then matchTargetId match
+                           else matchUserId match
+              (answers1, answers2) <-
+                getLargestIntersectionAnswers conn uid targetId
+              userAorbInfo <- getUserAorbAndAssoc conn uid
+              let weights = case userAorbInfo of
+                    Just (aorb, _) ->
+                      map (\(i,_) -> if i == aorbId aorb then 5 else 1)
+                          (zip [0..] answers1)
+                    Nothing -> replicate (length answers1) 1
+              return $ Just (match, weightedYuleQ answers1 answers2 weights)
+            [] -> return Nothing
+
           Monad.when (answerCount >= 10 || answerCount >= totalQuestions) $ do
             insertOrUpdatePreMatch conn uid
+
           return $ Wai.responseLBS
             HTTP.status200
             [(Headers.hContentType, BS.pack "text/html")]
-            (R.renderHtml $ matchTemplate answerCount totalQuestions enrolledCount "20:00")
+            (R.renderHtml $
+              matchTemplate
+                config
+                now
+                maybeCutoffTime
+                maybeReleaseTime
+                answerCount
+                totalQuestions
+                enrolledCount
+                maybeMatchScore)
         _ -> return $ Wai.responseLBS
           HTTP.status500
           [(Headers.hContentType, BS.pack "text/html")]

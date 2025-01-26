@@ -7,6 +7,7 @@ import qualified System.Exit as Exit
 import qualified Data.Maybe as Maybe
 import qualified Control.Monad as Monad
 import qualified System.Directory as Dir
+import qualified Data.Text as T
 
 data Environment = Production
                  | TestWithAnswers
@@ -22,6 +23,8 @@ data Config = Config
   , newDb :: Bool
   , matchThreshold :: Int
   , profileThreshold :: Int
+  , matchCutoffTime :: T.Text
+  , matchReleaseTime :: T.Text
   } deriving (Show)
 
 data EnvFlags = EnvFlags
@@ -47,8 +50,6 @@ testOverrideDbPath = "data/mock-anorby-20250118114756.db"
 
 testWithMatchesDbPath :: Int -> FilePath
 testWithMatchesDbPath n = "data/anorby-test-mch" ++ show n ++ ".db"
-
--- | Environment validation
 
 getEnvironment :: IO (Environment, Bool)
 getEnvironment = do
@@ -76,7 +77,6 @@ getEnvFlags = do
 
 validateEnvCombination :: EnvFlags -> IO ()
 validateEnvCombination flags = do
-  -- Production incompatibilities
   Monad.when (hasANORBY flags) $ do
     Monad.when (Maybe.isJust $ hasMCH flags) $
       error "MCH cannot be used in production"
@@ -135,4 +135,6 @@ getConfig = do
     , newDb = newFlag
     , profileThreshold = 10
     , matchThreshold = 20
+    , matchCutoffTime = "18:00"
+    , matchReleaseTime = "20:00"
     }
