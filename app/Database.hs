@@ -443,7 +443,6 @@ insertMatches conn marriages = do
   now <- POSIXTime.getPOSIXTime
   let matches = marriagesToMatches now marriages
   SQL.withTransaction conn $ do
-    SQL.execute_ conn "DELETE FROM matched"
     SQL.executeMany conn
       (SQL.Query $ T.unwords
         [ "INSERT INTO matched"

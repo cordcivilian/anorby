@@ -190,7 +190,7 @@ instance SQL.ToRow AorbAnswers where
     [ SQL.SQLInteger (fromIntegral $ aorbUserId ans)
     , SQL.SQLInteger (fromIntegral $ aorbAorbId ans)
     , SQL.toField (aorbAnswer ans)
-    , SQL.SQLText $ T.pack $ show $ aorbAnsweredOn ans
+    , SQL.SQLText $ T.pack $ show (floor $ aorbAnsweredOn ans :: Integer)
     ]
 
 instance SQL.FromField AorbAnswer where
@@ -236,7 +236,7 @@ instance SQL.ToRow Match where
   toRow match =
     [ SQL.SQLInteger (fromIntegral $ matchUserId match)
     , SQL.SQLInteger (fromIntegral $ matchTargetId match)
-    , SQL.SQLText $ T.pack $ show $ matchTimestamp match
+    , SQL.SQLText $ T.pack $ show (floor $ matchTimestamp match :: Integer)
     ]
 
 instance JSON.FromJSON Aorb where

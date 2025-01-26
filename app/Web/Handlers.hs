@@ -189,8 +189,7 @@ submitAnswerRoute conn uid aid answer token _ = do
               (R.renderHtml alreadyAnsweredTemplate)
             [] -> do
               now <- POSIXTime.getPOSIXTime
-              let timestamp = floor now :: Integer
-                  ans = AorbAnswers
+              let ans = AorbAnswers
                     { aorbUserId = uid
                     , aorbAorbId = aid
                     , aorbAnswer = answer
@@ -201,8 +200,7 @@ submitAnswerRoute conn uid aid answer token _ = do
                     , "(user_id, aorb_id, answer, answered_on)"
                     , "VALUES (?, ?, ?, ?)"
                     ]
-              SQL.execute conn query
-                (aorbUserId ans, aorbAorbId ans, aorbAnswer ans, timestamp)
+              SQL.execute conn query ans
               return $ Wai.responseLBS
                 HTTP.status303
                 [ (Headers.hLocation, BS.pack "/ans")
@@ -221,8 +219,7 @@ editAnswerRoute conn uid aid answer token _ = do
       (R.renderHtml invalidTokenTemplate)
     else do
       now <- POSIXTime.getPOSIXTime
-      let timestamp = floor now :: Integer
-          ans = AorbAnswers
+      let ans = AorbAnswers
             { aorbUserId = uid
             , aorbAorbId = aid
             , aorbAnswer = answer
@@ -234,7 +231,7 @@ editAnswerRoute conn uid aid answer token _ = do
             , "WHERE user_id = ? AND aorb_id = ?"
             ]
       SQL.execute conn query
-        (aorbAnswer ans, timestamp, aorbUserId ans, aorbAorbId ans)
+        (aorbAnswer ans, floor now :: Integer, aorbUserId ans, aorbAorbId ans)
       return $ Wai.responseLBS
         HTTP.status303
         [ (Headers.hLocation, BS.pack $ "/ans/" ++ show aid)
@@ -433,15 +430,18 @@ loginPostRoute conn req = do
               (R.renderHtml userNotFoundTemplate)
             [user] -> do
               now <- POSIXTime.getPOSIXTime
-              let timestamp = floor now :: Integer
-                  query = SQL.Query $ T.unwords
+              let query = SQL.Query $ T.unwords
                     [ "INSERT INTO auth"
                     , "(user_id, hash, created_on, last_accessed)"
                     , "VALUES (?, ?, ?, ?)"
                     ]
               hash <- generateAuthHash (TE.decodeUtf8 email)
               SQL.execute conn query
-                (userId user , hash :: T.Text , timestamp , timestamp)
+                ( userId user
+                , hash :: T.Text
+                , floor now :: Integer
+                , floor now :: Integer
+                )
               emailConfig <- getEmailConfig
               sendAuthEmail emailConfig (TE.decodeUtf8 email) hash
               return $ Wai.responseLBS
@@ -499,8 +499,7 @@ registerPostRoute conn req = do
             [] -> do
               now <- POSIXTime.getPOSIXTime
               uuid <- UUID.toString <$> UUID.nextRandom
-              let timestamp = floor now :: Integer
-                  newUser = User
+              let newUser = User
                     { userId = 0
                     , userName = TE.decodeUtf8 email
                     , userEmail = TE.decodeUtf8 email
@@ -523,7 +522,11 @@ registerPostRoute conn req = do
                         ]
                   hash <- generateAuthHash (userEmail newUser)
                   SQL.execute conn query
-                    ( userId user , hash :: T.Text , timestamp , timestamp)
+                    ( userId user
+                    , hash :: T.Text
+                    , floor now :: Integer
+                    , floor now :: Integer
+                    )
                   emailConfig <- getEmailConfig
                   sendAuthEmail emailConfig (userEmail newUser) hash
                   return $ Wai.responseLBS
@@ -549,10 +552,9 @@ authHashRoute conn hash _ = do
       (R.renderHtml notFoundTemplate)
     Just _ -> do
       now <- POSIXTime.getPOSIXTime
-      let timestamp = floor now :: Integer
       SQL.execute conn
         "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-        (timestamp, hash)
+        (floor now :: Integer, hash)
       return $ setCookie hash $ Wai.responseLBS
         HTTP.status303
         [ (Headers.hLocation, "/whoami")
