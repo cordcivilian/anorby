@@ -331,6 +331,36 @@ matchTemplateRoute config conn uid _ = do
           [(Headers.hContentType, BS.pack "text/html")]
           (R.renderHtml internalErrorTemplate)
 
+matchProfileTemplateRoute :: SQL.Connection -> UserID -> Integer -> Wai.Request
+                        -> IO Wai.Response
+matchProfileTemplateRoute conn uid days _ = do
+  now <- POSIXTime.getPOSIXTime
+  let startOfDay = (floor (now / 86400) * 86400) :: Integer
+      targetDay = startOfDay - (days * 86400)
+      nextDay = targetDay + 86400
+
+  matches <- SQL.query conn
+    (SQL.Query $ T.unwords
+      [ "SELECT user_id, target_id, matched_on"
+      , "FROM matched"
+      , "WHERE (user_id = ? OR target_id = ?)"
+      , "AND matched_on >= ? AND matched_on < ?"
+      , "ORDER BY matched_on DESC LIMIT 1"
+      ])
+    (uid, uid, targetDay, nextDay) :: IO [Match]
+
+  case matches of
+    (match:_) -> do
+      let targetId = if matchUserId match == uid
+                    then matchTargetId match
+                    else matchUserId match
+      disagreements <- getMatchesTopXCommonDisagreement conn uid targetId 3
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, BS.pack "text/html")]
+        (R.renderHtml $ matchProfileTemplate uid targetId disagreements)
+    [] -> return $ notFoundResponse
+
 matchTypeTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
                       -> IO Wai.Response
 matchTypeTemplateRoute config conn uid _ = do

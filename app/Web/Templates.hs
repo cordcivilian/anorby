@@ -726,6 +726,53 @@ matchCard match score =
           | matchDay == yesterday -> "yesterday"
           | otherwise -> matchDay
 
+matchProfileTemplate :: UserID -> UserID -> [MatchingAorbWithAnswer] -> H.Html
+matchProfileTemplate mainUserId _ disagreements =
+  H.docTypeHtml $ H.html $ do
+    H.head $ do
+      H.title "match profile"
+      H.link H.! A.rel "icon" H.! A.href "data:,"
+      H.meta H.! A.name "viewport"
+        H.! A.content "width=device-width, initial-scale=1.0"
+      H.style $ H.text matchProfileCSS
+    H.body $ do
+      H.div H.! A.class_ "frame" $ do
+        navBar [ NavLink "/match/found" "back" False ]
+        H.h1 "disagreements"
+        H.div H.! A.class_ "match-profile-container" $ do
+          mapM_ (matchProfileAorb mainUserId) disagreements
+
+matchProfileAorb :: UserID -> MatchingAorbWithAnswer -> H.Html
+matchProfileAorb _ mawa = do
+  let aorb = matchingAorbData mawa
+      myAns = mainUserAnswer mawa
+      theirAns = otherUserAnswer mawa
+      mean = aorbMean aorb
+      myChoice = if myAns == AorbAnswer 0
+                then (aorbA aorb, 100 * (1 - mean))
+                else (aorbB aorb, 100 * mean)
+      theirChoice = if theirAns == AorbAnswer 0
+                   then (aorbA aorb, 100 * (1 - mean))
+                   else (aorbB aorb, 100 * mean)
+
+  H.div H.! A.class_ "match-profile-aorb" $ do
+    H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
+    H.div H.! A.class_ "choices-container" $ do
+      H.div H.! A.class_ "my-choice" $ do
+        H.div H.! A.class_ "choice-label" $ "your choice:"
+        H.div H.! A.class_ "choice-text" $ do
+          H.toHtml $ fst myChoice
+          H.span H.! A.class_ "percentage" $
+            H.toHtml $ T.pack $
+              Text.printf " (%.0f%% agree)" (snd myChoice)
+      H.div H.! A.class_ "their-choice" $ do
+        H.div H.! A.class_ "choice-label" $ "their choice:"
+        H.div H.! A.class_ "choice-text" $ do
+          H.toHtml $ fst theirChoice
+          H.span H.! A.class_ "percentage" $
+            H.toHtml $ T.pack $
+              Text.printf " (%.0f%% agree)" (snd theirChoice)
+
 -- | Auth Templates
 
 loginTemplate :: T.Text -> H.Html

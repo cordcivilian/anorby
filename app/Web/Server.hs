@@ -229,6 +229,10 @@ application _ state request respond = do
     ("GET", "/match/found") ->
       runProtectedHandlerWithConn matchFoundTemplateRoute
 
+    ("GET", p) | Just days <- readMatchProfileDays p ->
+      runProtectedHandlerWithConn (\conn uid ->
+        matchProfileTemplateRoute conn uid days)
+
     _ -> respond notFoundResponse
 
   where
@@ -249,3 +253,8 @@ application _ state request respond = do
         =<< Monad.join (lookup "choice" params)
       token <- Monad.join (lookup "token" params)
       return (reqAorbId, AorbAnswer (rawChoice :: Word.Word8), token)
+
+    readMatchProfileDays :: String -> Maybe Integer
+    readMatchProfileDays path = do
+      tStr <- List.stripPrefix "/match/found/t-" path
+      Read.readMaybe tStr

@@ -743,6 +743,55 @@ matchFoundCSS = combineCSS
     ]
   ]
 
+matchProfileCSS :: T.Text
+matchProfileCSS = combineCSS
+  [ baseCSS
+  , navBarCSS
+  , cssEntry ".match-profile-container"
+    [ cssProperty "display" "flex"
+    , cssProperty "flex-direction" "column"
+    , cssProperty "gap" "2rem"
+    , cssProperty "margin" "2rem auto"
+    , cssProperty "max-width" "800px"
+    ]
+  , cssEntry ".match-profile-aorb"
+    [ cssProperty "border" "1px solid #ddd"
+    , cssProperty "padding" "1.5rem"
+    , cssProperty "border-radius" "0.5rem"
+    , cssProperty "outline" "2px solid #ddd"
+    , cssProperty "outline-offset" "2px"
+    ]
+  , cssEntry ".context"
+    [ cssProperty "font-style" "italic"
+    , cssProperty "color" "gray"
+    , cssProperty "margin-bottom" "1.5rem"
+    ]
+  , cssEntry ".choices-container"
+    [ cssProperty "display" "grid"
+    , cssProperty "gap" "1.5rem"
+    ]
+  , cssEntry ".choice-label"
+    [ cssProperty "font-size" "0.9em"
+    , cssProperty "color" "gray"
+    , cssProperty "margin-bottom" "0.5rem"
+    ]
+  , cssEntry ".my-choice .choice-text"
+    [ cssProperty "color" "#4169e1"
+    ]
+  , cssEntry ".their-choice .choice-text"
+    [ cssProperty "color" "orange"
+    ]
+  , cssEntry ".percentage"
+    [ cssProperty "font-size" "0.9em"
+    ]
+  , cssMediaQuery "(prefers-color-scheme: dark)"
+    [ cssEntry ".match-profile-aorb"
+      [ cssProperty "border-color" "#333"
+      , cssProperty "outline-color" "#333"
+      ]
+    ]
+  ]
+
 -- | Auth CSS
 
 authPageCSS :: T.Text
