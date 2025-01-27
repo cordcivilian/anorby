@@ -481,12 +481,16 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token =
                     else "") $
           H.toHtml choice
 
-matchTemplate :: Config -> POSIXTime.POSIXTime
-              -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime
-              -> Int -> Int -> Int -> Maybe (Match, Double) -> H.Html
-matchTemplate
-  config now maybeCutoffTime maybeReleaseTime
-  answerCount totalQuestions enrolledCount maybeMatchScore =
+matchTemplate :: Config
+              -> Maybe POSIXTime.POSIXTime
+              -> Maybe POSIXTime.POSIXTime
+              -> POSIXTime.POSIXTime
+              -> Bool
+              -> Int
+              -> Maybe (Match, Double)
+              -> H.Html
+matchTemplate config maybeCutoffTime maybeReleaseTime now
+  isEnrolled enrolledCount maybeMatchScore =
   H.docTypeHtml $ H.html $ do
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
@@ -514,23 +518,24 @@ matchTemplate
       H.h1 "today"
       matchTodaySection
         config
-        now
         maybeCutoffTime
         maybeReleaseTime
-        answerCount
-        totalQuestions
+        now
+        isEnrolled
         enrolledCount
         maybeMatchScore
 
-matchTodaySection :: Config -> POSIXTime.POSIXTime
-                  -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime
-                  -> Int -> Int -> Int -> Maybe (Match, Double) -> H.Html
-matchTodaySection config now maybeCutoffTime maybeReleaseTime
-  answerCount totalQs enrolled maybeMatchScore =
-  let remainingToday = 10 - answerCount
-      hasAnsweredAll = answerCount >= totalQs
-      isEnrolled = hasAnsweredAll || answerCount >= 10
-      otherUsersCount = max 0 (enrolled - 1)
+matchTodaySection :: Config
+                  -> Maybe POSIXTime.POSIXTime
+                  -> Maybe POSIXTime.POSIXTime
+                  -> POSIXTime.POSIXTime
+                  -> Bool
+                  -> Int
+                  -> Maybe (Match, Double)
+                  -> H.Html
+matchTodaySection config maybeCutoffTime maybeReleaseTime now
+  isEnrolled enrolledCount maybeMatchScore =
+  let otherUsersCount = max 0 (enrolledCount - 1)
       enrolledText =
         if otherUsersCount == 1
         then "1 other user enrolled"
@@ -562,13 +567,12 @@ matchTodaySection config now maybeCutoffTime maybeReleaseTime
               then H.text "you are enrolled for today's matching"
               else do
                 H.text $ T.pack $
-                  "answer " <> show remainingToday <>
-                  " more questions to join today's matching pool"
+                  "answer more questions to join today's matching pool"
                 H.br
                 H.a H.! A.href "/ans" $ "answer more questions"
             else if isEnrolled
               then H.text "you are enrolled for today's matching"
-              else H.text "missed today's matching cutoff"
+              else H.text "you've missed today's matching cutoff"
 
       Monad.when isBeforeRelease $
         H.div H.! A.class_ "status-box time-status" $ do
@@ -581,12 +585,12 @@ matchTodaySection config now maybeCutoffTime maybeReleaseTime
                 then do
                   H.span H.! A.class_ "time-until" $
                     if isEnrolled
-                      then H.text $ "matches released in " <> timeLeft
+                      then H.text $ "matches in " <> timeLeft
                       else H.text $ "cutoff in " <> timeLeft
                   H.span H.! A.class_ "exact-time" $
                     H.text $ " (" <> timeStr <> " UTC)"
                 else
-                  H.text "answer your questions before tomorrow's cutoff"
+                  H.text "answer your questions tomorrow before the cutoff"
 
       Monad.unless isBeforeRelease $
         case maybeMatchScore of

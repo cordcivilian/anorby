@@ -280,9 +280,6 @@ matchTemplateRoute config conn uid _ = do
           ""
         [SQL.Only (Just _)] -> do
           now <- POSIXTime.getPOSIXTime
-          answerCount <- getDailyAnswerCount conn uid
-          [SQL.Only totalQuestions] <- SQL.query_ conn
-            "SELECT COUNT(*) FROM aorb" :: IO [SQL.Only Int]
           enrolled <- getUsersWithCompletedAnswers conn
 
           maybeCutoffTime <- parseMatchTime (matchCutoffTime config)
@@ -316,22 +313,19 @@ matchTemplateRoute config conn uid _ = do
               return $ Just (match, weightedYuleQ answers1 answers2 weights)
             [] -> return Nothing
 
-          -- Remove prematch insert since enrollment is automatic now
-          -- Based on getUsersWithCompletedAnswers criteria
-
           return $ Wai.responseLBS
             HTTP.status200
             [(Headers.hContentType, BS.pack "text/html")]
             (R.renderHtml $
               matchTemplate
                 config
-                now
                 maybeCutoffTime
                 maybeReleaseTime
-                answerCount
-                totalQuestions
+                now
+                (elem uid enrolled)
                 (length enrolled)
-                maybeMatchScore)
+                maybeMatchScore
+            )
         _ -> return $ Wai.responseLBS
           HTTP.status500
           [(Headers.hContentType, BS.pack "text/html")]
