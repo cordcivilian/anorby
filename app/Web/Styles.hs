@@ -665,7 +665,7 @@ matchTypeCSS = combineCSS
     [ cssProperty "font-family" "'Times New Roman', serif"
     , cssProperty "font-size" "1.5rem"
     ]
-  , cssEntry ".scheme-name.Fencer"
+  , cssEntry ".scheme-name.Swing"
     [ cssProperty "font-family" "'Courier New', monospace"
     , cssProperty "font-size" "1.5rem"
     ]

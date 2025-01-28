@@ -412,7 +412,7 @@ matchTypeUpdateRoute config conn uid req = do
   where
     parseAssociationScheme :: T.Text -> Maybe AssociationScheme
     parseAssociationScheme "PPPod" = Just PPPod
-    parseAssociationScheme "Fencer" = Just Fencer
+    parseAssociationScheme "Swing" = Just Swing
     parseAssociationScheme "Bipolar" = Just Bipolar
     parseAssociationScheme _ = Nothing
 

@@ -613,7 +613,7 @@ matchTypeTemplate user = H.docTypeHtml $ H.html $ do
 
       H.div H.! A.class_ "scheme-grid" $ do
         schemeCard PPPod (userAssoc user)
-        schemeCard Fencer (userAssoc user)
+        schemeCard Swing (userAssoc user)
         schemeCard Bipolar (userAssoc user)
 
       H.div $ do H.a H.! A.href "#explained" $ "explain"
@@ -624,7 +624,7 @@ matchTypeTemplate user = H.docTypeHtml $ H.html $ do
         H.h2 "how it works"
         H.p "each type determines how you'll be matched with other users:"
         schemeDetailedDescription PPPod
-        schemeDetailedDescription Fencer
+        schemeDetailedDescription Swing
         schemeDetailedDescription Bipolar
 
 schemeCard :: AssociationScheme -> Maybe AssociationScheme -> H.Html
@@ -651,19 +651,19 @@ schemeDetailedDescription scheme =
   where
     fontFamily :: AssociationScheme -> T.Text
     fontFamily PPPod = "font-family: 'Times New Roman', serif"
-    fontFamily Fencer = "font-family: 'Courier New', monospace"
+    fontFamily Swing = "font-family: 'Courier New', monospace"
     fontFamily Bipolar = "font-family: 'Arial Black', sans-serif"
 
     schemeName :: AssociationScheme -> T.Text
     schemeName PPPod = "PPPod"
-    schemeName Fencer = "Fencer"
+    schemeName Swing = "Swing"
     schemeName Bipolar = "Bipolar"
 
     schemeDetail :: AssociationScheme -> T.Text
     schemeDetail PPPod = T.unlines
       [ "..." ]
 
-    schemeDetail Fencer = T.unlines
+    schemeDetail Swing = T.unlines
       [ "..." ]
 
     schemeDetail Bipolar = T.unlines

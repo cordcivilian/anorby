@@ -412,7 +412,7 @@ generateSubmission len seed =
   let binaryVector = randomBinaryVector seed len
       rng = Random.mkStdGen (seed + 1)
       (weightIndex, _) = Random.randomR (0, len - 1) rng
-      schemes = [PPPod, Fencer, Bipolar]
+      schemes = [PPPod, Swing, Bipolar]
       schemeIndex = rem seed 3
       scheme = schemes !! schemeIndex
   in (binaryVector, weightIndex, scheme)

@@ -32,7 +32,7 @@ type BinaryVectorSimilarity =
 type WeightedContingencyWithValid =
   (WeightedContingency, WeightedValidPairCount)
 
-data AssociationScheme = PPPod | Fencer | Bipolar
+data AssociationScheme = PPPod | Swing | Bipolar
   deriving (Eq, Show, Enum, Bounded)
 
 type AorbID = Int
@@ -132,13 +132,13 @@ instance SQL.FromField AssociationScheme where
     assocInt <- SQL.fromField f
     case assocInt :: Int of
       1  -> SQL.Ok PPPod
-      0  -> SQL.Ok Fencer
+      0  -> SQL.Ok Swing
       -1 -> SQL.Ok Bipolar
-      _  -> SQL.Ok Fencer
+      _  -> SQL.Ok Swing
 
 instance SQL.ToField AssociationScheme where
-  toField PPPod   = SQL.SQLInteger 1
-  toField Fencer = SQL.SQLInteger 0
+  toField PPPod = SQL.SQLInteger 1
+  toField Swing = SQL.SQLInteger 0
   toField Bipolar = SQL.SQLInteger (-1)
 
 instance SQL.FromRow User where
