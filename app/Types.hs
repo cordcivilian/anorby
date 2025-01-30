@@ -5,7 +5,6 @@ module Types where
 import qualified Data.Aeson as JSON
 import qualified Data.Map as Map
 import qualified Data.Text as T
-import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Word as Word
 import qualified System.Random as Random
 
@@ -69,7 +68,7 @@ data AorbAnswers = AorbAnswers
   { aorbUserId :: UserID
   , aorbAorbId :: AorbID
   , aorbAnswer :: AorbAnswer
-  , aorbAnsweredOn :: POSIXTime.POSIXTime
+  , aorbAnsweredOn :: Integer
   } deriving (Show)
 
 data AorbWithAnswer = AorbWithAnswer
@@ -86,7 +85,7 @@ data MatchingAorbWithAnswer = MatchingAorbWithAnswer
 data Match = Match
   { matchUserId :: UserID
   , matchTargetId :: UserID
-  , matchTimestamp :: POSIXTime.POSIXTime
+  , matchTimestamp :: Integer
   } deriving (Show, Eq)
 
 -- | Auth Types
@@ -94,7 +93,7 @@ data Match = Match
 data AnswerToken = AnswerToken
   { tokenUserId :: UserID
   , tokenAorbId :: AorbID
-  , tokenExpiry :: POSIXTime.POSIXTime
+  , tokenExpiry :: Integer
   } deriving (Show)
 
 data SubmitAnswer = SubmitAnswer
@@ -183,14 +182,14 @@ instance SQL.FromRow AorbAnswers where
     <$> SQL.field
     <*> SQL.field
     <*> SQL.field
-    <*> (read . T.unpack <$> SQL.field)
+    <*> SQL.field
 
 instance SQL.ToRow AorbAnswers where
   toRow ans =
     [ SQL.SQLInteger (fromIntegral $ aorbUserId ans)
     , SQL.SQLInteger (fromIntegral $ aorbAorbId ans)
     , SQL.toField (aorbAnswer ans)
-    , SQL.SQLText $ T.pack $ show $ aorbAnsweredOn ans
+    , SQL.SQLInteger (fromIntegral $ aorbAnsweredOn ans)
     ]
 
 instance SQL.FromField AorbAnswer where
@@ -230,13 +229,13 @@ instance SQL.FromRow Match where
   fromRow = Match
     <$> SQL.field
     <*> SQL.field
-    <*> (read . T.unpack <$> SQL.field)
+    <*> SQL.field
 
 instance SQL.ToRow Match where
   toRow match =
     [ SQL.SQLInteger (fromIntegral $ matchUserId match)
     , SQL.SQLInteger (fromIntegral $ matchTargetId match)
-    , SQL.SQLText $ T.pack $ show $ matchTimestamp match
+    , SQL.SQLInteger (fromIntegral $ matchTimestamp match)
     ]
 
 instance JSON.FromJSON Aorb where

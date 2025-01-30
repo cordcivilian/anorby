@@ -91,7 +91,7 @@ profileTemplateRoute config conn uid _ = do
       (R.renderHtml notFoundTemplate)
 
 sharedProfileTemplateRoute :: SQL.Connection -> T.Text -> Wai.Request
-                          -> IO Wai.Response
+                           -> IO Wai.Response
 sharedProfileTemplateRoute conn uuid _ = do
   maybeUser <- getUserByUuid conn uuid
   case maybeUser of
@@ -135,7 +135,7 @@ ansTemplateRoute conn uid _ = do
             (R.renderHtml $ ansTemplate aorb shouldSwap token)
 
 existingAnswerTemplateRoute :: SQL.Connection -> UserID -> AorbID
-                           -> Wai.Request -> IO Wai.Response
+                            -> Wai.Request -> IO Wai.Response
 existingAnswerTemplateRoute conn uid aid _ = do
   aorbResults <- SQL.query conn
     "SELECT * FROM aorb WHERE id = ?" (SQL.Only aid) :: IO [Aorb]
@@ -193,7 +193,7 @@ submitAnswerRoute conn uid aid answer token _ = do
                     { aorbUserId = uid
                     , aorbAorbId = aid
                     , aorbAnswer = answer
-                    , aorbAnsweredOn = now
+                    , aorbAnsweredOn = floor now
                     }
                   query = SQL.Query $ T.unwords
                     [ "INSERT INTO aorb_answers"
@@ -223,7 +223,7 @@ editAnswerRoute conn uid aid answer token _ = do
             { aorbUserId = uid
             , aorbAorbId = aid
             , aorbAnswer = answer
-            , aorbAnsweredOn = now
+            , aorbAnsweredOn = floor now
             }
           query = SQL.Query $ T.unwords
             [ "UPDATE aorb_answers"
@@ -232,7 +232,7 @@ editAnswerRoute conn uid aid answer token _ = do
             ]
       SQL.execute conn query
         ( aorbAnswer ans
-        , show $ aorbAnsweredOn ans
+        , aorbAnsweredOn ans
         , aorbUserId ans
         , aorbAorbId ans
         )
@@ -244,7 +244,7 @@ editAnswerRoute conn uid aid answer token _ = do
         ""
 
 setFavoriteAorbRoute :: SQL.Connection -> UserID -> AorbID -> Wai.Request
-                    -> IO Wai.Response
+                     -> IO Wai.Response
 setFavoriteAorbRoute conn uid aid _ = do
   SQL.execute conn "UPDATE users SET aorb_id = ? WHERE id = ?" (aid, uid)
   return $ Wai.responseLBS
@@ -332,10 +332,10 @@ matchTemplateRoute config conn uid _ = do
           (R.renderHtml internalErrorTemplate)
 
 matchProfileTemplateRoute :: SQL.Connection -> UserID -> Integer -> Wai.Request
-                        -> IO Wai.Response
+                          -> IO Wai.Response
 matchProfileTemplateRoute conn uid days _ = do
   now <- POSIXTime.getPOSIXTime
-  let startOfDay = (floor (now / 86400) * 86400) :: Integer
+  let startOfDay = floor (now / 86400) * 86400
       targetDay = startOfDay - (days * 86400)
       nextDay = targetDay + 86400
 
@@ -383,7 +383,7 @@ matchTypeTemplateRoute config conn uid _ = do
           (R.renderHtml notFoundTemplate)
 
 matchTypeUpdateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
-                    -> IO Wai.Response
+                     -> IO Wai.Response
 matchTypeUpdateRoute config conn uid req = do
   hasAccess <- hasThresholdAccess conn uid (matchThreshold config)
   if not hasAccess
@@ -427,10 +427,11 @@ matchFoundTemplateRoute conn uid _ = do
     (R.renderHtml $ matchFoundTemplate matchScores)
   where
     calculateMatchScore :: SQL.Connection -> UserID -> Match
-                        -> IO (Match, Double)
+                      -> IO (Match, Double)
     calculateMatchScore conn' uid' match' = do
-      let targetId = if matchUserId match' == uid' then matchTargetId match'
-                                          else matchUserId match'
+      let targetId = if matchUserId match' == uid'
+                    then matchTargetId match'
+                    else matchUserId match'
       (answers1, answers2) <- getLargestIntersectionAnswers conn' uid' targetId
       userAorbInfo <- getUserAorbAndAssoc conn' uid'
       let weights = case userAorbInfo of
@@ -515,7 +516,11 @@ loginPostRoute conn req = do
                     ]
               hash <- generateAuthHash (TE.decodeUtf8 email)
               SQL.execute conn query
-                (userId user, hash :: T.Text, show now, show now)
+                ( userId user
+                , hash :: T.Text
+                , floor now :: Integer
+                , floor now :: Integer
+                )
               emailConfig <- getEmailConfig
               sendAuthEmail emailConfig (TE.decodeUtf8 email) hash
               return $ Wai.responseLBS
@@ -596,7 +601,11 @@ registerPostRoute conn req = do
                         ]
                   hash <- generateAuthHash (userEmail newUser)
                   SQL.execute conn query
-                    (userId user, hash :: T.Text, show now, show now)
+                    ( userId user
+                    , hash :: T.Text
+                    , floor now :: Integer
+                    , floor now :: Integer
+                    )
                   emailConfig <- getEmailConfig
                   sendAuthEmail emailConfig (userEmail newUser) hash
                   return $ Wai.responseLBS
@@ -623,7 +632,8 @@ authHashRoute conn hash _ = do
     Just _ -> do
       now <- POSIXTime.getPOSIXTime
       SQL.execute conn
-        "UPDATE auth SET last_accessed = ? WHERE hash = ?" (show now, hash)
+        "UPDATE auth SET last_accessed = ? WHERE hash = ?" 
+        (floor now :: Integer, hash)
       return $ setCookie hash $ Wai.responseLBS
         HTTP.status303
         [ (Headers.hLocation, "/whoami")

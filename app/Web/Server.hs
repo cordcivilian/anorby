@@ -126,7 +126,7 @@ application _ state request respond = do
                   let hash = TE.decodeUtf8 cookieBS
                   SQL.execute conn
                     "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-                    (show now, hash)
+                    (floor now :: Integer, hash)
                 Nothing -> return ()
               handler conn (userId user) request) >>= respond
 

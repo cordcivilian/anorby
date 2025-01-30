@@ -198,7 +198,7 @@ mockAorbAnswers conn aorbs users = do
               { aorbUserId = userId u
               , aorbAorbId = aorbId a
               , aorbAnswer = answer
-              , aorbAnsweredOn = currentTime
+              , aorbAnsweredOn = floor currentTime
               }
         Monad.when (rem idx (1000 :: Int) == 0) $
           putStrLn $

@@ -128,8 +128,8 @@ initAuthTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   , "(id INTEGER PRIMARY KEY,"
   , "user_id INTEGER NOT NULL,"
   , "hash TEXT NOT NULL,"
-  , "created_on TEXT NOT NULL,"
-  , "last_accessed TEXT NOT NULL,"
+  , "created_on INTEGER NOT NULL,"
+  , "last_accessed INTEGER NOT NULL,"
   , "FOREIGN KEY (user_id) REFERENCES users(id),"
   , "UNIQUE(hash))"
   ]
@@ -164,7 +164,7 @@ initAorbAnswersTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
  , "(user_id INTEGER NOT NULL,"
  , "aorb_id INTEGER NOT NULL,"
  , "answer INTEGER NOT NULL,"
- , "answered_on TEXT NOT NULL,"
+ , "answered_on INTEGER NOT NULL,"
  , "FOREIGN KEY (user_id) REFERENCES users(id),"
  , "FOREIGN KEY (aorb_id) REFERENCES aorb(id),"
  , "UNIQUE(user_id, aorb_id))"
@@ -176,7 +176,7 @@ initMatchedTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   , "(id INTEGER PRIMARY KEY,"
   , "user_id INTEGER NOT NULL,"
   , "target_id INTEGER NOT NULL,"
-  , "matched_on TEXT NOT NULL,"
+  , "matched_on INTEGER NOT NULL,"
   , "FOREIGN KEY (user_id) REFERENCES users(id),"
   , "FOREIGN KEY (target_id) REFERENCES users(id),"
   , "UNIQUE(user_id, target_id))"
@@ -282,14 +282,12 @@ getUserFromAuthHash conn hash = do
         , "WHERE auth.hash = ?"
         ]
   now <- POSIXTime.getPOSIXTime
-  let timestamp :: Integer
-      timestamp = floor now
   results <- SQL.query conn query (SQL.Only hash) :: IO [User]
   case results of
     [user] -> do
       SQL.execute conn
         "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-        (timestamp, hash)
+        (floor now :: Integer, hash)
       return $ Just user
     _ -> return Nothing
 
@@ -453,7 +451,7 @@ insertMatches conn marriages = do
 
 marriagesToMatches :: POSIXTime.POSIXTime -> Marriages -> [Match]
 marriagesToMatches timestamp marriages =
-  [ Match uid tid timestamp
+  [ Match uid tid (floor timestamp)
   | (uid, Just tid) <- StrictMap.toList marriages
   , uid < tid
   ] >>= makeSymmetric

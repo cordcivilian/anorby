@@ -703,24 +703,28 @@ matchCard match score =
     formatSimilarityScore :: Double -> T.Text
     formatSimilarityScore s =
       T.pack $ Text.printf "%.0f%%" ((s + 1) * 50)
-    formatDate :: POSIXTime.POSIXTime -> T.Text
+
+    formatDate :: Integer -> T.Text
     formatDate timestamp = T.pack $
       DateTimeFormat.formatTime
       DateTimeFormat.defaultTimeLocale
       "%Y-%m-%d"
-      (POSIXTime.posixSecondsToUTCTime timestamp)
-    formatMatchDelta :: POSIXTime.POSIXTime -> T.Text
+      (POSIXTime.posixSecondsToUTCTime $ fromIntegral timestamp)
+
+    formatMatchDelta :: Integer -> T.Text
     formatMatchDelta timestamp = T.pack $ show $ Unsafe.unsafePerformIO $ do
       now <- Time.getCurrentTime
-      let posixTime = POSIXTime.posixSecondsToUTCTime timestamp
+      let posixTime = POSIXTime.posixSecondsToUTCTime $ fromIntegral timestamp
           diffDays = Time.diffUTCTime now posixTime
       return $ (floor (diffDays / Time.nominalDay) :: Integer)
-    formatMatchDate :: POSIXTime.POSIXTime -> T.Text
+
+    formatMatchDate :: Integer -> T.Text
     formatMatchDate timestamp = do
       let matchDay = formatDate timestamp
-          today = formatDate (Unsafe.unsafePerformIO POSIXTime.getPOSIXTime)
-          yesterday = formatDate (Unsafe.unsafePerformIO $
-            fmap (\now -> now - 24 * 60 * 60) POSIXTime.getPOSIXTime)
+          today = formatDate $ floor $
+            Unsafe.unsafePerformIO POSIXTime.getPOSIXTime
+          yesterday = formatDate $ floor $ Unsafe.unsafePerformIO $
+            fmap (\now -> now - 24 * 60 * 60) POSIXTime.getPOSIXTime
       case () of
         _ | matchDay == today -> "today"
           | matchDay == yesterday -> "yesterday"
