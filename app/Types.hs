@@ -88,6 +88,16 @@ data Match = Match
   , matchTimestamp :: Integer
   } deriving (Show, Eq)
 
+data MatchView = MatchView
+  { viewTimestamp :: Integer
+  , viewAgreementRate :: Double
+  , viewTotalAnswers :: Int
+  , viewSharedAnswers :: Int
+  , viewMainAorbs :: Maybe (MatchingAorbWithAnswer, MatchingAorbWithAnswer)
+  , viewTopAgreement :: Maybe MatchingAorbWithAnswer
+  , viewTopDisagreement :: Maybe MatchingAorbWithAnswer
+  }
+
 -- | Auth Types
 
 data AnswerToken = AnswerToken

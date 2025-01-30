@@ -46,7 +46,7 @@ navBar links = H.div H.! A.class_ "nav-bar" $ do
 
 -- | Core Templates
 
-rootTemplate :: Int -> [Aorb] -> H.Html  -- Add Int parameter for user count
+rootTemplate :: Int -> [Aorb] -> H.Html
 rootTemplate userCount' aorbs = H.docTypeHtml $ H.html $ do
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
@@ -730,21 +730,122 @@ matchCard match score =
           | matchDay == yesterday -> "yesterday"
           | otherwise -> matchDay
 
-matchProfileTemplate :: UserID -> UserID -> [MatchingAorbWithAnswer] -> H.Html
-matchProfileTemplate mainUserId _ disagreements =
+matchProfileTemplate :: UserID -> UserID -> MatchView -> H.Html
+matchProfileTemplate mainUserId _ view =
   H.docTypeHtml $ H.html $ do
     H.head $ do
       H.title "match profile"
       H.link H.! A.rel "icon" H.! A.href "data:,"
       H.meta H.! A.name "viewport"
         H.! A.content "width=device-width, initial-scale=1.0"
-      H.style $ H.text matchProfileCSS
+      H.style $ H.text $ combineCSS
+        [ baseCSS
+        , navBarCSS
+        , matchProfileCSS
+        ]
     H.body $ do
+
+      H.span H.! A.id "top" $ ""
       H.div H.! A.class_ "frame" $ do
         navBar [ NavLink "/match/found" "back" False ]
-        H.h1 "disagreements"
-        H.div H.! A.class_ "match-profile-container" $ do
-          mapM_ (matchProfileAorb mainUserId) disagreements
+        H.h2 "basics"
+        H.div H.! A.class_ "match-stats-grid" $ do
+          H.div H.! A.class_ "stat-box" $ do
+            H.div H.! A.class_ "stat-label" $ "matched on"
+            H.div H.! A.class_ "stat-value" $
+              H.toHtml $ formatMatchDate (viewTimestamp view)
+          H.div H.! A.class_ "stat-box" $ do
+            H.div H.! A.class_ "stat-label" $ "agreement rate"
+            H.div H.! A.class_ "stat-value" $
+              H.toHtml $ formatPercent (viewAgreementRate view)
+          H.div H.! A.class_ "stat-box" $ do
+            H.div H.! A.class_ "stat-label" $ "answers"
+            H.div H.! A.class_ "stat-value" $
+              H.toHtml $ show (viewTotalAnswers view)
+          H.div H.! A.class_ "stat-box" $ do
+            H.div H.! A.class_ "stat-label" $ "comparable answers"
+            H.div H.! A.class_ "stat-value" $
+              H.toHtml $ show (viewSharedAnswers view)
+        H.div $ do
+          H.a H.! A.href "#spotlight" $ "begin"
+
+      H.span H.! A.id "spotlight" $ ""
+      H.div H.! A.class_ "frame spotlight" $ do
+        H.h2 "their main question"
+        case viewMainAorbs view of
+          Just (_, theirMain) ->
+            spotlightAorbSection mainUserId theirMain
+          Nothing ->
+            H.div H.! A.class_ "no-aorb" $ "No main question found"
+        H.div $ do
+          H.a H.! A.href "#agreement" $ "next"
+
+      H.span H.! A.id "agreement" $ ""
+      H.div H.! A.class_ "frame agreement-section" $ do
+        H.h2 "most unique agreement"
+        case viewTopAgreement view of
+          Just mawa -> matchProfileAgreement mawa
+          Nothing -> H.div H.! A.class_ "no-aorb" $ "No agreements found"
+        H.div $ do
+          H.a H.! A.href "#disagreement" $ "next"
+
+      H.span H.! A.id "disagreement" $ ""
+      H.div H.! A.class_ "frame disagreement-section" $ do
+        H.h2 "strongest disagreement"
+        case viewTopDisagreement view of
+          Just mawa -> matchProfileAorb mainUserId mawa
+          Nothing -> H.div H.! A.class_ "no-aorb" $ "No disagreements found"
+        H.div $ do
+          H.a H.! A.href "#top" $ "back to top"
+
+  where
+    formatMatchDate :: Integer -> T.Text
+    formatMatchDate timestamp =
+      T.pack $
+        DateTimeFormat.formatTime
+        DateTimeFormat.defaultTimeLocale
+        "%Y-%m-%d"
+        (POSIXTime.posixSecondsToUTCTime $ fromIntegral timestamp)
+
+    formatPercent :: Double -> T.Text
+    formatPercent n = T.pack $ Text.printf "%.0f%%" n
+
+matchProfileAgreement :: MatchingAorbWithAnswer -> H.Html
+matchProfileAgreement mawa = do
+  let aorb = matchingAorbData mawa
+      ans = mainUserAnswer mawa
+      mean = aorbMean aorb
+      (choiceText, percentage) = case ans of
+        AorbAnswer 0 -> (aorbA aorb, 100 * (1 - mean))
+        _ -> (aorbB aorb, 100 * mean)
+
+  H.div H.! A.class_ "match-profile-aorb" $ do
+    H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
+    H.div H.! A.class_ "agreed-choice" $ do
+      H.div H.! A.class_ "choice-text" $ do
+        H.toHtml choiceText
+        H.span H.! A.class_ "percentage" $
+          H.toHtml $ T.pack $
+            Text.printf " (%.0f%% of others agree)" percentage
+
+spotlightAorbSection :: UserID -> MatchingAorbWithAnswer -> H.Html
+spotlightAorbSection _ mawa = do
+  let aorb = matchingAorbData mawa
+      theirAns = otherUserAnswer mawa
+      mean = aorbMean aorb
+      theirChoice = if theirAns == AorbAnswer 0
+                   then (aorbA aorb, 100 * (1 - mean))
+                   else (aorbB aorb, 100 * mean)
+  H.div H.! A.class_ "match-profile-aorb spotlight" $ do
+    H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
+    H.div H.! A.class_ "choices-container" $ do
+      H.div H.! A.class_ "their-choice" $ do
+        H.div H.! A.class_ "choice-label" $ "their choice:"
+        H.div H.! A.class_ "choice-text" $ do
+          H.toHtml $ fst theirChoice
+          H.span H.! A.class_ "percentage" $
+            H.toHtml $ T.pack $
+              Text.printf " (%.0f%% agree)" (snd theirChoice)
 
 matchProfileAorb :: UserID -> MatchingAorbWithAnswer -> H.Html
 matchProfileAorb _ mawa = do

@@ -745,27 +745,71 @@ matchFoundCSS = combineCSS
 
 matchProfileCSS :: T.Text
 matchProfileCSS = combineCSS
-  [ baseCSS
-  , navBarCSS
-  , cssEntry ".match-profile-container"
-    [ cssProperty "display" "flex"
-    , cssProperty "flex-direction" "column"
-    , cssProperty "gap" "2rem"
+  [ -- Stats Grid
+    cssEntry ".match-stats-grid"
+    [ cssProperty "display" "grid"
+    , cssProperty "grid-template-columns" "repeat(2, 1fr)"
+    , cssProperty "gap" "1rem"
     , cssProperty "margin" "2rem auto"
-    , cssProperty "max-width" "800px"
+    , cssProperty "max-width" "600px"
     ]
-  , cssEntry ".match-profile-aorb"
-    [ cssProperty "border" "1px solid #ddd"
+  , cssEntry ".stat-box"
+    [ cssProperty "text-align" "center"
     , cssProperty "padding" "1.5rem"
+    , cssProperty "background" "#f5f5f5"
     , cssProperty "border-radius" "0.5rem"
-    , cssProperty "outline" "2px solid #ddd"
-    , cssProperty "outline-offset" "2px"
     ]
+  , cssEntry ".stat-label"
+    [ cssProperty "font-size" "0.9em"
+    , cssProperty "color" "gray"
+    , cssProperty "margin-bottom" "0.5rem"
+    ]
+  , cssEntry ".stat-value"
+    [ cssProperty "font-size" "1.2em"
+    , cssProperty "font-weight" "bold"
+    ]
+  -- Base Card Style
+  , cssEntry ".match-profile-aorb"
+    [ cssProperty "border-radius" "1rem"
+    , cssProperty "padding" "2rem"
+    , cssProperty "margin" "2rem auto"
+    , cssProperty "max-width" "600px"
+    , cssProperty "width" "60dvw"
+    , cssProperty "height" "40dvh"
+    , cssProperty "align-content" "center"
+    ]
+  -- Main Question Card (Blue theme)
+  , cssEntry ".spotlight .match-profile-aorb"
+    [ cssProperty "background" "rgba(65, 105, 225, 0.1)"  -- Royal blue background
+    , cssProperty "border" "2px solid #4169e1"
+    ]
+  , cssEntry ".spotlight .choice-text"
+    [ cssProperty "color" "#4169e1"  -- Royal blue text
+    ]
+  -- Agreement Card (Green theme)
+  , cssEntry ".agreement-section .match-profile-aorb"
+    [ cssProperty "background" "rgba(46, 139, 87, 0.1)"  -- Sea green background
+    , cssProperty "border" "2px solid #2e8b57"
+    ]
+  , cssEntry ".agreement-section .choice-text"
+    [ cssProperty "color" "#2e8b57"  -- Sea green text
+    ]
+  -- Disagreement Card (Orange theme)
+  , cssEntry ".disagreement-section .match-profile-aorb"
+    [ cssProperty "background" "rgba(255, 140, 0, 0.1)"  -- Dark orange background
+    , cssProperty "border" "2px solid #ff8c00"
+    ]
+  , cssEntry ".disagreement-section .choice-text"
+    [ cssProperty "color" "#ff8c00"  -- Dark orange text
+    ]
+  -- Context styling
   , cssEntry ".context"
     [ cssProperty "font-style" "italic"
     , cssProperty "color" "gray"
-    , cssProperty "margin-bottom" "1.5rem"
+    , cssProperty "margin-bottom" "2rem"
+    , cssProperty "line-height" "1.5"
     ]
+  -- Choice containers
   , cssEntry ".choices-container"
     [ cssProperty "display" "grid"
     , cssProperty "gap" "1.5rem"
@@ -773,21 +817,38 @@ matchProfileCSS = combineCSS
   , cssEntry ".choice-label"
     [ cssProperty "font-size" "0.9em"
     , cssProperty "color" "gray"
-    , cssProperty "margin-bottom" "0.5rem"
+    , cssProperty "margin-bottom" "0.75rem"
     ]
-  , cssEntry ".my-choice .choice-text"
-    [ cssProperty "color" "#4169e1"
+  , cssEntry ".choice-text"
+    [ cssProperty "font-size" "1.1em"
+    , cssProperty "line-height" "1.4"
     ]
-  , cssEntry ".their-choice .choice-text"
-    [ cssProperty "color" "orange"
-    ]
+  -- Stats
   , cssEntry ".percentage"
-    [ cssProperty "font-size" "0.9em"
+    [ cssProperty "color" "gray"
+    , cssProperty "font-size" "0.9em"
+    , cssProperty "margin-top" "0.5rem"
     ]
+  -- Utilities
+  , cssEntry ".no-aorb"
+    [ cssProperty "text-align" "center"
+    , cssProperty "padding" "2rem"
+    , cssProperty "color" "gray"
+    , cssProperty "font-style" "italic"
+    ]
+  -- Dark mode overrides
   , cssMediaQuery "(prefers-color-scheme: dark)"
-    [ cssEntry ".match-profile-aorb"
-      [ cssProperty "border-color" "#333"
-      , cssProperty "outline-color" "#333"
+    [ cssEntry ".spotlight .match-profile-aorb"
+      [ cssProperty "background" "rgba(65, 105, 225, 0.15)"
+      ]
+    , cssEntry ".agreement-section .match-profile-aorb"
+      [ cssProperty "background" "rgba(46, 139, 87, 0.15)"
+      ]
+    , cssEntry ".disagreement-section .match-profile-aorb"
+      [ cssProperty "background" "rgba(255, 140, 0, 0.15)"
+      ]
+    , cssEntry ".stat-box"
+      [ cssProperty "background" "#2a2a2a"
       ]
     ]
   ]

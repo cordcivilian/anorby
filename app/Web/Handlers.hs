@@ -334,6 +334,7 @@ matchTemplateRoute config conn uid _ = do
 matchProfileTemplateRoute :: SQL.Connection -> UserID -> Integer -> Wai.Request
                           -> IO Wai.Response
 matchProfileTemplateRoute conn uid days _ = do
+
   now <- POSIXTime.getPOSIXTime
   let startOfDay = floor (now / 86400) * 86400
       targetDay = startOfDay - (days * 86400)
@@ -354,12 +355,40 @@ matchProfileTemplateRoute conn uid days _ = do
       let targetId = if matchUserId match == uid
                     then matchTargetId match
                     else matchUserId match
-      disagreements <- getMatchesTopXCommonDisagreement conn uid targetId 3
+
+      (answers1, answers2) <- getLargestIntersectionAnswers conn uid targetId
+      userAorbInfo <- getUserAorbAndAssoc conn uid
+      let weights = case userAorbInfo of
+            Just (aorb, _) ->
+              map (\(i,_) -> if i == aorbId aorb then 5 else 1)
+                  (zip [0..] answers1)
+            Nothing -> replicate (length answers1) 1
+      let agreementRate = (weightedYuleQ answers1 answers2 weights + 1) * 50
+
+      targetTotalAnswers <- getUserTotalAnswerCount conn targetId
+      sharedAnswers <- length <$> getLargestIntersection conn uid targetId
+
+      targetMainAorbs <- getMatchesMainAorbs conn uid targetId
+
+      agreements <- getMatchesTopXUniqueAgreement conn uid targetId 1
+      disagreements <- getMatchesTopXCommonDisagreement conn uid targetId 1
+
+      let matchView = MatchView
+            { viewTimestamp = matchTimestamp match
+            , viewAgreementRate = agreementRate
+            , viewTotalAnswers = targetTotalAnswers
+            , viewSharedAnswers = sharedAnswers
+            , viewMainAorbs = targetMainAorbs
+            , viewTopAgreement = Maybe.listToMaybe agreements
+            , viewTopDisagreement = Maybe.listToMaybe disagreements
+            }
+
       return $ Wai.responseLBS
         HTTP.status200
         [(Headers.hContentType, BS.pack "text/html")]
-        (R.renderHtml $ matchProfileTemplate uid targetId disagreements)
-    [] -> return $ notFoundResponse
+        (R.renderHtml $ matchProfileTemplate uid targetId matchView)
+
+    [] -> return notFoundResponse
 
 matchTypeTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
                       -> IO Wai.Response
@@ -632,7 +661,7 @@ authHashRoute conn hash _ = do
     Just _ -> do
       now <- POSIXTime.getPOSIXTime
       SQL.execute conn
-        "UPDATE auth SET last_accessed = ? WHERE hash = ?" 
+        "UPDATE auth SET last_accessed = ? WHERE hash = ?"
         (floor now :: Integer, hash)
       return $ setCookie hash $ Wai.responseLBS
         HTTP.status303
