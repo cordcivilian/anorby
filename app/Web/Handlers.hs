@@ -367,8 +367,8 @@ matchProfileTemplateRoute conn uid days _ = do
             Nothing -> replicate (length answers1) 1
       let agreementRate = (weightedYuleQ answers1 answers2 weights + 1) * 50
 
+      yourTotalAnswers <- getUserTotalAnswerCount conn uid
       targetTotalAnswers <- getUserTotalAnswerCount conn targetId
-      sharedAnswers <- length <$> getLargestIntersection conn uid targetId
 
       targetMainAorbs <- getMatchesMainAorbs conn uid targetId
 
@@ -378,8 +378,8 @@ matchProfileTemplateRoute conn uid days _ = do
       let matchView = MatchView
             { viewTimestamp = matchTimestamp match
             , viewAgreementRate = agreementRate
-            , viewTotalAnswers = targetTotalAnswers
-            , viewSharedAnswers = sharedAnswers
+            , viewTargetTotalAnswers = targetTotalAnswers
+            , viewYourTotalAnswers = yourTotalAnswers
             , viewMainAorbs = targetMainAorbs
             , viewTopAgreement = Maybe.listToMaybe agreements
             , viewTopDisagreement = Maybe.listToMaybe disagreements

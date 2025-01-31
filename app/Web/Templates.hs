@@ -687,8 +687,10 @@ matchFoundTemplate currentTimestamp matchScores = H.docTypeHtml $ H.html $ do
         else do
           H.h4 "(agreement rate)"
           H.div H.! A.class_ "match-grid" $ do
-            mapM_ (\(m, s) -> matchCard currentTimestamp m s) $
-              take 7 matchScores
+            let sevenDaysAgo = currentTimestamp - (7 * 24 * 60 * 60)
+                recentMatches = filter (\(m, _) ->
+                  matchTimestamp m >= sevenDaysAgo) matchScores
+            mapM_ (\(m, s) -> matchCard currentTimestamp m s) recentMatches
 
 matchCard :: Integer -> Match -> Double -> H.Html
 matchCard currentTimestamp match score =
@@ -737,7 +739,6 @@ matchProfileTemplate mainUserId _ view =
         , matchProfileCSS
         ]
     H.body $ do
-
       H.span H.! A.id "top" $ ""
       H.div H.! A.class_ "frame" $ do
         navBar [ NavLink "/match/found" "back" False ]
@@ -752,13 +753,13 @@ matchProfileTemplate mainUserId _ view =
             H.div H.! A.class_ "stat-value" $
               H.toHtml $ formatPercent (viewAgreementRate view)
           H.div H.! A.class_ "stat-box" $ do
-            H.div H.! A.class_ "stat-label" $ "answers"
+            H.div H.! A.class_ "stat-label" $ "you answered"
             H.div H.! A.class_ "stat-value" $
-              H.toHtml $ show (viewTotalAnswers view)
+              H.toHtml $ show (viewYourTotalAnswers view)
           H.div H.! A.class_ "stat-box" $ do
-            H.div H.! A.class_ "stat-label" $ "comparable answers"
+            H.div H.! A.class_ "stat-label" $ "they answered"
             H.div H.! A.class_ "stat-value" $
-              H.toHtml $ show (viewSharedAnswers view)
+              H.toHtml $ show (viewTargetTotalAnswers view)
         H.div $ do
           H.a H.! A.href "#agreement" $ "begin"
 

@@ -91,8 +91,8 @@ data Match = Match
 data MatchView = MatchView
   { viewTimestamp :: Integer
   , viewAgreementRate :: Double
-  , viewTotalAnswers :: Int
-  , viewSharedAnswers :: Int
+  , viewTargetTotalAnswers :: Int
+  , viewYourTotalAnswers :: Int
   , viewMainAorbs :: Maybe (MatchingAorbWithAnswer, MatchingAorbWithAnswer)
   , viewTopAgreement :: Maybe MatchingAorbWithAnswer
   , viewTopDisagreement :: Maybe MatchingAorbWithAnswer
