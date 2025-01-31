@@ -808,42 +808,50 @@ spotlightAorbSection _ mawa = do
   let aorb = matchingAorbData mawa
       myAns = mainUserAnswer mawa
       theirAns = otherUserAnswer mawa
-      mean = aorbMean aorb
-      myChoice = if myAns == AorbAnswer 0
-                then (aorbA aorb, 100 * (1 - mean))
-                else (aorbB aorb, 100 * mean)
-      theirChoice = if theirAns == AorbAnswer 0
-                   then (aorbA aorb, 100 * (1 - mean))
-                   else (aorbB aorb, 100 * mean)
-  H.div H.! A.class_ "match-profile-aorb spotlight" $ do
+      agreement = myAns == theirAns
+      theirChoice = if theirAns == AorbAnswer 0 then aorbA aorb else aorbB aorb
+      myChoice = if myAns == AorbAnswer 0 then aorbA aorb else aorbB aorb
+      otherChoice = if theirAns == AorbAnswer 0 then aorbB aorb else aorbA aorb
+
+  H.div H.! A.class_ "match-profile-aorb" $ do
     H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
-    H.div H.! A.class_ "choices-container" $ do
-      H.div H.! A.class_ "their-choice" $ do
-        H.div H.! A.class_ "choice-label" $ "their choice:"
-        H.div H.! A.class_ "choice-text" $ do
-          H.toHtml $ fst theirChoice
-      H.div H.! A.class_ "my-choice" $ do
-        H.div H.! A.class_ "choice-label" $ "your choice:"
-        H.div H.! A.class_ "choice-text" $ do
-          H.toHtml $ fst myChoice
+    H.div H.! A.class_ "choices-container" $
+      if agreement
+        then do
+          H.div H.! A.class_ "choice-text" $ do H.toHtml theirChoice
+
+          H.div H.! A.class_ "choice-text alternative" $ do
+            H.div H.! A.class_ "choice-label" $
+              "every other idiots"
+            H.toHtml otherChoice
+
+        else do
+          H.div H.! A.class_ "choice-text" $ do H.toHtml theirChoice
+
+          H.div H.! A.class_ "choice-text alternative" $ do
+            H.div H.! A.class_ "choice-label" $
+              "you (proceed cautiously)"
+            H.toHtml myChoice
 
 matchProfileAgreement :: MatchingAorbWithAnswer -> H.Html
 matchProfileAgreement mawa = do
   let aorb = matchingAorbData mawa
-      ans = mainUserAnswer mawa
+      sharedAns = mainUserAnswer mawa
       mean = aorbMean aorb
-      (choiceText, percentage) = case ans of
-        AorbAnswer 0 -> (aorbA aorb, 100 *  mean)
-        _ -> (aorbB aorb, 100 * (1 - mean))
+      (sharedChoice, otherChoice, agreePct) = case sharedAns of
+        AorbAnswer 0 -> (aorbA aorb, aorbB aorb, 100 * (1 - mean))
+        _ -> (aorbB aorb, aorbA aorb, 100 * mean)
+      otherPct = 100 - agreePct
 
   H.div H.! A.class_ "match-profile-aorb" $ do
     H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
-    H.div H.! A.class_ "agreed-choice" $ do
-      H.div H.! A.class_ "choice-text" $ do
-        H.toHtml choiceText
-      H.div H.! A.class_ "percentage" $
-        H.toHtml $ T.pack $
-          Text.printf "against %.0f%% of the world" percentage
+    H.div H.! A.class_ "choices-container" $ do
+      H.div H.! A.class_ "choice-text shared" $ do
+        H.toHtml sharedChoice
+      H.div H.! A.class_ "percentage" $ do
+        H.toHtml $ T.pack $ Text.printf "against %.0f%% of the world" otherPct
+      H.div H.! A.class_ "choice-text alternative" $
+        H.toHtml otherChoice
 
 matchProfileDisagreement :: UserID -> MatchingAorbWithAnswer -> H.Html
 matchProfileDisagreement _ mawa = do
@@ -851,29 +859,25 @@ matchProfileDisagreement _ mawa = do
       myAns = mainUserAnswer mawa
       theirAns = otherUserAnswer mawa
       mean = aorbMean aorb
-      myChoice = if myAns == AorbAnswer 0
-                then (aorbA aorb, 100 * (1 - mean))
-                else (aorbB aorb, 100 * mean)
-      theirChoice = if theirAns == AorbAnswer 0
-                   then (aorbA aorb, 100 * (1 - mean))
-                   else (aorbB aorb, 100 * mean)
-
+      (myChoice, myPct) = if myAns == AorbAnswer 0
+                          then (aorbA aorb, 100 * (1 - mean))
+                          else (aorbB aorb, 100 * mean)
+      (theirChoice, theirPct) = if theirAns == AorbAnswer 0
+                                then (aorbA aorb, 100 * (1 - mean))
+                                else (aorbB aorb, 100 * mean)
   H.div H.! A.class_ "match-profile-aorb" $ do
     H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
     H.div H.! A.class_ "choices-container" $ do
-      H.div H.! A.class_ "my-choice" $ do
-        H.div H.! A.class_ "choice-label" $ "your choice:"
-        H.div H.! A.class_ "choice-text" $ do
-          H.toHtml $ fst myChoice
-
-          H.span H.! A.class_ "percentage" $ H.toHtml $ T.pack $ Text.printf " (%.0f%% agree)" (snd myChoice)
-
-      H.div H.! A.class_ "their-choice" $ do
-        H.div H.! A.class_ "choice-label" $ "their choice:"
-        H.div H.! A.class_ "choice-text" $ do
-          H.toHtml $ fst theirChoice
-
-          H.span H.! A.class_ "percentage" $ H.toHtml $ T.pack $ Text.printf " (%.0f%% agree)" (snd theirChoice)
+      H.div H.! A.class_ "choice-text" $ do
+        H.div H.! A.class_ "choice-label" $
+          H.toHtml $
+            T.pack $ Text.printf "you and your righteous %.0f%%" myPct
+        H.toHtml myChoice
+      H.div H.! A.class_ "choice-text" $ do
+        H.div H.! A.class_ "choice-label" $
+          H.toHtml $
+            T.pack $ Text.printf "them and their precious %.0f%%" theirPct
+        H.toHtml theirChoice
 
 -- | Auth Templates
 
