@@ -12,12 +12,14 @@ import qualified Database.SQLite.Simple as SQL
 
 import Types
 import Utils.Cache
+import Utils.MatchState
 
 type Logger = T.Text -> IO ()
 
 data AppState = AppState
   { appPool :: Pool.Pool SQL.Connection
   , appRootCache :: MVar.MVar (Cache [Aorb])
+  , appMatchState :: MatchState
   }
 
 data MessageTemplate = MessageTemplate

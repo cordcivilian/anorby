@@ -27,6 +27,7 @@ import Utils.Config
 import Utils.Cache
 import Utils.Email
 import Utils.Time
+import Utils.MatchState
 import Web.Templates
 import Web.Types
 
@@ -254,9 +255,13 @@ setFavoriteAorbRoute conn uid aid _ = do
     ]
     ""
 
-matchTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
+matchTemplateRoute :: Config
+                   -> AppState
+                   -> SQL.Connection
+                   -> UserID
+                   -> Wai.Request
                    -> IO Wai.Response
-matchTemplateRoute config conn uid _ = do
+matchTemplateRoute config state conn uid _ = do
   hasAccess <- hasThresholdAccess conn uid (matchThreshold config)
   if not hasAccess
     then return $ Wai.responseLBS
@@ -284,6 +289,8 @@ matchTemplateRoute config conn uid _ = do
 
           maybeCutoffTime <- parseMatchTime (matchCutoffTime config)
           maybeReleaseTime <- parseMatchTime (matchReleaseTime config)
+
+          matchStatus <- getMatchStatus (appMatchState state)
 
           let startOfDay = (floor (now / 86400) * 86400) :: Integer
               endOfDay = startOfDay + 86400
@@ -325,6 +332,7 @@ matchTemplateRoute config conn uid _ = do
                 (elem uid enrolled)
                 (length enrolled)
                 maybeMatchScore
+                matchStatus
             )
         _ -> return $ Wai.responseLBS
           HTTP.status500

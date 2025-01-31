@@ -27,6 +27,8 @@ import Database
 import Utils.Cache
 import Utils.Config
 import Utils.Simulate
+import Utils.MatchState
+import Utils.MatchTrigger
 import Web.Types
 import Web.Handlers
 import Types
@@ -38,7 +40,12 @@ runServer = do
   config <- getConfig
   pool <- initDatabasePool config
   rootCache <- initCache (60 * Clock.secondsToNominalDiffTime 1)
-  let state = AppState { appPool = pool , appRootCache = rootCache }
+  matchState <- initMatchState
+  let state = AppState
+        { appPool = pool
+        , appRootCache = rootCache
+        , appMatchState = matchState
+        }
   maybePort <- Env.lookupEnv "PORT"
   let autoPort = 5001
       port = maybe autoPort read maybePort
@@ -96,9 +103,10 @@ monolith state = Mid.logStdout $ application TIO.putStrLn state
 application :: Logger -> AppState -> Wai.Application
 application _ state request respond = do
 
-  _ <- Wai.lazyRequestBody request
-
   config <- getConfig
+  checkAndTriggerMatching state config
+
+  _ <- Wai.lazyRequestBody request
 
   let runHandlerWithConn :: (SQL.Connection -> Wai.Request -> IO Wai.Response)
                         -> IO Wai.ResponseReceived
@@ -209,8 +217,8 @@ application _ state request respond = do
         setFavoriteAorbRoute conn uid aid)
 
     ("GET", "/match") ->
-      runProtectedHandlerWithConn (\conn uid ->
-        matchTemplateRoute config conn uid)
+      runProtectedHandlerWithConn (\conn uid req ->
+        matchTemplateRoute config state conn uid req)
 
     ("GET", "/match/type") ->
       runProtectedHandlerWithConn (\conn uid ->

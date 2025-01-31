@@ -22,6 +22,8 @@ executable anorby
                     Utils.Email
                     Utils.Simulate
                     Utils.Time
+                    Utils.MatchState
+                    Utils.MatchTrigger
                     Web.Handlers
                     Web.Server
                     Web.Styles

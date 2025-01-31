@@ -21,6 +21,7 @@ import Web.Styles
 import Web.Types
 import Utils.Time
 import Utils.Config
+import Utils.MatchState
 
 -- | Navigation Components
 
@@ -486,9 +487,10 @@ matchTemplate :: Config
               -> Bool
               -> Int
               -> Maybe (Match, Double)
+              -> MatchStatus
               -> H.Html
 matchTemplate config maybeCutoffTime maybeReleaseTime now
-  isEnrolled enrolledCount maybeMatchScore =
+  isEnrolled enrolledCount maybeMatchScore matchStatus =
   H.docTypeHtml $ H.html $ do
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
@@ -522,6 +524,7 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now
         isEnrolled
         enrolledCount
         maybeMatchScore
+        matchStatus
 
 matchTodaySection :: Config
                   -> Maybe POSIXTime.POSIXTime
@@ -530,9 +533,10 @@ matchTodaySection :: Config
                   -> Bool
                   -> Int
                   -> Maybe (Match, Double)
+                  -> MatchStatus
                   -> H.Html
 matchTodaySection config maybeCutoffTime maybeReleaseTime now
-  isEnrolled enrolledCount maybeMatchScore =
+  isEnrolled enrolledCount maybeMatchScore matchStatus =
   let otherUsersCount = max 0 (enrolledCount - 1)
       enrolledText =
         if otherUsersCount == 1
@@ -553,9 +557,20 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now
       currentTimestamp = floor now
 
   in H.div H.! A.class_ "today-status" $ do
-      Monad.when isBeforeRelease $
-        H.div H.! A.class_ "status-box count-status" $
-          H.text enrolledText
+      case matchStatus of
+        InProgress ->
+          H.div H.! A.class_ "status-box" $
+            H.text "Matching in progress..."
+
+        Failed err ->
+          H.div H.! A.class_ "status-box" $ do
+            H.text "Matching failed: "
+            H.text (T.pack err)
+
+        _ -> do
+          Monad.when isBeforeRelease $
+            H.div H.! A.class_ "status-box count-status" $
+              H.text enrolledText
 
       Monad.when isBeforeRelease $
         H.div H.! A.class_ (if isEnrolled
