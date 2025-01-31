@@ -774,8 +774,8 @@ matchProfileCSS = combineCSS
     , cssProperty "padding" "2rem"
     , cssProperty "margin" "2rem auto"
     , cssProperty "max-width" "600px"
+    , cssProperty "min-height" "25dvh"
     , cssProperty "width" "60dvw"
-    , cssProperty "height" "40dvh"
     , cssProperty "align-content" "center"
     ]
   -- Main Question Card (Blue theme)

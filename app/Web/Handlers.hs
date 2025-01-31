@@ -340,6 +340,8 @@ matchProfileTemplateRoute conn uid days _ = do
       targetDay = startOfDay - (days * 86400)
       nextDay = targetDay + 86400
 
+  putStrLn $ "targetDay: " ++ show targetDay
+  putStrLn $ "nextDay: " ++ show nextDay
   matches <- SQL.query conn
     (SQL.Query $ T.unwords
       [ "SELECT user_id, target_id, matched_on"
@@ -448,12 +450,13 @@ matchTypeUpdateRoute config conn uid req = do
 matchFoundTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
                         -> IO Wai.Response
 matchFoundTemplateRoute conn uid _ = do
+  now <- POSIXTime.getPOSIXTime
   matches <- getUserMatches conn uid
   matchScores <- mapM (calculateMatchScore conn uid) matches
   return $ Wai.responseLBS
     HTTP.status200
     [(Headers.hContentType, BS.pack "text/html")]
-    (R.renderHtml $ matchFoundTemplate matchScores)
+    (R.renderHtml $ matchFoundTemplate (floor now) matchScores)
   where
     calculateMatchScore :: SQL.Connection -> UserID -> Match
                       -> IO (Match, Double)

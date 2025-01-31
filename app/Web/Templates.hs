@@ -7,11 +7,9 @@ import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Ord as Ord
 import qualified Data.Text as T
-import qualified Data.Time as Time
 import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Time.Format as DateTimeFormat
 import qualified Data.Word as Word
-import qualified System.IO.Unsafe as Unsafe
 import qualified Text.Printf as Text
 
 import qualified Text.Blaze.Html5 as H
@@ -552,6 +550,7 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now
       timeUntilRelease = case maybeReleaseTime of
         Just rt -> formatTimeUntil now rt
         Nothing -> "soon"
+      currentTimestamp = floor now
 
   in H.div H.! A.class_ "today-status" $ do
       Monad.when isBeforeRelease $
@@ -594,7 +593,7 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now
 
       Monad.unless isBeforeRelease $
         case maybeMatchScore of
-          Just matchScore -> matchCard (fst matchScore) (snd matchScore)
+          Just (match, score) -> matchCard currentTimestamp match score
           Nothing -> H.div H.! A.class_ "status-box pending-status" $
             H.text "no match found for today"
 
@@ -669,8 +668,8 @@ schemeDetailedDescription scheme =
     schemeDetail Bipolar = T.unlines
       [ "..." ]
 
-matchFoundTemplate :: [(Match, Double)] -> H.Html
-matchFoundTemplate matchScores = H.docTypeHtml $ H.html $ do
+matchFoundTemplate :: Integer -> [(Match, Double)] -> H.Html
+matchFoundTemplate currentTimestamp matchScores = H.docTypeHtml $ H.html $ do
   H.head $ do
     H.title "matches"
     H.link H.! A.rel "icon" H.! A.href "data:,"
@@ -688,13 +687,14 @@ matchFoundTemplate matchScores = H.docTypeHtml $ H.html $ do
         else do
           H.h4 "(agreement rate)"
           H.div H.! A.class_ "match-grid" $ do
-            mapM_ (\(m, s) -> matchCard m s) $ take 7 matchScores
+            mapM_ (\(m, s) -> matchCard currentTimestamp m s) $
+              take 7 matchScores
 
-matchCard :: Match -> Double -> H.Html
-matchCard match score =
+matchCard :: Integer -> Match -> Double -> H.Html
+matchCard currentTimestamp match score =
   H.a H.! A.class_ "match-card"
     H.! A.href (H.textValue $ "/match/found/t-" <>
-                formatMatchDelta (matchTimestamp match)) $ do
+                formatMatchDelta currentTimestamp (matchTimestamp match)) $ do
     H.div H.! A.class_ "match-date" $
       H.toHtml $ formatMatchDate (matchTimestamp match)
     H.div H.! A.class_ "match-score" $
@@ -704,31 +704,24 @@ matchCard match score =
     formatSimilarityScore s =
       T.pack $ Text.printf "%.0f%%" ((s + 1) * 50)
 
-    formatDate :: Integer -> T.Text
-    formatDate timestamp = T.pack $
+    formatMatchDate :: Integer -> T.Text
+    formatMatchDate timestamp = T.pack $
       DateTimeFormat.formatTime
       DateTimeFormat.defaultTimeLocale
       "%Y-%m-%d"
       (POSIXTime.posixSecondsToUTCTime $ fromIntegral timestamp)
 
-    formatMatchDelta :: Integer -> T.Text
-    formatMatchDelta timestamp = T.pack $ show $ Unsafe.unsafePerformIO $ do
-      now <- Time.getCurrentTime
-      let posixTime = POSIXTime.posixSecondsToUTCTime $ fromIntegral timestamp
-          diffDays = Time.diffUTCTime now posixTime
-      return $ (floor (diffDays / Time.nominalDay) :: Integer)
-
-    formatMatchDate :: Integer -> T.Text
-    formatMatchDate timestamp = do
-      let matchDay = formatDate timestamp
-          today = formatDate $ floor $
-            Unsafe.unsafePerformIO POSIXTime.getPOSIXTime
-          yesterday = formatDate $ floor $ Unsafe.unsafePerformIO $
-            fmap (\now -> now - 24 * 60 * 60) POSIXTime.getPOSIXTime
-      case () of
-        _ | matchDay == today -> "today"
-          | matchDay == yesterday -> "yesterday"
-          | otherwise -> matchDay
+    formatMatchDelta :: Integer -> Integer -> T.Text
+    formatMatchDelta currentTimestamp' matchTimestamp' = T.pack $ show dayDelta
+      where
+        secondsPerDay = 86400 :: Double
+        currentDay = floor ( (fromIntegral currentTimestamp' :: Double)
+                           / secondsPerDay
+                           ) :: Integer
+        matchDay = floor ( (fromIntegral matchTimestamp' :: Double)
+                         / secondsPerDay
+                         ) :: Integer
+        dayDelta = currentDay - matchDay
 
 matchProfileTemplate :: UserID -> UserID -> MatchView -> H.Html
 matchProfileTemplate mainUserId _ view =
@@ -748,7 +741,7 @@ matchProfileTemplate mainUserId _ view =
       H.span H.! A.id "top" $ ""
       H.div H.! A.class_ "frame" $ do
         navBar [ NavLink "/match/found" "back" False ]
-        H.h2 "basics"
+        H.h2 "stats"
         H.div H.! A.class_ "match-stats-grid" $ do
           H.div H.! A.class_ "stat-box" $ do
             H.div H.! A.class_ "stat-label" $ "matched on"
@@ -767,34 +760,34 @@ matchProfileTemplate mainUserId _ view =
             H.div H.! A.class_ "stat-value" $
               H.toHtml $ show (viewSharedAnswers view)
         H.div $ do
-          H.a H.! A.href "#spotlight" $ "begin"
+          H.a H.! A.href "#agreement" $ "begin"
+
+      H.span H.! A.id "agreement" $ ""
+      H.div H.! A.class_ "frame agreement-section" $ do
+        H.h2 "two and the truth is a majority"
+        case viewTopAgreement view of
+          Just mawa -> matchProfileAgreement mawa
+          Nothing -> H.div H.! A.class_ "no-aorb" $ "no agreements found"
+        H.div $ do
+          H.a H.! A.href "#spotlight" $ "next"
 
       H.span H.! A.id "spotlight" $ ""
       H.div H.! A.class_ "frame spotlight" $ do
-        H.h2 "their main question"
+        H.h2 "their roman empire"
         case viewMainAorbs view of
           Just (_, theirMain) ->
             spotlightAorbSection mainUserId theirMain
           Nothing ->
-            H.div H.! A.class_ "no-aorb" $ "No main question found"
-        H.div $ do
-          H.a H.! A.href "#agreement" $ "next"
-
-      H.span H.! A.id "agreement" $ ""
-      H.div H.! A.class_ "frame agreement-section" $ do
-        H.h2 "most unique agreement"
-        case viewTopAgreement view of
-          Just mawa -> matchProfileAgreement mawa
-          Nothing -> H.div H.! A.class_ "no-aorb" $ "No agreements found"
+            H.div H.! A.class_ "no-aorb" $ "no main question found"
         H.div $ do
           H.a H.! A.href "#disagreement" $ "next"
 
       H.span H.! A.id "disagreement" $ ""
       H.div H.! A.class_ "frame disagreement-section" $ do
-        H.h2 "strongest disagreement"
+        H.h2 "thanks for the social polarization"
         case viewTopDisagreement view of
-          Just mawa -> matchProfileAorb mainUserId mawa
-          Nothing -> H.div H.! A.class_ "no-aorb" $ "No disagreements found"
+          Just mawa -> matchProfileDisagreement mainUserId mawa
+          Nothing -> H.div H.! A.class_ "no-aorb" $ "no disagreements found"
         H.div $ do
           H.a H.! A.href "#top" $ "back to top"
 
@@ -810,29 +803,15 @@ matchProfileTemplate mainUserId _ view =
     formatPercent :: Double -> T.Text
     formatPercent n = T.pack $ Text.printf "%.0f%%" n
 
-matchProfileAgreement :: MatchingAorbWithAnswer -> H.Html
-matchProfileAgreement mawa = do
-  let aorb = matchingAorbData mawa
-      ans = mainUserAnswer mawa
-      mean = aorbMean aorb
-      (choiceText, percentage) = case ans of
-        AorbAnswer 0 -> (aorbA aorb, 100 * (1 - mean))
-        _ -> (aorbB aorb, 100 * mean)
-
-  H.div H.! A.class_ "match-profile-aorb" $ do
-    H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
-    H.div H.! A.class_ "agreed-choice" $ do
-      H.div H.! A.class_ "choice-text" $ do
-        H.toHtml choiceText
-        H.span H.! A.class_ "percentage" $
-          H.toHtml $ T.pack $
-            Text.printf " (%.0f%% of others agree)" percentage
-
 spotlightAorbSection :: UserID -> MatchingAorbWithAnswer -> H.Html
 spotlightAorbSection _ mawa = do
   let aorb = matchingAorbData mawa
+      myAns = mainUserAnswer mawa
       theirAns = otherUserAnswer mawa
       mean = aorbMean aorb
+      myChoice = if myAns == AorbAnswer 0
+                then (aorbA aorb, 100 * (1 - mean))
+                else (aorbB aorb, 100 * mean)
       theirChoice = if theirAns == AorbAnswer 0
                    then (aorbA aorb, 100 * (1 - mean))
                    else (aorbB aorb, 100 * mean)
@@ -843,12 +822,31 @@ spotlightAorbSection _ mawa = do
         H.div H.! A.class_ "choice-label" $ "their choice:"
         H.div H.! A.class_ "choice-text" $ do
           H.toHtml $ fst theirChoice
-          H.span H.! A.class_ "percentage" $
-            H.toHtml $ T.pack $
-              Text.printf " (%.0f%% agree)" (snd theirChoice)
+      H.div H.! A.class_ "my-choice" $ do
+        H.div H.! A.class_ "choice-label" $ "your choice:"
+        H.div H.! A.class_ "choice-text" $ do
+          H.toHtml $ fst myChoice
 
-matchProfileAorb :: UserID -> MatchingAorbWithAnswer -> H.Html
-matchProfileAorb _ mawa = do
+matchProfileAgreement :: MatchingAorbWithAnswer -> H.Html
+matchProfileAgreement mawa = do
+  let aorb = matchingAorbData mawa
+      ans = mainUserAnswer mawa
+      mean = aorbMean aorb
+      (choiceText, percentage) = case ans of
+        AorbAnswer 0 -> (aorbA aorb, 100 *  mean)
+        _ -> (aorbB aorb, 100 * (1 - mean))
+
+  H.div H.! A.class_ "match-profile-aorb" $ do
+    H.div H.! A.class_ "context" $ H.toHtml $ aorbCtx aorb
+    H.div H.! A.class_ "agreed-choice" $ do
+      H.div H.! A.class_ "choice-text" $ do
+        H.toHtml choiceText
+      H.div H.! A.class_ "percentage" $
+        H.toHtml $ T.pack $
+          Text.printf "against %.0f%% of the world" percentage
+
+matchProfileDisagreement :: UserID -> MatchingAorbWithAnswer -> H.Html
+matchProfileDisagreement _ mawa = do
   let aorb = matchingAorbData mawa
       myAns = mainUserAnswer mawa
       theirAns = otherUserAnswer mawa
@@ -867,16 +865,15 @@ matchProfileAorb _ mawa = do
         H.div H.! A.class_ "choice-label" $ "your choice:"
         H.div H.! A.class_ "choice-text" $ do
           H.toHtml $ fst myChoice
-          H.span H.! A.class_ "percentage" $
-            H.toHtml $ T.pack $
-              Text.printf " (%.0f%% agree)" (snd myChoice)
+
+          H.span H.! A.class_ "percentage" $ H.toHtml $ T.pack $ Text.printf " (%.0f%% agree)" (snd myChoice)
+
       H.div H.! A.class_ "their-choice" $ do
         H.div H.! A.class_ "choice-label" $ "their choice:"
         H.div H.! A.class_ "choice-text" $ do
           H.toHtml $ fst theirChoice
-          H.span H.! A.class_ "percentage" $
-            H.toHtml $ T.pack $
-              Text.printf " (%.0f%% agree)" (snd theirChoice)
+
+          H.span H.! A.class_ "percentage" $ H.toHtml $ T.pack $ Text.printf " (%.0f%% agree)" (snd theirChoice)
 
 -- | Auth Templates
 

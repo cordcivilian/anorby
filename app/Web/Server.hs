@@ -20,7 +20,6 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.RequestLogger as Mid
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
-import qualified System.IO.Unsafe as Unsafe
 import qualified Text.Read as Read
 
 import Auth
@@ -38,13 +37,15 @@ runServer :: IO ()
 runServer = do
   config <- getConfig
   pool <- initDatabasePool config
+  rootCache <- initCache (60 * Clock.secondsToNominalDiffTime 1)
+  let state = AppState { appPool = pool , appRootCache = rootCache }
   maybePort <- Env.lookupEnv "PORT"
   let autoPort = 5001
       port = maybe autoPort read maybePort
   putStrLn $ "Server starting on port " ++ show (port :: Int)
   putStrLn $ "  Environment: " ++ show (environment config)
   putStrLn $ "  Database: " ++ dbPath config
-  Warp.run port $ monolith pool
+  Warp.run port $ monolith state
 
 initDatabasePool :: Config -> IO (Pool.Pool SQL.Connection)
 initDatabasePool config =
@@ -89,15 +90,8 @@ initDatabasePool config =
 
 -- | Application setup
 
-monolith :: Pool.Pool SQL.Connection -> Wai.Application
-monolith pool =
-  let rootCache = Unsafe.unsafePerformIO $
-        initCache (60 * Clock.secondsToNominalDiffTime 1)
-      state = AppState
-        { appPool = pool
-        , appRootCache = rootCache
-        }
-  in Mid.logStdout $ application TIO.putStrLn state
+monolith :: AppState -> Wai.Application
+monolith state = Mid.logStdout $ application TIO.putStrLn state
 
 application :: Logger -> AppState -> Wai.Application
 application _ state request respond = do
