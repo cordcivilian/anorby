@@ -17,6 +17,7 @@ import Types
 import Database
 import Core.Matching
 import Core.Ranking
+import Core.RollingShadow
 import Utils.Config
 
 randomRankings :: (Random.RandomGen g) => g -> Int -> Rankings
@@ -87,10 +88,13 @@ mockBaseAorbAnswersWithGaleShapley :: SQL.Connection -> Int -> IO ()
 mockBaseAorbAnswersWithGaleShapley conn n = do
   mockBaseAorbAnswers conn n
   putStrLn "Running Gale-Shapley matching..."
+  ensureShadowUser conn
   submissions <- baseAorbsToSubmissions conn
-  marriages <- galeShapley
-    (fst $ splitRankings $ submissionsToRankings submissions)
-    (snd $ splitRankings $ submissionsToRankings submissions)
+  let rankings = submissionsToRankings submissions
+  rankingsWithShadow <- addShadowUserIfNeeded conn rankings
+  let (group1Rankings, group2Rankings) = splitRankings rankingsWithShadow
+  marriages <- galeShapley group1Rankings group2Rankings
+  updateUnmatchedStatus conn marriages
   insertMatches conn marriages
   putStrLn "Mock data with Gale-Shapley matching complete."
 
@@ -98,10 +102,13 @@ mockBaseAorbAnswersWithLocalSearch :: SQL.Connection -> Int -> IO ()
 mockBaseAorbAnswersWithLocalSearch conn n = do
   mockBaseAorbAnswers conn n
   putStrLn "Running Local Search matching..."
+  ensureShadowUser conn
   submissions <- baseAorbsToSubmissions conn
   let rankings = submissionsToRankings submissions
-      (group1Rankings, group2Rankings) = splitRankings rankings
+  rankingsWithShadow <- addShadowUserIfNeeded conn rankings
+  let (group1Rankings, group2Rankings) = splitRankings rankingsWithShadow
   marriages <- localSearch group1Rankings group2Rankings 1000 1.0 5
+  updateUnmatchedStatus conn marriages
   insertMatches conn marriages
   putStrLn "Mock data with Local Search matching complete."
 

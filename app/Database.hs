@@ -91,6 +91,7 @@ initTables conn = SQL.withTransaction conn $ do
   initAorbMeanTrigger conn
   initAuthTable conn
   initMatchedTable conn
+  initUnmatchedTable conn
   initIndexes conn
 
 initIndexes :: SQL.Connection -> IO ()
@@ -121,6 +122,20 @@ initIndexes conn = do
     [ "CREATE INDEX IF NOT EXISTS idx_matched_user_time"
     , "ON matched(user_id, matched_on DESC)"
     ]
+
+  -- low write volume
+  SQL.execute_ conn $ SQL.Query $ T.unwords
+    [ "CREATE INDEX IF NOT EXISTS idx_unmatched_since"
+    , "ON unmatched_users(unmatched_since)"
+    ]
+
+initUnmatchedTable :: SQL.Connection -> IO ()
+initUnmatchedTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+  [ "CREATE TABLE IF NOT EXISTS unmatched_users"
+  , "(user_id INTEGER PRIMARY KEY,"
+  , "unmatched_since INTEGER NOT NULL,"
+  , "FOREIGN KEY (user_id) REFERENCES users(id))"
+  ]
 
 initAuthTable :: SQL.Connection -> IO ()
 initAuthTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords

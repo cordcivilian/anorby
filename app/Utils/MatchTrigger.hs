@@ -6,8 +6,8 @@ import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Time.LocalTime as LocalTime
 import qualified Data.Text as T
 
-import Core.Matching
 import Core.Ranking
+import Core.RollingShadow
 import Database
 import Utils.Config
 import Utils.MatchState
@@ -45,8 +45,6 @@ checkAndTriggerMatching state config = do
       Pool.withResource (appPool state) $ \conn -> do
         users <- getUsersWithCompletedAnswers conn
         subs <- allAorbsToSubmissions conn users
-        let rankings = submissionsToRankings subs
-            (group1Rankings, group2Rankings) = splitRankings rankings
-        marriages <- galeShapley group1Rankings group2Rankings
+        marriages <- matchWithShadow conn (submissionsToRankings subs)
         insertMatches conn marriages
         return marriages

@@ -15,6 +15,7 @@ executable anorby
                     Core.Matching
                     Core.Ranking
                     Core.Similarity
+                    Core.RollingShadow
                     Database
                     Types
                     Utils.Cache

@@ -713,7 +713,7 @@ matchCard currentTimestamp match score =
     H.! A.href (H.textValue $ "/match/found/t-" <>
                 formatMatchDelta currentTimestamp (matchTimestamp match)) $ do
     H.div H.! A.class_ "match-date" $
-      H.toHtml $ formatMatchDate (matchTimestamp match)
+      H.toHtml $ formatMatchDate currentTimestamp (matchTimestamp match)
     H.div H.! A.class_ "match-score" $
       H.toHtml $ formatSimilarityScore score
   where
@@ -721,24 +721,32 @@ matchCard currentTimestamp match score =
     formatSimilarityScore s =
       T.pack $ Text.printf "%.0f%%" ((s + 1) * 50)
 
-    formatMatchDate :: Integer -> T.Text
-    formatMatchDate timestamp = T.pack $
-      DateTimeFormat.formatTime
-      DateTimeFormat.defaultTimeLocale
-      "%Y-%m-%d"
-      (POSIXTime.posixSecondsToUTCTime $ fromIntegral timestamp)
+    formatMatchDate :: Integer -> Integer -> T.Text
+    formatMatchDate currentTimestamp' matchTimestamp' =
+      let dayDelta = getDayDelta currentTimestamp' matchTimestamp'
+      in case dayDelta of
+        0 -> "today"
+        1 -> "yesterday"
+        _ -> T.pack $
+          DateTimeFormat.formatTime
+            DateTimeFormat.defaultTimeLocale
+            "%A, %Y-%m-%d"
+            (POSIXTime.posixSecondsToUTCTime $ fromIntegral matchTimestamp')
 
     formatMatchDelta :: Integer -> Integer -> T.Text
-    formatMatchDelta currentTimestamp' matchTimestamp' = T.pack $ show dayDelta
-      where
-        secondsPerDay = 86400 :: Double
-        currentDay = floor ( (fromIntegral currentTimestamp' :: Double)
+    formatMatchDelta currentTimestamp' matchTimestamp' =
+      T.pack $ show $ getDayDelta currentTimestamp' matchTimestamp'
+
+    getDayDelta :: Integer -> Integer -> Integer
+    getDayDelta currentTimestamp' matchTimestamp' =
+      let secondsPerDay = 86400 :: Double
+          currentDay = floor ((fromIntegral currentTimestamp' :: Double)
+                             / secondsPerDay
+                             ) :: Integer
+          matchDay = floor ((fromIntegral matchTimestamp' :: Double)
                            / secondsPerDay
                            ) :: Integer
-        matchDay = floor ( (fromIntegral matchTimestamp' :: Double)
-                         / secondsPerDay
-                         ) :: Integer
-        dayDelta = currentDay - matchDay
+      in currentDay - matchDay
 
 matchProfileTemplate :: UserID -> UserID -> MatchView -> H.Html
 matchProfileTemplate mainUserId _ view =
