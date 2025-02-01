@@ -5,12 +5,10 @@ module Web.Server where
 import qualified Control.Monad as Monad
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.List as List
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
-import qualified Data.Time.Clock as Clock
 import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Word as Word
 import qualified Database.SQLite.Simple as SQL
@@ -33,230 +31,292 @@ import Web.Types
 import Web.Handlers
 import Types
 
--- | Server setup and initialization
+type Route = (BS.ByteString, BS.ByteString)
+
+data AnswerSubmission = AnswerSubmission
+  { submissionAorbId :: AorbID
+  , submissionChoice :: Word.Word8
+  , submissionToken :: T.Text
+  }
+
+type PublicRouteHandler =
+  Route -> SQL.Connection -> Wai.Request -> IO Wai.Response
+
+type ProtectedRouteHandler =
+  Route -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+
+type AuthRouteHandler =
+  Route -> SQL.Connection -> Wai.Request -> IO Wai.Response
 
 runServer :: IO ()
 runServer = do
   config <- getConfig
-  pool <- initDatabasePool config
-  rootCache <- initCache (60 * Clock.secondsToNominalDiffTime 1)
-  matchState <- initMatchState
-  let state = AppState
-        { appPool = pool
-        , appRootCache = rootCache
-        , appMatchState = matchState
-        }
-  maybePort <- Env.lookupEnv "PORT"
-  let autoPort = 5001
-      port = maybe autoPort read maybePort
-  putStrLn $ "Server starting on port " ++ show (port :: Int)
+  state <- initAppState config
+  port <- getServerPort
+  putStrLn $ "Server starting on port " ++ show port
   putStrLn $ "  Environment: " ++ show (environment config)
   putStrLn $ "  Database: " ++ dbPath config
   Warp.run port $ monolith state
 
-initDatabasePool :: Config -> IO (Pool.Pool SQL.Connection)
-initDatabasePool config =
-  Dir.doesFileExist (dbPath config) >>= \dbExists ->
-    case environment config of
-      Production -> do
-        Monad.when (not dbExists) $ do
-          putStrLn "Creating new production database..."
-          conn <- initDB (dbPath config) True
-          SQL.close conn
-        initPool (dbPath config)
-      TestWithAnswers -> do
-        Monad.when (newDb config || not dbExists) $ do
-          putStrLn "Creating new test database with answers..."
-          conn <- initDB (dbPath config) True
-          mockBaseAorbAnswers conn (userCount config)
-          SQL.close conn
-        initPool (dbPath config)
-      TestWithoutAnswers -> do
-        Monad.when (newDb config || not dbExists) $ do
-          putStrLn "Creating new test database without answers..."
-          conn <- initDB (dbPath config) True
-          mockBase conn (userCount config)
-          SQL.close conn
-        initPool (dbPath config)
-      TestWithCustomData -> do
-        initPool (dbPath config)
-      TestWithMatches 1 -> do
-        Monad.when (newDb config || not dbExists) $ do
-          putStrLn "Creating new test database with Gale-Shapley matching..."
-          conn <- initDB (dbPath config) True
-          mockBaseAorbAnswersWithGaleShapley conn (userCount config)
-          SQL.close conn
-        initPool (dbPath config)
-      TestWithMatches _ -> do
-        Monad.when (newDb config || not dbExists) $ do
-          putStrLn "Creating new test database with Local Search matching..."
-          conn <- initDB (dbPath config) True
-          mockBaseAorbAnswersWithLocalSearch conn (userCount config)
-          SQL.close conn
-        initPool (dbPath config)
+initAppState :: Config -> IO AppState
+initAppState config = do
+  pool <- initDatabasePool config
+  rootCache <- initCache (60)
+  matchState <- initMatchState
+  return AppState
+    { appPool = pool
+    , appRootCache = rootCache
+    , appMatchState = matchState
+    }
 
--- | Application setup
+getServerPort :: IO Int
+getServerPort = maybe 5001 read <$> Env.lookupEnv "PORT"
+
+initDatabasePool :: Config -> IO (Pool.Pool SQL.Connection)
+initDatabasePool config = do
+  dbExists <- Dir.doesFileExist (dbPath config)
+  case environment config of
+    Production -> initProductionDb config dbExists
+    TestWithAnswers -> initTestWithAnswersDb config dbExists
+    TestWithoutAnswers -> initTestWithoutAnswersDb config dbExists
+    TestWithCustomData -> initPool (dbPath config)
+    TestWithMatches 1 -> initGaleShapleyTestDb config dbExists
+    TestWithMatches _ -> initLocalSearchTestDb config dbExists
+
+initProductionDb :: Config -> Bool -> IO (Pool.Pool SQL.Connection)
+initProductionDb config dbExists = do
+  Monad.when (not dbExists) $ do
+    putStrLn "Creating new production database..."
+    conn <- initDB (dbPath config) True
+    SQL.close conn
+  initPool (dbPath config)
+
+initTestWithAnswersDb :: Config -> Bool -> IO (Pool.Pool SQL.Connection)
+initTestWithAnswersDb config dbExists = do
+  Monad.when (newDb config || not dbExists) $ do
+    putStrLn "Creating new test database with answers..."
+    conn <- initDB (dbPath config) True
+    mockBaseAorbAnswers conn (userCount config)
+    SQL.close conn
+  initPool (dbPath config)
+
+initTestWithoutAnswersDb :: Config -> Bool -> IO (Pool.Pool SQL.Connection)
+initTestWithoutAnswersDb config dbExists = do
+  Monad.when (newDb config || not dbExists) $ do
+    putStrLn "Creating new test database without answers..."
+    conn <- initDB (dbPath config) True
+    mockBase conn (userCount config)
+    SQL.close conn
+  initPool (dbPath config)
+
+initGaleShapleyTestDb :: Config -> Bool -> IO (Pool.Pool SQL.Connection)
+initGaleShapleyTestDb config dbExists = do
+  Monad.when (newDb config || not dbExists) $ do
+    putStrLn "Creating new test database with Gale-Shapley matching..."
+    conn <- initDB (dbPath config) True
+    mockBaseAorbAnswersWithGaleShapley conn (userCount config)
+    SQL.close conn
+  initPool (dbPath config)
+
+initLocalSearchTestDb :: Config -> Bool -> IO (Pool.Pool SQL.Connection)
+initLocalSearchTestDb config dbExists = do
+  Monad.when (newDb config || not dbExists) $ do
+    putStrLn "Creating new test database with Local Search matching..."
+    conn <- initDB (dbPath config) True
+    mockBaseAorbAnswersWithLocalSearch conn (userCount config)
+    SQL.close conn
+  initPool (dbPath config)
+
+routePublic
+  :: AppState -> Route -> SQL.Connection -> Wai.Request
+  -> IO Wai.Response
+routePublic state (method, path) conn req = case (method, path) of
+  ("GET", "/") -> rootTemplateRoute state conn req
+  ("GET", "/roadmap") -> roadmapTemplateRoute conn req
+  ("GET", p) | isSharePath p ->
+    sharedProfileTemplateRoute conn (extractUuid p) req
+  _ -> return notFoundResponse
+  where
+    isSharePath = BS.isPrefixOf "/share/"
+    extractUuid = T.pack . BS.unpack . BS.drop 7
+
+routeAuth :: Route -> SQL.Connection -> Wai.Request -> IO Wai.Response
+routeAuth (method, path) conn req = case (method, path) of
+  ("GET", "/login") -> loginGetRoute conn req
+  ("POST", "/login") -> loginPostRoute conn req
+  ("GET", "/register") -> registerGetRoute conn req
+  ("POST", "/register") -> registerPostRoute conn req
+  ("GET", p) | isAuthPath p -> authHashRoute conn (extractHash p) req
+  _ -> return notFoundResponse
+  where
+    isAuthPath = BS.isPrefixOf "/auth/"
+    extractHash = T.pack . BS.unpack . BS.drop 6
+
+routeProtected
+  :: Config -> AppState -> Route -> SQL.Connection -> UserID -> Wai.Request
+  -> IO Wai.Response
+routeProtected config state (method, path) conn uid req =
+  case (method, path) of
+
+  ("GET", "/whoami") -> profileTemplateRoute config conn uid req
+  ("GET", "/account") -> accountTemplateRoute conn uid req
+
+  ("GET", "/ans") -> ansTemplateRoute conn uid req
+  ("GET", p) | isAorbPath p ->
+    existingAnswerTemplateRoute conn uid (extractAorbId p) req
+  ("POST", p) | isFavoritePath p ->
+    setFavoriteAorbRoute conn uid (extractAorbId p) req
+
+  ("GET", "/match") -> matchTemplateRoute config state conn uid req
+  ("GET", "/match/type") -> matchTypeTemplateRoute config conn uid req
+  ("POST", "/match/type") -> matchTypeUpdateRoute config conn uid req
+  ("GET", "/match/found") -> matchFoundTemplateRoute conn uid req
+  ("GET", p) | isMatchDaysPath p ->
+    matchProfileTemplateRoute conn uid (extractDays p) req
+
+  ("GET", "/logout") -> logoutGetRoute conn uid req
+  ("GET", "/logout/confirm") -> logoutConfirmRoute conn uid req
+  ("POST", "/logout/confirm") -> logoutConfirmPostRoute conn uid req
+  ("GET", "/delete") -> deleteGetRoute conn uid req
+  ("GET", "/delete/confirm") -> deleteConfirmRoute conn uid req
+  ("POST", "/delete/confirm") -> deleteConfirmPostRoute conn uid req
+
+  _ -> return notFoundResponse
+  where
+    isAorbPath = BS.isPrefixOf "/ans/"
+    isFavoritePath = BS.isPrefixOf "/aorb/favorite/"
+    isMatchDaysPath = BS.isPrefixOf "/match/found/t-"
+
+    extractAorbId p = read . BS.unpack . BS.drop 5 $ p
+    extractDays p = read . BS.unpack . BS.drop 14 $ p
 
 monolith :: AppState -> Wai.Application
 monolith state = Mid.logStdout $ application TIO.putStrLn state
 
 application :: Logger -> AppState -> Wai.Application
 application _ state request respond = do
-
   config <- getConfig
   checkAndTriggerMatching state config
 
   _ <- Wai.lazyRequestBody request
 
-  let runHandlerWithConn :: (SQL.Connection -> Wai.Request -> IO Wai.Response)
-                        -> IO Wai.ResponseReceived
-      runHandlerWithConn handler =
-        Pool.withResource pool (\conn -> handler conn request) >>= respond
+  let method = Wai.requestMethod request
+      path = Wai.rawPathInfo request
+      route = (method, path)
+      handleAuthRoute r = runHandlerWithConn $ routeAuth r
+      handlePublicRoute r = runHandlerWithConn $ routePublic state r
+      handleProtectedRoute r =
+        runProtectedHandlerWithConn $ routeProtected config state r
 
-      runProtectedHandlerWithConn ::
-        (SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response)
-        -> IO Wai.ResponseReceived
-      runProtectedHandlerWithConn handler =
-        Pool.withResource pool (\conn -> do
-          maybeUser <- getAuthenticatedUser conn request
-          case maybeUser of
-            Nothing -> return redirectToLogin
-            Just user -> do
-              now <- POSIXTime.getPOSIXTime
-              case getCookie request of
-                Just cookieBS -> do
-                  let hash = TE.decodeUtf8 cookieBS
-                  SQL.execute conn
-                    "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-                    (floor now :: Integer, hash)
-                Nothing -> return ()
-              handler conn (userId user) request) >>= respond
+  case route of
 
-      method = BS.unpack $ Wai.requestMethod request
-      path = BS.unpack $ Wai.rawPathInfo request
-      pool = appPool state
+    ("GET", "/") -> handlePublicRoute route
+    ("GET", "/roadmap") -> handlePublicRoute route
 
-  case (method, path) of
-    -- Public routes
-    ("GET", "/") ->
-      runHandlerWithConn (rootTemplateRoute state)
+    ("GET", "/login") -> handleAuthRoute route
+    ("POST", "/login") -> handleAuthRoute route
+    ("GET", "/register") -> handleAuthRoute route
+    ("POST", "/register") -> handleAuthRoute route
+    ("GET", p) | isAuthHashPath p -> handleAuthRoute route
 
-    ("GET", "/roadmap") ->
-      runHandlerWithConn roadmapTemplateRoute
+    ("GET", p) | isSharePath p -> handlePublicRoute route
+    ("GET", "/whoami") -> handleProtectedRoute route
+    ("GET", "/account") -> handleProtectedRoute route
 
-    ("GET", "/login") ->
-      runHandlerWithConn loginGetRoute
+    ("GET", "/ans") -> handleProtectedRoute route
+    ("GET", p) | isAorbPath p -> handleProtectedRoute route
+    ("POST", "/ans/submit") -> handleAnswerSubmission
+    ("POST", "/ans/edit") -> handleAnswerEdit
+    ("POST", p) | isFavoriteAorbPath p -> handleProtectedRoute route
 
-    ("POST", "/login") ->
-      runHandlerWithConn loginPostRoute
+    ("GET", "/match") -> handleProtectedRoute route
+    ("GET", "/match/type") -> handleProtectedRoute route
+    ("POST", "/match/type") -> handleProtectedRoute route
+    ("GET", "/match/found") -> handleProtectedRoute route
+    ("GET", p) | isMatchDaysPath p -> handleProtectedRoute route
 
-    ("GET", "/register") ->
-      runHandlerWithConn registerGetRoute
-
-    ("POST", "/register") ->
-      runHandlerWithConn registerPostRoute
-
-    ("GET", p) | Just h <- List.stripPrefix "/auth/" p ->
-      runHandlerWithConn (\conn -> authHashRoute conn (T.pack h))
-
-    ("GET", p) | Just uuid <- List.stripPrefix "/share/" p ->
-      runHandlerWithConn (\conn ->
-        sharedProfileTemplateRoute conn (T.pack uuid))
-
-    -- Protected routes
-    ("GET", "/account") ->
-      runProtectedHandlerWithConn accountTemplateRoute
-
-    ("GET", "/logout") ->
-      runProtectedHandlerWithConn logoutGetRoute
-
-    ("GET", "/logout/confirm") ->
-      runProtectedHandlerWithConn logoutConfirmRoute
-
-    ("POST", "/logout/confirm") ->
-      runProtectedHandlerWithConn logoutConfirmPostRoute
-
-    ("GET", "/delete") ->
-      runProtectedHandlerWithConn deleteGetRoute
-
-    ("GET", "/delete/confirm") ->
-      runProtectedHandlerWithConn deleteConfirmRoute
-
-    ("POST", "/delete/confirm") ->
-      runProtectedHandlerWithConn deleteConfirmPostRoute
-
-    ("GET", "/whoami") ->
-      runProtectedHandlerWithConn (\conn uid ->
-        profileTemplateRoute config conn uid)
-
-    ("GET", "/ans") ->
-      runProtectedHandlerWithConn ansTemplateRoute
-
-    ("GET", p) | Just aid <- readAorbId p ->
-      runProtectedHandlerWithConn (\conn uid ->
-        existingAnswerTemplateRoute conn uid aid)
-
-    ("POST", "/ans/submit") -> do
-      body <- Wai.strictRequestBody request
-      case parseAnswerSubmission body of
-        Just (aid, choice, token) ->
-          runProtectedHandlerWithConn (\conn uid ->
-            submitAnswerRoute conn uid aid choice token)
-        Nothing -> respond invalidSubmissionResponse
-
-    ("POST", "/ans/edit") -> do
-      body <- Wai.strictRequestBody request
-      case parseAnswerSubmission body of
-        Just (aid, choice, token) ->
-          runProtectedHandlerWithConn (\conn uid ->
-            editAnswerRoute conn uid aid choice token)
-        Nothing -> respond invalidSubmissionResponse
-
-    ("POST", p) | Just aid <- readFavoriteAorbId p ->
-      runProtectedHandlerWithConn (\conn uid ->
-        setFavoriteAorbRoute conn uid aid)
-
-    ("GET", "/match") ->
-      runProtectedHandlerWithConn (\conn uid req ->
-        matchTemplateRoute config state conn uid req)
-
-    ("GET", "/match/type") ->
-      runProtectedHandlerWithConn (\conn uid ->
-        matchTypeTemplateRoute config conn uid)
-
-    ("POST", "/match/type") ->
-      runProtectedHandlerWithConn (\conn uid ->
-        matchTypeUpdateRoute config conn uid)
-
-    ("GET", "/match/found") ->
-      runProtectedHandlerWithConn matchFoundTemplateRoute
-
-    ("GET", p) | Just days <- readMatchProfileDays p ->
-      runProtectedHandlerWithConn (\conn uid ->
-        matchProfileTemplateRoute conn uid days)
+    ("GET", "/logout") -> handleProtectedRoute route
+    ("GET", "/logout/confirm") -> handleProtectedRoute route
+    ("POST", "/logout/confirm") -> handleProtectedRoute route
+    ("GET", "/delete") -> handleProtectedRoute route
+    ("GET", "/delete/confirm") -> handleProtectedRoute route
+    ("POST", "/delete/confirm") -> handleProtectedRoute route
 
     _ -> respond notFoundResponse
 
   where
-    readAorbId :: String -> Maybe AorbID
-    readAorbId path = Read.readMaybe =<< List.stripPrefix "/ans/" path
+    isAuthHashPath = BS.isPrefixOf "/auth/"
+    isSharePath = BS.isPrefixOf "/share/"
+    isAorbPath = BS.isPrefixOf "/ans/"
+    isFavoriteAorbPath = BS.isPrefixOf "/aorb/favorite/"
+    isMatchDaysPath = BS.isPrefixOf "/match/found/t-"
 
-    readFavoriteAorbId :: String -> Maybe AorbID
-    readFavoriteAorbId path =
-      Read.readMaybe =<< List.stripPrefix "/aorb/favorite/" path
+    runHandlerWithConn handler =
+      Pool.withResource (appPool state) (\conn ->
+        handler conn request) >>= respond
 
-    parseAnswerSubmission :: BSL.ByteString
-                          -> Maybe (AorbID, AorbAnswer, T.Text)
-    parseAnswerSubmission body = do
+    runProtectedHandlerWithConn handler =
+      Pool.withResource (appPool state) (\conn -> do
+        maybeUser <- getAuthenticatedUser conn request
+        case maybeUser of
+          Nothing -> return redirectToLogin
+          Just user -> do
+            updateLastAccessed conn user
+            handler conn (userId user) request
+      ) >>= respond
+
+    parseAnswerBody :: BSL.ByteString -> Maybe AnswerSubmission
+    parseAnswerBody body = do
       let params = HTTP.parseQueryText $ BSL.toStrict body
-      reqAorbId <- (Read.readMaybe . T.unpack)
-        =<< Monad.join (lookup "aorb_id" params)
-      rawChoice <- (Read.readMaybe . T.unpack)
-        =<< Monad.join (lookup "choice" params)
+      aorb <- Monad.join (lookup "aorb_id" params) >>=
+        Read.readMaybe . T.unpack
+      choice <- Monad.join (lookup "choice" params) >>=
+        Read.readMaybe . T.unpack
       token <- Monad.join (lookup "token" params)
-      return (reqAorbId, AorbAnswer (rawChoice :: Word.Word8), token)
+      return AnswerSubmission
+        { submissionAorbId = aorb
+        , submissionChoice = choice
+        , submissionToken = token
+        }
+    routeAnswerSubmit
+      :: AnswerSubmission -> SQL.Connection -> UserID -> Wai.Request
+      -> IO Wai.Response
+    routeAnswerSubmit submission conn uid req =
+      submitAnswerRoute conn uid
+        (submissionAorbId submission)
+        (AorbAnswer $ submissionChoice submission)
+        (submissionToken submission)
+        req
+    routeAnswerEdit
+      :: AnswerSubmission -> SQL.Connection -> UserID -> Wai.Request
+      -> IO Wai.Response
+    routeAnswerEdit submission conn uid req =
+      editAnswerRoute conn uid
+        (submissionAorbId submission)
+        (AorbAnswer $ submissionChoice submission)
+        (submissionToken submission)
+        req
+    handleAnswerSubmission = do
+      body <- Wai.strictRequestBody request
+      case parseAnswerBody body of
+        Just submission -> runProtectedHandlerWithConn $
+          routeAnswerSubmit submission
+        Nothing -> respond invalidSubmissionResponse
 
-    readMatchProfileDays :: String -> Maybe Integer
-    readMatchProfileDays path = do
-      tStr <- List.stripPrefix "/match/found/t-" path
-      Read.readMaybe tStr
+    handleAnswerEdit = do
+      body <- Wai.strictRequestBody request
+      case parseAnswerBody body of
+        Just submission -> runProtectedHandlerWithConn $
+          routeAnswerEdit submission
+        Nothing -> respond invalidSubmissionResponse
+
+    updateLastAccessed conn _ = do
+      now <- POSIXTime.getPOSIXTime
+      case getCookie request of
+        Just cookieBS -> do
+          let hash = TE.decodeUtf8 cookieBS
+          SQL.execute conn
+            "UPDATE auth SET last_accessed = ? WHERE hash = ?"
+            (floor now :: Integer, hash)
+        Nothing -> return ()
+
