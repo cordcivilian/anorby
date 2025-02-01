@@ -846,7 +846,7 @@ spotlightAorbSection _ mawa = do
 
           H.div H.! A.class_ "choice-text alternative" $ do
             H.div H.! A.class_ "choice-label" $
-              "every other idiots"
+              "every other idiot"
             H.toHtml otherChoice
 
         else do

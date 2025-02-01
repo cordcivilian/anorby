@@ -348,8 +348,6 @@ matchProfileTemplateRoute conn uid days _ = do
       targetDay = startOfDay - (days * 86400)
       nextDay = targetDay + 86400
 
-  putStrLn $ "targetDay: " ++ show targetDay
-  putStrLn $ "nextDay: " ++ show nextDay
   matches <- SQL.query conn
     (SQL.Query $ T.unwords
       [ "SELECT user_id, target_id, matched_on"
