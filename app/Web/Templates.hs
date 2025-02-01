@@ -711,31 +711,33 @@ matchFoundTemplate currentTimestamp matchData = H.docTypeHtml $ H.html $ do
 matchCard :: Integer -> Match -> Double -> Int -> H.Html
 matchCard currentTimestamp match score unreadCount =
   H.a H.! A.class_ "match-card"
-      H.! A.href (H.textValue $ "/match/found/t-" <>
-                formatMatchDelta currentTimestamp (matchTimestamp match)) $ do
+      H.! A.href
+        ( H.textValue $ "/match/found/t-" <>
+          formatMatchDelta currentTimestamp (matchTimestamp match)
+        ) $ do
     H.div H.! A.class_ "match-date" $
-      H.toHtml $ formatMatchDate currentTimestamp (matchTimestamp match)
+      H.toHtml $
+        formatMatchDate currentTimestamp (matchTimestamp match) unreadCount
     H.div H.! A.class_ "match-score" $
       H.toHtml $ formatSimilarityScore score
-    Monad.when (unreadCount > 0) $
-      H.div H.! A.class_ "unread-count" $
-        H.toHtml $ show unreadCount <> " unread"
   where
     formatSimilarityScore :: Double -> T.Text
     formatSimilarityScore s =
       T.pack $ Text.printf "%.0f%%" ((s + 1) * 50)
 
-    formatMatchDate :: Integer -> Integer -> T.Text
-    formatMatchDate currentTimestamp' matchTimestamp' =
+    formatMatchDate :: Integer -> Integer -> Int -> T.Text
+    formatMatchDate currentTimestamp' matchTimestamp' unread =
       let dayDelta = getDayDelta currentTimestamp' matchTimestamp'
-      in case dayDelta of
-        0 -> "today"
-        1 -> "yesterday"
-        _ -> T.pack $
-          DateTimeFormat.formatTime
-            DateTimeFormat.defaultTimeLocale
-            "%A, %Y-%m-%d"
-            (POSIXTime.posixSecondsToUTCTime $ fromIntegral matchTimestamp')
+          baseText = case dayDelta of
+            0 -> "today"
+            1 -> "yesterday"
+            _ -> T.pack $
+              DateTimeFormat.formatTime
+              DateTimeFormat.defaultTimeLocale
+              "%A, %Y-%m-%d"
+              (POSIXTime.posixSecondsToUTCTime $ fromIntegral matchTimestamp')
+      in if unread > 0 then "[" <> T.pack (show unread) <> "] " <> baseText
+                       else baseText
 
     formatMatchDelta :: Integer -> Integer -> T.Text
     formatMatchDelta currentTimestamp' matchTimestamp' =
@@ -744,11 +746,11 @@ matchCard currentTimestamp match score unreadCount =
     getDayDelta :: Integer -> Integer -> Integer
     getDayDelta currentTimestamp' matchTimestamp' =
       let secondsPerDay = 86400 :: Double
-          currentDay = floor ((fromIntegral currentTimestamp' :: Double)
-                             / secondsPerDay
+          currentDay = floor (( fromIntegral currentTimestamp' :: Double)
+                              / secondsPerDay
                              ) :: Integer
-          matchDay = floor ((fromIntegral matchTimestamp' :: Double)
-                           / secondsPerDay
+          matchDay = floor (( fromIntegral matchTimestamp' :: Double)
+                            / secondsPerDay
                            ) :: Integer
       in currentDay - matchDay
 
@@ -862,22 +864,14 @@ renderMessages days uid messages = H.div H.! A.class_ "message-grid" $ do
       H.! A.value "send"
 
 renderMessage :: UserID -> Message -> H.Html
-renderMessage uid msg =
+renderMessage uid msg = do
   H.div H.! A.class_ (H.textValue messageClass) $ do
     H.div H.! A.class_ "message-content" $
       H.toHtml $ messageContent msg
-    H.div H.! A.class_ "message-time" $
-      H.toHtml $ formatMessageTime $ messageSentOn msg
   where
     messageClass = if messageSenderId msg == uid
                       then "message-card me"
                       else "message-card them"
-    formatMessageTime :: Integer -> T.Text
-    formatMessageTime timestamp =
-      T.pack $ DateTimeFormat.formatTime
-        DateTimeFormat.defaultTimeLocale
-        "%H:%M"
-        (POSIXTime.posixSecondsToUTCTime $ fromIntegral timestamp)
 
 spotlightAorbSection :: UserID -> MatchingAorbWithAnswer -> H.Html
 spotlightAorbSection _ mawa = do
@@ -1038,10 +1032,10 @@ accountTemplate user = H.docTypeHtml $ H.html $ do
           H.h3 H.! A.class_ "danger-heading" $ "danger zone"
           H.p $ do
             H.text "logout from all devices: "
-            H.a H.! A.href "/logout" $ "confirm via email"
+          H.a H.! A.href "/logout" $ "confirm via email"
           H.p $ do
             H.text "delete account and all data: "
-            H.a H.! A.href "/delete" $ "confirm via email"
+          H.a H.! A.href "/delete" $ "confirm via email"
 
 confirmTemplate :: T.Text -> T.Text -> T.Text -> T.Text -> T.Text -> T.Text
                 -> H.Html

@@ -691,7 +691,7 @@ messageCSS = combineCSS
     ]
   , cssEntry ".message-card"
     [ cssProperty "margin" "1rem 0"
-    , cssProperty "padding" "1.5rem"
+    , cssProperty "padding" "1rem"
     , cssProperty "border-radius" "0.5rem"
     , cssProperty "outline-offset" "2px"
     , cssProperty "text-decoration" "none"
@@ -720,14 +720,13 @@ messageCSS = combineCSS
     , cssProperty "font-family" "inherit"
     , cssProperty "font-weight" "inherit"
     , cssProperty "font-size" "inherit"
-    , cssProperty "width" "60%"
     , cssProperty "field-sizing" "content"
     , cssProperty "resize" "none"
     ]
   , cssEntry "#message-form"
     [ cssProperty "display" "flex"
     , cssProperty "flex-direction" "column"
-    , cssProperty "align-items" "center"
+    , cssProperty "align-items" "stretch"
     ]
   , cssEntry ".message-submit"
     [ cssProperty "padding" "0.5rem 1rem"
@@ -954,7 +953,7 @@ accountPageCSS = combineCSS
   , cssEntry ".account-section"
     [ cssProperty "margin" "2rem auto"
     , cssProperty "max-width" "600px"
-    , cssProperty "text-align" "left"
+    , cssProperty "text-align" "center"
     ]
   , cssEntry ".account-heading"
     [ cssProperty "border-bottom" "2px solid #ddd"
