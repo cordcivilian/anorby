@@ -760,6 +760,7 @@ matchProfileTemplate mainUserId _ view =
         [ baseCSS
         , navBarCSS
         , matchProfileCSS
+        , messageCSS
         ]
     H.body $ do
       H.span H.! A.id "top" $ ""
@@ -812,6 +813,41 @@ matchProfileTemplate mainUserId _ view =
         case viewTopDisagreement view of
           Just mawa -> matchProfileDisagreement mainUserId mawa
           Nothing -> H.div H.! A.class_ "no-aorb" $ "no disagreements found"
+        H.div $ do
+          H.a H.! A.href "#messages" $ "next"
+
+      H.span H.! A.id "messages" $ ""
+      H.div H.! A.class_ "frame" $ do
+        H.h1 "head-to-head"
+        H.div H.! A.class_ "message-grid" $ do
+          H.div H.! A.class_ "message-card them" $ do
+            H.div "message 1"
+          H.div H.! A.class_ "message-card me" $ do
+            H.div "message 2"
+          H.div H.! A.class_ "message-card them" $ do
+            H.div "message 1"
+          H.div H.! A.class_ "message-card me" $ do
+            H.div "message 2"
+          H.div H.! A.class_ "message-card them" $ do
+            H.div "message 1"
+          H.div H.! A.class_ "message-card me" $ do
+            H.div "message 2"
+          H.form H.! A.class_ "message-form"
+            H.! A.method "POST" H.! A.action "" $ do
+            H.textarea H.! A.class_ "message-card message-input"
+                    H.! A.type_ "text" 
+                    H.! A.id "new-message"
+                    H.! A.name "new-message"
+                    H.! A.placeholder "message"
+                    H.! A.required "required"
+                    H.! A.autocomplete "off"
+                    H.! A.maxlength "400" $ ""
+            H.input H.! A.type_ "submit"
+                    H.! A.value "send"
+                    H.! A.style "display: none"
+
+      H.div H.! A.class_ "frame" $ do
+        H.h1 "fin"
         H.div $ do
           H.a H.! A.href "#top" $ "back to top"
 

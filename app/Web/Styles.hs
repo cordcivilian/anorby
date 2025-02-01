@@ -683,6 +683,49 @@ matchTypeCSS = combineCSS
     ]
   ]
 
+messageCSS :: T.Text
+messageCSS = combineCSS
+  [ cssEntry ".message-grid"
+    [ cssProperty "margin" "2rem auto"
+    , cssProperty "max-width" "800px"
+    ]
+  , cssEntry ".message-card"
+    [ cssProperty "margin" "1rem 0"
+    , cssProperty "padding" "1.5rem"
+    , cssProperty "border-radius" "0.5rem"
+    , cssProperty "outline-offset" "2px"
+    , cssProperty "text-decoration" "none"
+    , cssProperty "color" "inherit"
+    ]
+  , cssEntry ".them"
+    [ cssProperty "border" "1px solid orange"
+    , cssProperty "outline" "2px solid orange"
+    , cssProperty "text-align" "left"
+    , cssProperty "background" "#f5f5f5"
+    ]
+  , cssEntry ".me"
+    [ cssProperty "border" "1px solid #4169e1"
+    , cssProperty "outline" "2px solid #4169e1"
+    , cssProperty "text-align" "right"
+    ]
+  , cssEntry ".message-input"
+    [ cssProperty "border" "1px solid #ddd"
+    , cssProperty "outline" "2px solid #ddd"
+    , cssProperty "text-align" "left"
+    , cssProperty "font-family" "inherit"
+    , cssProperty "font-weight" "inherit"
+    , cssProperty "font-size" "inherit"
+    , cssProperty "width" "60%"
+    , cssProperty "field-sizing" "content"
+    , cssProperty "resize" "none"
+    ]
+  , cssMediaQuery "(prefers-color-scheme: dark)"
+    [ cssEntry ".them"
+      [ cssProperty "background-color" "#2a2a2a"
+      ]
+    ]
+  ]
+
 matchCardCSS :: T.Text
 matchCardCSS = combineCSS
   [ cssEntry ".match-card"
