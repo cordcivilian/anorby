@@ -701,12 +701,17 @@ messageCSS = combineCSS
     [ cssProperty "border" "1px solid orange"
     , cssProperty "outline" "2px solid orange"
     , cssProperty "text-align" "left"
-    , cssProperty "background" "#f5f5f5"
+    , cssProperty "width" "fit-content"
+    , cssProperty "max-width" "50dvw"
+    , cssProperty "margin-right" "auto"
     ]
   , cssEntry ".me"
     [ cssProperty "border" "1px solid #4169e1"
     , cssProperty "outline" "2px solid #4169e1"
     , cssProperty "text-align" "right"
+    , cssProperty "width" "fit-content"
+    , cssProperty "max-width" "50dvw"
+    , cssProperty "margin-left" "auto"
     ]
   , cssEntry ".message-input"
     [ cssProperty "border" "1px solid #ddd"
@@ -719,10 +724,24 @@ messageCSS = combineCSS
     , cssProperty "field-sizing" "content"
     , cssProperty "resize" "none"
     ]
-  , cssMediaQuery "(prefers-color-scheme: dark)"
-    [ cssEntry ".them"
-      [ cssProperty "background-color" "#2a2a2a"
-      ]
+  , cssEntry "#message-form"
+    [ cssProperty "display" "flex"
+    , cssProperty "flex-direction" "column"
+    , cssProperty "align-items" "center"
+    ]
+  , cssEntry ".message-submit"
+    [ cssProperty "padding" "0.5rem 1rem"
+    , cssProperty "background-color" "#4169e1"
+    , cssProperty "color" "white"
+    , cssProperty "border" "none"
+    , cssProperty "border-radius" "0.5rem"
+    , cssProperty "cursor" "pointer"
+    , cssProperty "font-family" "inherit"
+    , cssProperty "font-weight" "inherit"
+    , cssProperty "font-size" "inherit"
+    ]
+  , cssEntry ".message-submit:hover"
+    [ cssProperty "background-color" "#3a5fc4"
     ]
   ]
 

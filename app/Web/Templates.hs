@@ -832,9 +832,10 @@ matchProfileTemplate mainUserId _ view =
             H.div "message 1"
           H.div H.! A.class_ "message-card me" $ do
             H.div "message 2"
-          H.form H.! A.class_ "message-form"
+          H.form H.! A.id "message-form"
             H.! A.method "POST" H.! A.action "" $ do
             H.textarea H.! A.class_ "message-card message-input"
+                    H.! A.form "message-form"
                     H.! A.type_ "text" 
                     H.! A.id "new-message"
                     H.! A.name "new-message"
@@ -842,9 +843,9 @@ matchProfileTemplate mainUserId _ view =
                     H.! A.required "required"
                     H.! A.autocomplete "off"
                     H.! A.maxlength "400" $ ""
-            H.input H.! A.type_ "submit"
+            H.input H.! A.class_ "message-submit"
+                    H.! A.type_ "submit"
                     H.! A.value "send"
-                    H.! A.style "display: none"
 
       H.div H.! A.class_ "frame" $ do
         H.h1 "fin"
