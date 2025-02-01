@@ -702,7 +702,7 @@ messageCSS = combineCSS
     , cssProperty "outline" "2px solid orange"
     , cssProperty "text-align" "left"
     , cssProperty "width" "fit-content"
-    , cssProperty "max-width" "50dvw"
+    , cssProperty "max-width" "50%"
     , cssProperty "margin-right" "auto"
     ]
   , cssEntry ".me"
@@ -710,7 +710,7 @@ messageCSS = combineCSS
     , cssProperty "outline" "2px solid #4169e1"
     , cssProperty "text-align" "right"
     , cssProperty "width" "fit-content"
-    , cssProperty "max-width" "50dvw"
+    , cssProperty "max-width" "50%"
     , cssProperty "margin-left" "auto"
     ]
   , cssEntry ".message-input"

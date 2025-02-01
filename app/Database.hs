@@ -8,6 +8,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Map.Strict as StrictMap
+import qualified Data.Maybe as Maybe
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
 import qualified Data.Time.Clock.POSIX as POSIXTime
@@ -92,6 +93,7 @@ initTables conn = SQL.withTransaction conn $ do
   initAuthTable conn
   initMatchedTable conn
   initUnmatchedTable conn
+  initMessagesTable conn
   initIndexes conn
 
 initIndexes :: SQL.Connection -> IO ()
@@ -129,13 +131,12 @@ initIndexes conn = do
     , "ON unmatched_users(unmatched_since)"
     ]
 
-initUnmatchedTable :: SQL.Connection -> IO ()
-initUnmatchedTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
-  [ "CREATE TABLE IF NOT EXISTS unmatched_users"
-  , "(user_id INTEGER PRIMARY KEY,"
-  , "unmatched_since INTEGER NOT NULL,"
-  , "FOREIGN KEY (user_id) REFERENCES users(id))"
-  ]
+  SQL.execute_ conn $ SQL.Query
+    "CREATE INDEX IF NOT EXISTS idx_messages_match ON messages(match_id)"
+  SQL.execute_ conn $ SQL.Query
+    "CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id)"
+  SQL.execute_ conn $ SQL.Query
+    "CREATE INDEX IF NOT EXISTS idx_messages_read ON messages(is_read)"
 
 initAuthTable :: SQL.Connection -> IO ()
 initAuthTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
@@ -193,8 +194,28 @@ initMatchedTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   , "target_id INTEGER NOT NULL,"
   , "matched_on INTEGER NOT NULL,"
   , "FOREIGN KEY (user_id) REFERENCES users(id),"
-  , "FOREIGN KEY (target_id) REFERENCES users(id),"
-  , "UNIQUE(user_id, target_id))"
+  , "FOREIGN KEY (target_id) REFERENCES users(id))"
+  ]
+
+initUnmatchedTable :: SQL.Connection -> IO ()
+initUnmatchedTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+  [ "CREATE TABLE IF NOT EXISTS unmatched_users"
+  , "(user_id INTEGER PRIMARY KEY,"
+  , "unmatched_since INTEGER NOT NULL,"
+  , "FOREIGN KEY (user_id) REFERENCES users(id))"
+  ]
+
+initMessagesTable :: SQL.Connection -> IO ()
+initMessagesTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+  [ "CREATE TABLE IF NOT EXISTS messages"
+  , "(id INTEGER PRIMARY KEY,"
+  , "match_id INTEGER NOT NULL,"
+  , "sender_id INTEGER NOT NULL,"
+  , "content TEXT NOT NULL,"
+  , "sent_on INTEGER NOT NULL,"
+  , "is_read INTEGER NOT NULL DEFAULT 0,"
+  , "FOREIGN KEY (match_id) REFERENCES matched(id),"
+  , "FOREIGN KEY (sender_id) REFERENCES users(id))"
   ]
 
 initAorbMeanTrigger :: SQL.Connection -> IO ()
@@ -693,3 +714,73 @@ getLargestIntersectionAnswers conn uid1 uid2 = do
             List.partition (\(uid, _, _) -> uid == uid1) rows
       return (map (\(_, _, ans) -> ans) answers1,
               map (\(_, _, ans) -> ans) answers2)
+
+-- | Message query functions
+
+getMessageCount :: SQL.Connection -> Int -> UserID -> IO Int
+getMessageCount conn matchId uid = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT COUNT(*)"
+        , "FROM messages"
+        , "WHERE match_id = ?"
+        , "AND sender_id = ?"
+        ]
+  counts <- SQL.query conn query (matchId, uid) :: IO [SQL.Only Int]
+  return $ maybe 0 SQL.fromOnly $ Maybe.listToMaybe counts
+
+validateNewMessage :: SQL.Connection -> Int -> UserID -> T.Text -> IO Bool
+validateNewMessage conn matchId senderId content = do
+  messageCount <- getMessageCount conn matchId senderId
+  if messageCount >= 3
+    then return False
+    else if T.length content > 400
+      then return False
+      else do
+        match <- SQL.query conn
+          ( SQL.Query $ T.unwords
+            [ "SELECT 1 FROM matched"
+            , "WHERE id = ? AND (user_id = ? OR target_id = ?)"
+            ]
+          ) (matchId, senderId, senderId) :: IO [SQL.Only Int]
+        return $ not $ null match
+
+insertMessage :: SQL.Connection -> Int -> UserID -> T.Text -> IO ()
+insertMessage conn matchId senderId content = do
+  now <- POSIXTime.getPOSIXTime
+  SQL.execute conn
+    ( SQL.Query $ T.unwords
+      [ "INSERT INTO messages"
+      , "(match_id, sender_id, content, sent_on)"
+      , "VALUES (?, ?, ?, ?)"
+      ]
+    ) (matchId, senderId, content, floor now :: Integer)
+
+getMessagesForMatch :: SQL.Connection -> Int -> IO [Message]
+getMessagesForMatch conn matchId =
+  SQL.query conn
+    ( SQL.Query $ T.unwords
+      [ "SELECT * FROM messages"
+      , "WHERE match_id = ? ORDER BY sent_on ASC"
+      ]
+    ) [matchId]
+
+getUnreadMessageCount :: SQL.Connection -> UserID -> Match -> IO Int
+getUnreadMessageCount conn uid match = do
+  let query = SQL.Query $ T.unwords
+        [ "SELECT COUNT(*)"
+        , "FROM messages m"
+        , "JOIN matched mt ON m.match_id = mt.id"
+        , "WHERE mt.matched_on = ?"
+        , "AND (mt.user_id = ? OR mt.target_id = ?)"
+        , "AND m.sender_id != ?"
+        , "AND m.is_read = 0"
+        ]
+  counts <- SQL.query conn query
+    (matchTimestamp match, uid, uid, uid) :: IO [SQL.Only Int]
+  return $ maybe 0 SQL.fromOnly $ Maybe.listToMaybe counts
+
+markMessagesRead :: SQL.Connection -> Int -> UserID -> IO ()
+markMessagesRead conn matchId receiverId = do
+  SQL.execute conn
+    "UPDATE messages SET is_read = 1 WHERE match_id = ? AND sender_id != ?"
+    (matchId, receiverId)

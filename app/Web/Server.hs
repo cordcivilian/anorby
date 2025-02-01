@@ -173,6 +173,8 @@ routeProtected config state (method, path) conn uid req =
   ("GET", "/match/found") -> matchFoundTemplateRoute conn uid req
   ("GET", p) | isMatchDaysPath p ->
     matchProfileTemplateRoute conn uid (extractDays p) req
+  ("POST", p) | isMatchMessagePath p ->
+    postMessageRoute conn uid (extractDays p) req
 
   ("GET", "/logout") -> logoutGetRoute conn uid req
   ("GET", "/logout/confirm") -> logoutConfirmRoute conn uid req
@@ -186,9 +188,17 @@ routeProtected config state (method, path) conn uid req =
     isAorbPath = BS.isPrefixOf "/ans/"
     isFavoritePath = BS.isPrefixOf "/aorb/favorite/"
     isMatchDaysPath = BS.isPrefixOf "/match/found/t-"
+    isMatchMessagePath p =
+      BS.isPrefixOf "/match/found/t-" p && BS.isSuffixOf "/message" p
 
     extractAorbId p = read . BS.unpack . BS.drop 5 $ p
-    extractDays p = read . BS.unpack . BS.drop 14 $ p
+
+    extractDays p =
+      let base = BS.drop 14 p
+          days = if BS.isSuffixOf "/message" base
+                then BS.take (BS.length base - 8) base
+                else base
+      in read . BS.unpack $ days
 
 monolith :: AppState -> Wai.Application
 monolith state = Mid.logStdout $ application TIO.putStrLn state
@@ -234,6 +244,7 @@ application _ state request respond = do
     ("POST", "/match/type") -> handleProtectedRoute route
     ("GET", "/match/found") -> handleProtectedRoute route
     ("GET", p) | isMatchDaysPath p -> handleProtectedRoute route
+    ("POST", p) | isMatchMessagePath p -> handleProtectedRoute route
 
     ("GET", "/logout") -> handleProtectedRoute route
     ("GET", "/logout/confirm") -> handleProtectedRoute route
@@ -250,6 +261,8 @@ application _ state request respond = do
     isAorbPath = BS.isPrefixOf "/ans/"
     isFavoriteAorbPath = BS.isPrefixOf "/aorb/favorite/"
     isMatchDaysPath = BS.isPrefixOf "/match/found/t-"
+    isMatchMessagePath p =
+      BS.isPrefixOf "/match/found/t-" p && BS.isSuffixOf "/message" p
 
     runHandlerWithConn handler =
       Pool.withResource (appPool state) (\conn ->

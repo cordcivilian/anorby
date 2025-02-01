@@ -608,7 +608,7 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now
 
       Monad.unless isBeforeRelease $
         case maybeMatchScore of
-          Just (match, score) -> matchCard currentTimestamp match score
+          Just (match, score) -> matchCard currentTimestamp match score 0
           Nothing -> H.div H.! A.class_ "status-box pending-status" $
             H.text "no match found for today"
 
@@ -683,8 +683,8 @@ schemeDetailedDescription scheme =
     schemeDetail Bipolar = T.unlines
       [ "..." ]
 
-matchFoundTemplate :: Integer -> [(Match, Double)] -> H.Html
-matchFoundTemplate currentTimestamp matchScores = H.docTypeHtml $ H.html $ do
+matchFoundTemplate :: Integer -> [((Match, Double), Int)] -> H.Html
+matchFoundTemplate currentTimestamp matchData = H.docTypeHtml $ H.html $ do
   H.head $ do
     H.title "matches"
     H.link H.! A.rel "icon" H.! A.href "data:,"
@@ -696,26 +696,30 @@ matchFoundTemplate currentTimestamp matchScores = H.docTypeHtml $ H.html $ do
     H.div H.! A.class_ "frame" $ do
       navBar [ NavLink "/match" "back" False ]
       H.h1 "matches"
-      if null matchScores
+      if null matchData
         then H.div H.! A.class_ "no-matches" $ do
           H.p "no matches found"
         else do
           H.h4 "(agreement rate)"
           H.div H.! A.class_ "match-grid" $ do
             let sevenDaysAgo = currentTimestamp - (7 * 24 * 60 * 60)
-                recentMatches = filter (\(m, _) ->
-                  matchTimestamp m >= sevenDaysAgo) matchScores
-            mapM_ (\(m, s) -> matchCard currentTimestamp m s) recentMatches
+                recentMatches = filter (\((m, _), _) ->
+                  matchTimestamp m >= sevenDaysAgo) matchData
+            mapM_ (\((m, s), u) ->
+              matchCard currentTimestamp m s u) recentMatches
 
-matchCard :: Integer -> Match -> Double -> H.Html
-matchCard currentTimestamp match score =
+matchCard :: Integer -> Match -> Double -> Int -> H.Html
+matchCard currentTimestamp match score unreadCount =
   H.a H.! A.class_ "match-card"
-    H.! A.href (H.textValue $ "/match/found/t-" <>
+      H.! A.href (H.textValue $ "/match/found/t-" <>
                 formatMatchDelta currentTimestamp (matchTimestamp match)) $ do
     H.div H.! A.class_ "match-date" $
       H.toHtml $ formatMatchDate currentTimestamp (matchTimestamp match)
     H.div H.! A.class_ "match-score" $
       H.toHtml $ formatSimilarityScore score
+    Monad.when (unreadCount > 0) $
+      H.div H.! A.class_ "unread-count" $
+        H.toHtml $ show unreadCount <> " unread"
   where
     formatSimilarityScore :: Double -> T.Text
     formatSimilarityScore s =
@@ -748,14 +752,15 @@ matchCard currentTimestamp match score =
                            ) :: Integer
       in currentDay - matchDay
 
-matchProfileTemplate :: UserID -> UserID -> MatchView -> H.Html
-matchProfileTemplate mainUserId _ view =
+matchProfileTemplate :: Integer -> UserID -> UserID -> MatchView -> [Message]
+                     -> H.Html
+matchProfileTemplate days mainUserId _ view messages =
   H.docTypeHtml $ H.html $ do
     H.head $ do
       H.title "match profile"
       H.link H.! A.rel "icon" H.! A.href "data:,"
-      H.meta H.! A.name "viewport"
-        H.! A.content "width=device-width, initial-scale=1.0"
+      H.meta H.! A.name "viewport" H.!
+        A.content "width=device-width, initial-scale=1.0"
       H.style $ H.text $ combineCSS
         [ baseCSS
         , navBarCSS
@@ -819,33 +824,7 @@ matchProfileTemplate mainUserId _ view =
       H.span H.! A.id "messages" $ ""
       H.div H.! A.class_ "frame" $ do
         H.h1 "head-to-head"
-        H.div H.! A.class_ "message-grid" $ do
-          H.div H.! A.class_ "message-card them" $ do
-            H.div "message 1"
-          H.div H.! A.class_ "message-card me" $ do
-            H.div "message 2"
-          H.div H.! A.class_ "message-card them" $ do
-            H.div "message 1"
-          H.div H.! A.class_ "message-card me" $ do
-            H.div "message 2"
-          H.div H.! A.class_ "message-card them" $ do
-            H.div "message 1"
-          H.div H.! A.class_ "message-card me" $ do
-            H.div "message 2"
-          H.form H.! A.id "message-form"
-            H.! A.method "POST" H.! A.action "" $ do
-            H.textarea H.! A.class_ "message-card message-input"
-                    H.! A.form "message-form"
-                    H.! A.type_ "text" 
-                    H.! A.id "new-message"
-                    H.! A.name "new-message"
-                    H.! A.placeholder "message"
-                    H.! A.required "required"
-                    H.! A.autocomplete "off"
-                    H.! A.maxlength "400" $ ""
-            H.input H.! A.class_ "message-submit"
-                    H.! A.type_ "submit"
-                    H.! A.value "send"
+        renderMessages days mainUserId messages
 
       H.div H.! A.class_ "frame" $ do
         H.h1 "fin"
@@ -863,6 +842,42 @@ matchProfileTemplate mainUserId _ view =
 
     formatPercent :: Double -> T.Text
     formatPercent n = T.pack $ Text.printf "%.0f%%" n
+
+renderMessages :: Integer -> UserID -> [Message] -> H.Html
+renderMessages days uid messages = H.div H.! A.class_ "message-grid" $ do
+  mapM_ (renderMessage uid) messages
+  H.form H.! A.id "message-form" H.! A.method "POST" H.! A.action
+    (H.textValue $ "/match/found/t-" <> T.pack (show days) <> "/message") $ do
+    H.textarea H.! A.class_ "message-card message-input"
+      H.! A.form "message-form"
+      H.! A.type_ "text"
+      H.! A.id "new-message"
+      H.! A.name "new-message"
+      H.! A.placeholder "message"
+      H.! A.required "required"
+      H.! A.autocomplete "off"
+      H.! A.maxlength "400" $ ""
+    H.input H.! A.class_ "message-submit"
+      H.! A.type_ "submit"
+      H.! A.value "send"
+
+renderMessage :: UserID -> Message -> H.Html
+renderMessage uid msg =
+  H.div H.! A.class_ (H.textValue messageClass) $ do
+    H.div H.! A.class_ "message-content" $
+      H.toHtml $ messageContent msg
+    H.div H.! A.class_ "message-time" $
+      H.toHtml $ formatMessageTime $ messageSentOn msg
+  where
+    messageClass = if messageSenderId msg == uid
+                      then "message-card me"
+                      else "message-card them"
+    formatMessageTime :: Integer -> T.Text
+    formatMessageTime timestamp =
+      T.pack $ DateTimeFormat.formatTime
+        DateTimeFormat.defaultTimeLocale
+        "%H:%M"
+        (POSIXTime.posixSecondsToUTCTime $ fromIntegral timestamp)
 
 spotlightAorbSection :: UserID -> MatchingAorbWithAnswer -> H.Html
 spotlightAorbSection _ mawa = do

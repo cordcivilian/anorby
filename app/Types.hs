@@ -98,6 +98,24 @@ data MatchView = MatchView
   , viewTopDisagreement :: Maybe MatchingAorbWithAnswer
   }
 
+data Message = Message
+  { messageId :: Int
+  , messageMatchId :: Int
+  , messageSenderId :: UserID
+  , messageContent :: T.Text
+  , messageSentOn :: Integer
+  , messageIsRead :: Bool
+  } deriving (Show, Eq)
+
+instance SQL.FromRow Message where
+  fromRow = Message
+    <$> SQL.field
+    <*> SQL.field
+    <*> SQL.field
+    <*> SQL.field
+    <*> SQL.field
+    <*> SQL.field
+
 -- | Auth Types
 
 data AnswerToken = AnswerToken
@@ -247,6 +265,17 @@ instance SQL.ToRow Match where
     , SQL.SQLInteger (fromIntegral $ matchTargetId match)
     , SQL.SQLInteger (fromIntegral $ matchTimestamp match)
     ]
+
+newtype MatchRecord = MatchRecord (Int, Match)
+  deriving (Show, Eq)
+
+instance SQL.FromRow MatchRecord where
+  fromRow = do
+    id' <- SQL.field
+    userId' <- SQL.field
+    targetId' <- SQL.field
+    timestamp' <- SQL.field
+    return $ MatchRecord (id', Match userId' targetId' timestamp')
 
 instance JSON.FromJSON Aorb where
   parseJSON = JSON.withObject "Aorb" $ \v -> Aorb

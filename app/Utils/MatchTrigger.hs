@@ -1,6 +1,8 @@
 module Utils.MatchTrigger where
 
 import qualified Control.Monad as Monad
+import qualified Control.Concurrent.Async as Async
+import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Pool as Pool
 import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Time.LocalTime as LocalTime
@@ -37,11 +39,23 @@ shouldTriggerMatching now config =
          currentTime >= cutoff && currentTime < release
        _ -> False
 
+hasAlreadyMatchedToday :: AppState -> POSIXTime.POSIXTime -> IO Bool
+hasAlreadyMatchedToday state now = do
+  lastMatchedTime <- MVar.readMVar (lastMatchedOn $ appMatchState state)
+  let lastMatchDay =
+        LocalTime.localDay $ LocalTime.utcToLocalTime LocalTime.utc $
+          POSIXTime.posixSecondsToUTCTime lastMatchedTime
+      currentDay =
+        LocalTime.localDay $ LocalTime.utcToLocalTime LocalTime.utc $
+          POSIXTime.posixSecondsToUTCTime now
+  return $ lastMatchDay == currentDay
+
 checkAndTriggerMatching :: AppState -> Config -> IO ()
 checkAndTriggerMatching state config = do
   now <- POSIXTime.getPOSIXTime
-  Monad.when (shouldTriggerMatching now config) $ do
-    Monad.void $ withMatchLock (appMatchState state) $ do
+  alreadyMatched <- hasAlreadyMatchedToday state now
+  Monad.when (shouldTriggerMatching now config && not alreadyMatched) $ do
+    Monad.void $ Async.async $ withMatchLock (appMatchState state) $ do
       Pool.withResource (appPool state) $ \conn -> do
         users <- getUsersWithCompletedAnswers conn
         subs <- allAorbsToSubmissions conn users

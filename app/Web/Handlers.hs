@@ -342,28 +342,24 @@ matchTemplateRoute config state conn uid _ = do
 matchProfileTemplateRoute :: SQL.Connection -> UserID -> Integer -> Wai.Request
                           -> IO Wai.Response
 matchProfileTemplateRoute conn uid days _ = do
-
   now <- POSIXTime.getPOSIXTime
   let startOfDay = floor (now / 86400) * 86400
       targetDay = startOfDay - (days * 86400)
       nextDay = targetDay + 86400
-
   matches <- SQL.query conn
     (SQL.Query $ T.unwords
-      [ "SELECT user_id, target_id, matched_on"
+      [ "SELECT id, user_id, target_id, matched_on"
       , "FROM matched"
       , "WHERE (user_id = ? OR target_id = ?)"
       , "AND matched_on >= ? AND matched_on < ?"
       , "ORDER BY matched_on DESC LIMIT 1"
       ])
-    (uid, uid, targetDay, nextDay) :: IO [Match]
-
+    (uid, uid, targetDay, nextDay) :: IO [MatchRecord]
   case matches of
-    (match:_) -> do
+    (MatchRecord (matchId, match):_) -> do
       let targetId = if matchUserId match == uid
                     then matchTargetId match
                     else matchUserId match
-
       (answers1, answers2) <- getLargestIntersectionAnswers conn uid targetId
       userAorbInfo <- getUserAorbAndAssoc conn uid
       let weights = case userAorbInfo of
@@ -372,15 +368,13 @@ matchProfileTemplateRoute conn uid days _ = do
                   (zip [0..] answers1)
             Nothing -> replicate (length answers1) 1
       let agreementRate = (weightedYuleQ answers1 answers2 weights + 1) * 50
-
       yourTotalAnswers <- getUserTotalAnswerCount conn uid
       targetTotalAnswers <- getUserTotalAnswerCount conn targetId
-
       targetMainAorbs <- getMatchesMainAorbs conn uid targetId
-
       agreements <- getMatchesTopXUniqueAgreement conn uid targetId 1
       disagreements <- getMatchesTopXCommonDisagreement conn uid targetId 1
-
+      messages <- getMessagesForMatch conn matchId
+      markMessagesRead conn matchId uid
       let matchView = MatchView
             { viewTimestamp = matchTimestamp match
             , viewAgreementRate = agreementRate
@@ -390,12 +384,11 @@ matchProfileTemplateRoute conn uid days _ = do
             , viewTopAgreement = Maybe.listToMaybe agreements
             , viewTopDisagreement = Maybe.listToMaybe disagreements
             }
-
       return $ Wai.responseLBS
         HTTP.status200
         [(Headers.hContentType, BS.pack "text/html")]
-        (R.renderHtml $ matchProfileTemplate uid targetId matchView)
-
+        (R.renderHtml $
+          matchProfileTemplate days uid targetId matchView messages)
     [] -> return notFoundResponse
 
 matchTypeTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
@@ -459,10 +452,12 @@ matchFoundTemplateRoute conn uid _ = do
   now <- POSIXTime.getPOSIXTime
   matches <- getUserMatches conn uid
   matchScores <- mapM (calculateMatchScore conn uid) matches
+  matchUnreadCounts <- mapM (getUnreadMessageCount conn uid) matches
+  let matchData = zip matchScores matchUnreadCounts
   return $ Wai.responseLBS
     HTTP.status200
     [(Headers.hContentType, BS.pack "text/html")]
-    (R.renderHtml $ matchFoundTemplate (floor now) matchScores)
+    (R.renderHtml $ matchFoundTemplate (floor now) matchData)
   where
     calculateMatchScore :: SQL.Connection -> UserID -> Match
                       -> IO (Match, Double)
@@ -478,6 +473,43 @@ matchFoundTemplateRoute conn uid _ = do
                   (zip [0..] answers1)
             Nothing -> replicate (length answers1) 1
       return (match', weightedYuleQ answers1 answers2 weights)
+
+postMessageRoute :: SQL.Connection -> UserID -> Integer -> Wai.Request
+                -> IO Wai.Response
+postMessageRoute conn uid days req = do
+  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  case lookup "new-message" params of
+    Nothing -> return invalidSubmissionResponse
+    Just contentBS -> do
+      let content = TE.decodeUtf8 contentBS
+      now <- POSIXTime.getPOSIXTime
+      let startOfDay = floor (now / 86400) * 86400
+          targetDay = startOfDay - (days * 86400)
+          nextDay = targetDay + 86400
+      matches <- SQL.query conn
+        (SQL.Query $ T.unwords
+          [ "SELECT id"
+          , "FROM matched"
+          , "WHERE (user_id = ? OR target_id = ?)"
+          , "AND matched_on >= ? AND matched_on < ?"
+          , "ORDER BY matched_on DESC LIMIT 1"
+          ])
+        (uid, uid, targetDay, nextDay) :: IO [SQL.Only Int]
+      putStrLn $ "matches: " ++ show matches
+      case matches of
+        [SQL.Only matchId] -> do
+          isValid <- validateNewMessage conn matchId uid content
+          if isValid
+            then do
+              insertMessage conn matchId uid content
+              return $ Wai.responseLBS
+                HTTP.status303
+                [ (Headers.hLocation,
+                   BS.pack $ "/match/found/t-" ++ show days ++ "#messages")
+                ]
+                ""
+            else return invalidSubmissionResponse
+        _ -> return notFoundResponse
 
 -- | Response Helpers
 
