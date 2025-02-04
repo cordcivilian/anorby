@@ -7,6 +7,7 @@ import qualified Data.Pool as Pool
 import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Time.LocalTime as LocalTime
 import qualified Data.Text as T
+import qualified Database.SQLite.Simple as SQL
 
 import Core.Ranking
 import Core.RollingShadow
@@ -41,14 +42,29 @@ shouldTriggerMatching now config =
 
 hasAlreadyMatchedToday :: AppState -> POSIXTime.POSIXTime -> IO Bool
 hasAlreadyMatchedToday state now = do
-  lastMatchedTime <- MVar.readMVar (lastMatchedOn $ appMatchState state)
-  let lastMatchDay =
-        LocalTime.localDay $ LocalTime.utcToLocalTime LocalTime.utc $
-          POSIXTime.posixSecondsToUTCTime lastMatchedTime
-      currentDay =
-        LocalTime.localDay $ LocalTime.utcToLocalTime LocalTime.utc $
-          POSIXTime.posixSecondsToUTCTime now
-  return $ lastMatchDay == currentDay
+    lastMatchedTime <- MVar.readMVar (lastMatchedOn $ appMatchState state)
+    let lastMatchDay =
+          LocalTime.localDay $ LocalTime.utcToLocalTime LocalTime.utc $
+            POSIXTime.posixSecondsToUTCTime lastMatchedTime
+        currentDay =
+          LocalTime.localDay $ LocalTime.utcToLocalTime LocalTime.utc $
+            POSIXTime.posixSecondsToUTCTime now
+        matchedInMemory = lastMatchDay == currentDay
+    if matchedInMemory then return True
+                       else do
+      let startOfDay = floor (now / 86400) * 86400 :: Integer
+      matchedInDb <- Pool.withResource (appPool state) $ \conn -> do
+          matches <- SQL.query conn
+              (SQL.Query $
+                T.pack "SELECT 1 FROM matched WHERE matched_on >= ? LIMIT 1"
+              ) [startOfDay] :: IO [SQL.Only Int]
+          return $ not $ null matches
+      Monad.when matchedInDb $ do
+          MVar.modifyMVar_ (lastMatchedOn $ appMatchState state) $
+            \_ -> return now
+          MVar.modifyMVar_ (matchMVar $ appMatchState state) $
+            \_ -> return Completed
+      return matchedInDb
 
 checkAndTriggerMatching :: AppState -> Config -> IO ()
 checkAndTriggerMatching state config = do

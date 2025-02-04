@@ -552,12 +552,16 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now
       case matchStatus of
         InProgress ->
           H.div H.! A.class_ "status-box" $
-            H.text "Matching in progress..."
+            H.text "matching in progress..."
 
         Failed err ->
           H.div H.! A.class_ "status-box" $ do
-            H.text "Matching failed: "
+            H.text "matching failed: "
             H.text (T.pack err)
+
+        Completed ->
+          H.div H.! A.class_ "status-box" $ do
+            H.text "matching completed"
 
         _ -> do
           Monad.when isBeforeRelease $
@@ -577,7 +581,10 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now
                 H.br
                 H.a H.! A.href "/ans" $ "answer more questions"
             else if isEnrolled
-              then H.text "you are enrolled for today's matching"
+              then
+                case matchStatus of
+                  Completed -> H.text "you've been matched"
+                  _ -> H.text "you are enrolled for today's matching"
               else H.text "you've missed today's matching cutoff"
 
       Monad.when isBeforeRelease $
@@ -591,7 +598,7 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now
                 then do
                   H.span H.! A.class_ "time-until" $
                     if isEnrolled
-                      then H.text $ "matches in " <> timeLeft
+                      then H.text $ "reveal in " <> timeLeft
                       else H.text $ "cutoff in " <> timeLeft
                   H.span H.! A.class_ "exact-time" $
                     H.text $ " (" <> timeStr <> " UTC)"
@@ -694,11 +701,13 @@ matchFoundTemplate currentTimestamp matchData = H.docTypeHtml $ H.html $ do
         else do
           H.h4 "(agreement rate)"
           H.div H.! A.class_ "match-grid" $ do
-            let sevenDaysAgo = currentTimestamp - (7 * 24 * 60 * 60)
-                recentMatches = filter (\((m, _), _) ->
-                  matchTimestamp m >= sevenDaysAgo) matchData
+            let startOfToday = (div currentTimestamp 86400) * 86400
+                sevenDaysAgo = currentTimestamp - (7 * 24 * 60 * 60)
+                pastMatches = filter (\((m, _), _) ->
+                  let ts = matchTimestamp m
+                  in ts < startOfToday && ts >= sevenDaysAgo) matchData
             mapM_ (\((m, s), u) ->
-              matchCard currentTimestamp m s u) recentMatches
+              matchCard currentTimestamp m s u) pastMatches
 
 matchCard :: Integer -> Match -> Double -> Int -> H.Html
 matchCard currentTimestamp match score unreadCount =

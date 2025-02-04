@@ -518,7 +518,6 @@ postMessageRoute conn uid days req = do
           , "ORDER BY matched_on DESC LIMIT 1"
           ])
         (uid, uid, targetDay, nextDay) :: IO [SQL.Only Int]
-      putStrLn $ "matches: " ++ show matches
       case matches of
         [SQL.Only matchId] -> do
           isValid <- validateNewMessage conn matchId uid content
