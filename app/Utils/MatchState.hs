@@ -17,8 +17,9 @@ data MatchState = MatchState
 initMatchState :: IO MatchState
 initMatchState = do
   now <- POSIXTime.getPOSIXTime
+  let yesterday = now - 24 * 60 * 60
   statusVar <- MVar.newMVar NotStarted
-  timeVar <- MVar.newMVar now
+  timeVar <- MVar.newMVar yesterday
   return $ MatchState
     { matchMVar = statusVar
     , lastMatchedOn = timeVar

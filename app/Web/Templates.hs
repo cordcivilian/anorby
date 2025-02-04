@@ -55,134 +55,117 @@ frame content = H.div
 rootTemplate :: Int -> [Aorb] -> H.Html
 rootTemplate userCount' aorbs = H.docTypeHtml $
   H.html H.! H.dataAttribute "theme" "light" $ do
+    H.head $ do
+      H.link H.! A.rel "icon" H.! A.href "data:,"
+      H.meta H.! A.name "viewport" H.!
+        A.content "width=device-width, initial-scale=1.0"
+      H.link H.! A.rel "stylesheet" H.!
+        A.href "/static/css/output.css"
+      H.title "anorby"
+    H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
+      H.div H.! A.class_ "container mx-auto px-4" $ do
+        navBar [ NavLink "/" "home" True
+               , NavLink "/whoami" "whoami" False
+               , NavLink "/ans" "answer" False
+               , NavLink "/match" "match" False
+               ]
+        H.div H.! A.class_ "prose prose-lg max-w-none" $ do
+          H.h1 H.! A.class_ "text-center" $ do
+            H.span H.! A.class_ "border-b-4 border-primary" $ "a"
+            H.text "n"
+            H.span H.! A.class_ "border-b-4 border-primary" $ "or"
+            H.span H.! A.class_ "border-b-4 border-primary" $ "b"
+            H.text "y"
+            H.div $ do
+              H.a H.! A.href "#baseline" $ "the underground census"
+
+      H.span H.! A.id "baseline" $ ""
+      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+        H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "baseline_100"
+        H.h4 H.! A.class_ "text-lg mb-6" $ "what is this... blah blah blah"
+        H.a H.! A.href "/roadmap" H.! A.class_ "mb-8" $ do
+          H.h4 H.! A.class_ "text-lg" $
+            H.text $ T.pack $ "# of responses: " ++ show userCount'
+
+        H.div H.! A.id "sorter" H.! A.class_ "w-full max-w-md mx-auto space-y-2" $ do
+          H.div H.! A.class_ "text-left py-2" $ "sort by:"
+          H.a H.! A.class_ "block text-left py-2 hover:text-primary transition-colors"
+             H.! A.href "#by-sided" $ "> most one-sided"
+          H.a H.! A.class_ "block text-left py-2 hover:text-primary transition-colors"
+             H.! A.href "#by-polar" $ "> most polarizing"
+          H.a H.! A.class_ "block text-left py-2 hover:text-primary transition-colors"
+             H.! A.href "#by-dice" $ "> random"
+
+      H.span H.! A.id "aorbs" $ ""
+      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4 pt-[10vh]" $ do
+        H.div H.! A.id "by-sided" $ mempty
+        H.div H.! A.id "by-dice" $ mempty
+        H.div H.! A.id "by-polar" $ mempty
+        H.div H.! A.class_ "fixed bottom-[5vh] right-1/2 translate-x-1/2 border-2 border-primary bg-primary text-primary-content px-4 py-1 rounded-lg z-50" $ do
+          H.a H.! A.href "#baseline" H.! A.class_ "hover:opacity-80" $
+            "backtobasebasebase"
+        publicAorbs aorbs
+
+roadmapTemplate :: Int -> H.Html
+roadmapTemplate _ = H.docTypeHtml $ H.html $ do
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
       A.content "width=device-width, initial-scale=1.0"
     H.link H.! A.rel "stylesheet" H.!
       A.href "/static/css/output.css"
-    H.title "anorby"
-  H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
-    H.div H.! A.class_ "container mx-auto px-4" $ do
-      navBar [ NavLink "/" "home" True
-             , NavLink "/whoami" "whoami" False
-             , NavLink "/ans" "answer" False
-             , NavLink "/match" "match" False
-             ]
-      H.div H.! A.class_ "prose prose-lg max-w-none" $ do
-        H.h1 H.! A.class_ "text-center" $ do
-          H.span H.! A.class_ "border-b-4 border-primary" $ "a"
-          H.text "n"
-          H.span H.! A.class_ "border-b-4 border-primary" $ "or"
-          H.span H.! A.class_ "border-b-4 border-primary" $ "b"
-          H.text "y"
-          H.div $ do
-            H.a H.! A.href "#baseline" $ "the underground census"
-    H.span H.! A.id "baseline" $ ""
-    H.div H.! A.class_ "frame" $ do
-      H.h1 "baseline_100"
-      H.h4 "what is this... blah blah blah"
-      H.a H.! A.href "/roadmap" $ do
-        H.h4 $ H.text $ T.pack $ "# of responses: " ++ show userCount'
-      H.div H.! A.id "sorter" $ do
-        H.div H.! A.class_ "sort-by" $ "sort by:"
-        H.a H.! A.class_ "sort-by" H.! A.href "#by-sided" $ "> most one-sided"
-        H.a H.! A.class_ "sort-by" H.! A.href "#by-polar" $ "> most polarizing"
-        H.a H.! A.class_ "sort-by" H.! A.href "#by-dice" $ "> random"
-    H.span H.! A.id "aorbs" $ ""
-    H.div H.! A.class_ "frame" H.! A.style "padding-top: 10vh;" $ do
-      H.div H.! A.id "by-sided" $ mempty
-      H.div H.! A.id "by-dice" $ mempty
-      H.div H.! A.id "by-polar" $ mempty
-      H.span H.! A.class_ "notch" $ do
-        H.a H.! A.href "#baseline" $ "backtobasebasebase"
-      publicAorbs aorbs
-
-roadmapTemplate :: Int -> H.Html
-roadmapTemplate userCount' = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.!
-        A.content "width=device-width, initial-scale=1.0"
     H.title "roadmap"
-    H.style $ H.text $ combineCSS [baseCSS, navBarCSS, roadmapCSS]
   H.body $ do
-    H.span H.! A.id "top" $ ""
-    H.div H.! A.class_ "frame" $ do
-      navBar [ NavLink "/#baseline" "back" False ]
-      H.h1 "roadmap"
-      H.div $ do
-        H.a H.! A.href "#milestone-100" $ "begin"
-    milestoneFrame
-      "100" userCount' "#milestone-500" False
-      (Just "weekly matching begins")
-    milestoneFrame
-      "500" userCount' "#milestone-1000" False
-      (Just "weekly new questions")
-    milestoneFrame
-      "1000" userCount' "#milestone-5000" False
-      (Just "daily matching begins")
-    milestoneFrame
-      "5000" userCount' "#top" True
-      (Just "daily new questions")
-
-milestoneFrame :: T.Text -> Int -> T.Text -> Bool -> Maybe T.Text -> H.Html
-milestoneFrame threshold userCount' nextLink bottom maybeProgressText = do
-  let users = read (T.unpack threshold) :: Int
-      progress :: Int
-      progress = min 100 $ round ((fromIntegral userCount' /
-                                 fromIntegral users) * 100 :: Double)
-      progressClass = if userCount' >= users
-                     then "milestone-complete"
-                     else "milestone-incomplete"
-      progressText = case maybeProgressText of
-        Just txt -> txt
-        Nothing -> threshold
-  H.span H.! A.id (H.textValue $ "milestone-" <> threshold) $ ""
-  H.div H.! A.class_ "frame" $ do
-    H.h2 $ do
-      H.text $ threshold <> " users"
-    H.div H.! A.class_ progressClass $ do
-      H.div H.! A.class_ "progress-bar" H.!
-        A.style (H.textValue $ "width: " <> T.pack (show progress) <> "%") $ ""
-      H.div H.! A.class_ "milestone-marker" $ H.text progressText
-    H.div H.! A.class_ "next-milestone" $ do
-      H.a H.! A.href (H.textValue nextLink) $
-        (if bottom then "top" else  "next")
+    navBar [ NavLink "/#baseline" "back" False ]
+    H.h1 "roadmap"
+    H.div H.! A.class_ "flex items-center justify-center" $ do
+      H.ul H.! A.class_ "steps steps-vertical" $ do
+        H.li H.! A.class_ "step step-primary" H.! H.dataAttribute "content" "+" $ "100"
+        H.li H.! A.class_ "step step-primary" H.! H.dataAttribute "content" "+" $ "500"
+        H.li H.! A.class_ "step" H.! H.dataAttribute "content" "?" $ "1000"
+        H.li H.! A.class_ "step" H.! H.dataAttribute "content" "?" $ "5000"
+        H.li H.! A.class_ "step" H.! H.dataAttribute "content" "?" $ "10000"
+        H.li H.! A.class_ "step" H.! H.dataAttribute "content" "?" $ "20000"
+        H.li H.! A.class_ "step" H.! H.dataAttribute "content" "?" $ "30000"
 
 publicAorbs :: [Aorb] -> H.Html
 publicAorbs aorbs = do
-  H.div H.! A.id "aorbs-container" $ do
+  H.div H.! A.id "aorbs-container" H.!
+    A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
     Monad.forM_ (aorbWithOrders aorbs) $
       \(_, (aorb, orders)) -> do
-        H.div H.! A.class_ "aorb" H.!
-          A.style (aorbDynamicCSS (zip ["dice", "polar", "sided"] orders)) $ do
-            H.div H.! A.class_ "context" $ H.toHtml (aorbCtx aorb)
-            let mean = aorbMean aorb
-                delta = (abs (mean - 0.5)) * 100
-                formatDelta =
-                    T.concat ["(+", T.pack (Text.printf "%.2f" delta), ")"]
-            if delta < 0.01
-              then do
-                H.div H.! A.class_ "choice" $ do
-                  H.toHtml (aorbA aorb)
-                  H.span H.! A.class_ "neutral" $ H.toHtml $ T.pack " ...?"
-                H.div H.! A.class_ "choice" $ do
-                  H.toHtml (aorbB aorb)
-                  H.span H.! A.class_ "neutral" $ H.toHtml $ T.pack " ...?"
-              else if mean > 0.5
-              then do
-                H.div H.! A.class_ "choice preferred" $ do
-                  H.toHtml (aorbB aorb)
-                  H.span H.! A.class_ "delta" $ H.toHtml formatDelta
-                H.div H.! A.class_ "choice alternative" $
-                  H.toHtml (aorbA aorb)
-              else do
-                H.div H.! A.class_ "choice preferred" $ do
-                  H.toHtml (aorbA aorb)
-                  H.span H.! A.class_ "delta" $ H.toHtml formatDelta
-                H.div H.! A.class_ "choice alternative" $
-                  H.toHtml (aorbB aorb)
+        H.div H.! A.class_ "w-full max-w-2xl border border-base-300 rounded-lg p-4 transition-all hover:bg-base-200"
+              H.! A.style (aorbDynamicCSS (zip ["dice", "polar", "sided"] orders)) $ do
+          H.div H.! A.class_ "text-base-content/60 italic mb-4" $
+            H.toHtml (aorbCtx aorb)
+          let mean = aorbMean aorb
+              delta = (abs (mean - 0.5)) * 100
+              formatDelta = T.concat ["(+", T.pack (Text.printf "%.2f" delta), ")"]
+          if delta < 0.01
+            then do
+              H.div H.! A.class_ "my-2" $ do
+                H.toHtml (aorbA aorb)
+                H.span H.! A.class_ "text-base-content/50" $
+                  H.toHtml $ T.pack " ...?"
+              H.div H.! A.class_ "my-2" $ do
+                H.toHtml (aorbB aorb)
+                H.span H.! A.class_ "text-base-content/50" $
+                  H.toHtml $ T.pack " ...?"
+            else if mean > 0.5
+            then do
+              H.div H.! A.class_ "text-lg font-medium my-2" $ do
+                H.toHtml (aorbB aorb)
+                H.span H.! A.class_ "text-warning ml-2" $
+                  H.toHtml formatDelta
+              H.div H.! A.class_ "text-base-content/70 text-sm my-2" $
+                H.toHtml (aorbA aorb)
+            else do
+              H.div H.! A.class_ "text-lg font-medium my-2" $ do
+                H.toHtml (aorbA aorb)
+                H.span H.! A.class_ "text-warning ml-2" $
+                  H.toHtml formatDelta
+              H.div H.! A.class_ "text-base-content/70 text-sm my-2" $
+                H.toHtml (aorbB aorb)
 
 profileTemplate :: [AorbWithAnswer] -> Maybe AorbID
                 -> Maybe T.Text -> Maybe T.Text
