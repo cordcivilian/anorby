@@ -3,7 +3,9 @@
 module Web.Handlers where
 
 import qualified Control.Monad as Monad
+import qualified System.Directory as Dir
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -32,6 +34,27 @@ import Web.Templates
 import Web.Types
 
 -- | Public Route Handlers
+
+serveStaticFile :: BS.ByteString -> IO Wai.Response
+serveStaticFile path = do
+  projectDir <- Dir.getCurrentDirectory
+  let filePath = projectDir ++ BS.unpack path
+  exists <- Dir.doesFileExist filePath
+  if exists
+    then do
+      content <- BSL.readFile filePath
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, getMimeType path)]
+        content
+    else do
+      return notFoundResponse
+
+getMimeType :: BS.ByteString -> BS.ByteString
+getMimeType path
+  | ".css" `BS.isSuffixOf` path = "text/css"
+  | ".js" `BS.isSuffixOf` path = "application/javascript"
+  | otherwise = "application/octet-stream"
 
 rootTemplateRoute :: AppState -> SQL.Connection -> Wai.Request
                   -> IO Wai.Response

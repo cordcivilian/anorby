@@ -26,49 +26,58 @@ import Utils.MatchState
 -- | Navigation Components
 
 navBar :: [NavLink] -> H.Html
-navBar links = H.div H.! A.class_ "nav-bar" $ do
-  let separator = H.span H.! A.class_ "nav-separator" $ "///"
+navBar links = H.div H.! A.class_ "navbar bg-base-100 flex justify-center flex-wrap gap-4" $ do
+  let separator = H.span H.! A.class_ "text-base-content/50" $ "///"
       withSeparators [] = return ()
       withSeparators [x] = navLink x
-      withSeparators (x:xs) = H.div H.! A.class_ "nav-bar-row" $ do
+      withSeparators (x:xs) = H.div H.! A.class_ "flex items-center gap-4" $ do
         navLink x
         separator
         withSeparators xs
       navLink link =
         if linkActive link
-          then H.span H.! A.class_ "nav-link active" $
+          then H.span
+            H.! A.class_ "text-primary font-medium" $
             H.toHtml $ linkText link
-          else H.a H.! A.class_ "nav-link"
-               H.! A.href (H.textValue $ linkPath link) $
+          else H.a
+            H.! A.class_ "link hover:text-primary transition-colors"
+            H.! A.href (H.textValue $ linkPath link) $
             H.toHtml $ linkText link
   withSeparators links
+
+frame :: H.Html -> H.Html
+frame content = H.div
+  H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $
+  content
 
 -- | Core Templates
 
 rootTemplate :: Int -> [Aorb] -> H.Html
-rootTemplate userCount' aorbs = H.docTypeHtml $ H.html $ do
+rootTemplate userCount' aorbs = H.docTypeHtml $
+  H.html H.! H.dataAttribute "theme" "light" $ do
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
-        A.content "width=device-width, initial-scale=1.0"
+      A.content "width=device-width, initial-scale=1.0"
+    H.link H.! A.rel "stylesheet" H.!
+      A.href "/static/css/output.css"
     H.title "anorby"
-    H.style $ H.text rootPageCSS
-  H.body $ do
-    H.span H.! A.id "top" $ ""
-    H.div H.! A.class_ "frame" $ do
+  H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
+    H.div H.! A.class_ "container mx-auto px-4" $ do
       navBar [ NavLink "/" "home" True
              , NavLink "/whoami" "whoami" False
              , NavLink "/ans" "answer" False
              , NavLink "/match" "match" False
              ]
-      H.h1 $ do
-        H.span H.! A.class_ "underline" $ "a"
-        H.text "n"
-        H.span H.! A.class_ "underline" $ "or"
-        H.span H.! A.class_ "underline" $ "b"
-        H.text "y"
-      H.div $ do
-        H.a H.! A.href "#baseline" $ "the underground census"
+      H.div H.! A.class_ "prose prose-lg max-w-none" $ do
+        H.h1 H.! A.class_ "text-center" $ do
+          H.span H.! A.class_ "border-b-4 border-primary" $ "a"
+          H.text "n"
+          H.span H.! A.class_ "border-b-4 border-primary" $ "or"
+          H.span H.! A.class_ "border-b-4 border-primary" $ "b"
+          H.text "y"
+          H.div $ do
+            H.a H.! A.href "#baseline" $ "the underground census"
     H.span H.! A.id "baseline" $ ""
     H.div H.! A.class_ "frame" $ do
       H.h1 "baseline_100"

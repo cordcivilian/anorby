@@ -130,14 +130,18 @@ initLocalSearchTestDb config dbExists = do
 routePublic
   :: AppState -> Route -> SQL.Connection -> Wai.Request
   -> IO Wai.Response
-routePublic state (method, path) conn req = case (method, path) of
-  ("GET", "/") -> rootTemplateRoute state conn req
-  ("GET", "/roadmap") -> roadmapTemplateRoute conn req
-  ("GET", p) | isSharePath p ->
-    sharedProfileTemplateRoute conn (extractUuid p) req
-  _ -> return notFoundResponse
+routePublic state (method, path) conn req =
+  case (method, path) of
+    ("GET", p) | isStaticPath p -> do
+      serveStaticFile p
+    ("GET", "/") -> rootTemplateRoute state conn req
+    ("GET", "/roadmap") -> roadmapTemplateRoute conn req
+    ("GET", p) | isSharePath p ->
+      sharedProfileTemplateRoute conn (extractUuid p) req
+    _ -> return notFoundResponse
   where
     isSharePath = BS.isPrefixOf "/share/"
+    isStaticPath = BS.isPrefixOf "/static/"
     extractUuid = T.pack . BS.unpack . BS.drop 7
 
 routeAuth :: Route -> SQL.Connection -> Wai.Request -> IO Wai.Response
@@ -220,6 +224,7 @@ application _ state request respond = do
 
   case route of
 
+    ("GET", "/static/css/output.css") -> handlePublicRoute route
     ("GET", "/") -> handlePublicRoute route
     ("GET", "/roadmap") -> handlePublicRoute route
 
