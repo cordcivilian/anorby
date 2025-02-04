@@ -816,7 +816,7 @@ matchProfileTemplate days mainUserId _ view messages =
 
       H.span H.! A.id "disagreement" $ ""
       H.div H.! A.class_ "frame disagreement-section" $ do
-        H.h2 "thanks for the social polarization"
+        H.h2 "plz mend the rift"
         case viewTopDisagreement view of
           Just mawa -> matchProfileDisagreement mainUserId mawa
           Nothing -> H.div H.! A.class_ "no-aorb" $ "no disagreements found"

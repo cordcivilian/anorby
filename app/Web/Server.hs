@@ -194,10 +194,10 @@ routeProtected config state (method, path) conn uid req =
     extractAorbId p = read . BS.unpack . BS.drop 5 $ p
 
     extractDays p =
-      let base = BS.drop 14 p
+      let base = BS.drop 15 p
           days = if BS.isSuffixOf "/message" base
-                then BS.take (BS.length base - 8) base
-                else base
+                    then BS.take (BS.length base - 8) base
+                    else base
       in read . BS.unpack $ days
 
 monolith :: AppState -> Wai.Application
@@ -332,4 +332,3 @@ application _ state request respond = do
             "UPDATE auth SET last_accessed = ? WHERE hash = ?"
             (floor now :: Integer, hash)
         Nothing -> return ()
-

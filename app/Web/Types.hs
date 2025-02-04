@@ -33,4 +33,3 @@ data NavLink = NavLink
   , linkText :: T.Text
   , linkActive :: Bool
   }
-
