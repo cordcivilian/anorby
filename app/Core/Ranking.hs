@@ -10,28 +10,29 @@ import Types
 import Core.Similarity
 import Core.Matching
 
-submissionsToRankings :: Submissions -> Rankings
-submissionsToRankings submissions = Map.fromList rankings
-  where
-    userIds = Map.keys submissions
-    rankings = map (makeRanking submissions userIds) userIds
+makeRanking :: Submissions -> [UserID] -> [UserID] -> UserID
+            -> (UserID, Ranking)
+makeRanking submissions allUsers deprioritizedIds uid =
+  let (userVector, weightIndex, scheme) = submissions Map.! uid
+      (baseline, similarityFunc) = associate scheme
+      userWeights = createWeightVector (length userVector) weightIndex 10
+      similarityScores =
+        map (calculateScore submissions userVector userWeights similarityFunc)
+            (filter (/= uid) allUsers)
+      sortedScores =
+        List.sortBy (Ord.comparing (abs . (baseline -) . snd)) similarityScores
+      groupedScores = groupByScore sortedScores
+      baseRanking = concatMap randomizeTies groupedScores
+      (normal, deprioritized) =
+        List.partition (\uid' -> uid' `notElem` deprioritizedIds) baseRanking
+  in (uid, normal ++ deprioritized)
 
-makeRanking :: Submissions -> [UserID] -> UserID -> (UserID, Ranking)
-makeRanking submissions allUsers uid = (uid, randomizedRanking)
-  where
-    (userVector, weightIndex, scheme) = submissions Map.! uid
-    (baseline, similarityFunc) = associate scheme
-    userWeights = createWeightVector (length userVector) weightIndex 10
-
-    similarityScores =
-      map (calculateScore submissions userVector userWeights similarityFunc)
-          (filter (/= uid) allUsers)
-
-    sortedScores =
-      List.sortBy (Ord.comparing (abs . (baseline -) . snd)) similarityScores
-
-    groupedScores = groupByScore sortedScores
-    randomizedRanking = concatMap randomizeTies groupedScores
+submissionsToRankings :: Submissions -> [(UserID, [UserID])] -> Rankings
+submissionsToRankings submissions deprioritizationMap =
+  let userIds = Map.keys submissions
+  in Map.fromList
+    [ makeRanking submissions userIds deprioritized uid
+    | (uid, deprioritized) <- deprioritizationMap ]
 
 calculateScore :: Submissions
                -> BinaryVector -> WeightVector -> BinaryVectorSimilarity

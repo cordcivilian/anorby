@@ -456,6 +456,22 @@ getUserMatches conn uid = do
         ]
   SQL.query conn query [uid]
 
+getRecentMatchMap :: SQL.Connection -> [UserID] -> IO [(UserID, [UserID])]
+getRecentMatchMap conn userIds = do
+  now <- POSIXTime.getPOSIXTime
+  let recency = floor now - (28 * 24 * 60 * 60) :: Integer
+  matches <- Monad.forM userIds $ \uid -> do
+    recentMatches <- SQL.query conn
+      (SQL.Query $ T.unwords
+        [ "SELECT target_id"
+        , "FROM matched"
+        , "WHERE user_id = ?"
+        , "AND matched_on > ?"
+        , "ORDER BY matched_on DESC"
+        ]) (uid, recency)
+    return (uid, map SQL.fromOnly recentMatches)
+  return matches
+
 getMatchBetweenUsers :: SQL.Connection -> UserID -> UserID -> IO (Maybe Match)
 getMatchBetweenUsers conn uid1 uid2 = do
   let query = SQL.Query $ T.unwords

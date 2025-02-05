@@ -76,6 +76,8 @@ checkAndTriggerMatching state config = do
         Pool.withResource (appPool state) $ \conn -> do
           users <- getUsersWithCompletedAnswers conn
           subs <- allAorbsToSubmissions conn users
-          marriages <- matchWithShadow conn (submissionsToRankings subs)
+          deprioritizationMap <- getRecentMatchMap conn users
+          let rankings = submissionsToRankings subs deprioritizationMap
+          marriages <- matchWithShadow conn rankings
           insertMatches conn marriages
           return marriages

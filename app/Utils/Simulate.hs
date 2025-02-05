@@ -90,7 +90,9 @@ mockBaseAorbAnswersWithGaleShapley conn n = do
   putStrLn "Running Gale-Shapley matching..."
   ensureShadowUser conn
   submissions <- baseAorbsToSubmissions conn
-  let rankings = submissionsToRankings submissions
+  users <- getUsersWithCompletedAnswers conn
+  deprioritizationMap <- getRecentMatchMap conn users
+  let rankings = submissionsToRankings submissions deprioritizationMap
   rankingsWithShadow <- addShadowUserIfNeeded conn rankings
   let (group1Rankings, group2Rankings) = splitRankings rankingsWithShadow
   marriages <- galeShapley group1Rankings group2Rankings
@@ -104,7 +106,9 @@ mockBaseAorbAnswersWithLocalSearch conn n = do
   putStrLn "Running Local Search matching..."
   ensureShadowUser conn
   submissions <- baseAorbsToSubmissions conn
-  let rankings = submissionsToRankings submissions
+  users <- getUsersWithCompletedAnswers conn
+  deprioritizationMap <- getRecentMatchMap conn users
+  let rankings = submissionsToRankings submissions deprioritizationMap
   rankingsWithShadow <- addShadowUserIfNeeded conn rankings
   let (group1Rankings, group2Rankings) = splitRankings rankingsWithShadow
   marriages <- localSearch group1Rankings group2Rankings 1000 1.0 5
@@ -326,7 +330,10 @@ testAorbGaleShapley n
   conn <- initDB dbName False
   mockBaseAorbAnswers conn n
   submissions <- baseAorbsToSubmissions conn
-  testGaleShapleyFromRankings (submissionsToRankings submissions)
+  let userIds = Map.keys submissions
+      emptyDeprioritization = [(uid, []) | uid <- userIds]
+  testGaleShapleyFromRankings
+    (submissionsToRankings submissions emptyDeprioritization)
   SQL.close conn
 
 testRandomSubmissionsGaleShapley :: Int -> Int -> Int -> IO ()
@@ -335,7 +342,10 @@ testRandomSubmissionsGaleShapley n len seed
   | len <= 0 = putStrLn "vector size must be at least one"
   | otherwise =
   let submissions = generateSubmissions n len seed
-  in testGaleShapleyFromRankings $ submissionsToRankings submissions
+      userIds = Map.keys submissions
+      emptyDeprioritization = [(uid, []) | uid <- userIds]
+  in testGaleShapleyFromRankings $
+    submissionsToRankings submissions emptyDeprioritization
 
 testRandomRankingsGaleShapley :: Int -> IO ()
 testRandomRankingsGaleShapley n
@@ -360,15 +370,17 @@ testAorbLocalSearch n maxIterations maxBlockingPercentage batchSize
   conn <- initDB dbName False
   mockBaseAorbAnswers conn n
   submissions <- baseAorbsToSubmissions conn
+  let userIds = Map.keys submissions
+      emptyDeprioritization = [(uid, []) | uid <- userIds]
   testLocalSearchFromRankings
-    (submissionsToRankings submissions)
+    (submissionsToRankings submissions emptyDeprioritization)
     maxIterations
     maxBlockingPercentage
     batchSize
   SQL.close conn
 
 testRandomSubmissionsLocalSearch :: Int -> Int -> Int -> Int -> Double -> Int
-                                -> IO ()
+                                 -> IO ()
 testRandomSubmissionsLocalSearch
   n len seed maxIterations maxBlockingPercentage batchSize
   | n <= 1 = putStrLn "number of matching entities must be greater than two"
@@ -378,9 +390,13 @@ testRandomSubmissionsLocalSearch
   | batchSize <= 1 = putStrLn "batch size must be at least one"
   | otherwise =
   let submissions = generateSubmissions n len seed
+      userIds = Map.keys submissions
+      emptyDeprioritization = [(uid, []) | uid <- userIds]
   in testLocalSearchFromRankings
-      (submissionsToRankings submissions)
-      maxIterations maxBlockingPercentage batchSize
+      (submissionsToRankings submissions emptyDeprioritization)
+      maxIterations
+      maxBlockingPercentage
+      batchSize
 
 testRandomRankingsLocalSearch :: Int -> Int -> Double -> Int -> IO ()
 testRandomRankingsLocalSearch
