@@ -13,6 +13,13 @@ module.exports = {
       }
     }
   },
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Lucida Console', 'monospace'],
+      },
+    },
+  },
   plugins: [
     require('@tailwindcss/typography'),
     require('daisyui')

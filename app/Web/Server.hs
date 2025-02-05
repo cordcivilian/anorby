@@ -169,7 +169,7 @@ routeProtected config state (method, path) conn uid req =
   ("GET", p) | isAorbPath p ->
     existingAnswerTemplateRoute conn uid (extractAorbId p) req
   ("POST", p) | isFavoritePath p ->
-    setFavoriteAorbRoute conn uid (extractAorbId p) req
+    setFavoriteAorbRoute conn uid (extractFavoriteAorbId p) req
 
   ("GET", "/match") -> matchTemplateRoute config state conn uid req
   ("GET", "/match/type") -> matchTypeTemplateRoute config conn uid req
@@ -196,6 +196,7 @@ routeProtected config state (method, path) conn uid req =
       BS.isPrefixOf "/match/found/t-" p && BS.isSuffixOf "/message" p
 
     extractAorbId p = read . BS.unpack . BS.drop 5 $ p
+    extractFavoriteAorbId p = read . BS.unpack . BS.drop 15 $ p
 
     extractDays p =
       let base = BS.drop 15 p

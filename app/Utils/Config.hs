@@ -136,5 +136,5 @@ getConfig = do
     , profileThreshold = 10
     , matchThreshold = 20
     , matchCutoffTime = "18:00"
-    , matchReleaseTime = "23:00"
+    , matchReleaseTime = "20:00"
     }
