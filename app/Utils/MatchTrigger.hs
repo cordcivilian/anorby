@@ -1,7 +1,7 @@
 module Utils.MatchTrigger where
 
 import qualified Control.Monad as Monad
-import qualified Control.Concurrent.Async as Async
+import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Pool as Pool
 import qualified Data.Time.Clock.POSIX as POSIXTime
@@ -71,10 +71,11 @@ checkAndTriggerMatching state config = do
   now <- POSIXTime.getPOSIXTime
   alreadyMatched <- hasAlreadyMatchedToday state now
   Monad.when (shouldTriggerMatching now config && not alreadyMatched) $ do
-    Monad.void $ Async.async $ withMatchLock (appMatchState state) $ do
-      Pool.withResource (appPool state) $ \conn -> do
-        users <- getUsersWithCompletedAnswers conn
-        subs <- allAorbsToSubmissions conn users
-        marriages <- matchWithShadow conn (submissionsToRankings subs)
-        insertMatches conn marriages
-        return marriages
+    Monad.void $ Concurrent.forkIO $ do
+      Monad.void $ withMatchLock (appMatchState state) $ do
+        Pool.withResource (appPool state) $ \conn -> do
+          users <- getUsersWithCompletedAnswers conn
+          subs <- allAorbsToSubmissions conn users
+          marriages <- matchWithShadow conn (submissionsToRankings subs)
+          insertMatches conn marriages
+          return marriages

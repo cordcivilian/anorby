@@ -33,7 +33,6 @@ executable anorby
   build-depends:    base ^>=4.20.0.0
                     , SHA
                     , aeson
-                    , async
                     , binary
                     , blaze-html
                     , blaze-markup
