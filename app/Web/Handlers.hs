@@ -6,6 +6,7 @@ import qualified Control.Monad as Monad
 import qualified System.Directory as Dir
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -474,8 +475,10 @@ matchFoundTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
 matchFoundTemplateRoute conn uid _ = do
   now <- POSIXTime.getPOSIXTime
   matches <- getUserMatches conn uid
-  matchScores <- mapM (calculateMatchScore conn uid) matches
-  matchUnreadCounts <- mapM (getUnreadMessageCount conn uid) matches
+  let groupedMatches = groupMatchesByDay matches
+      uniqueDayMatches = reverse $ Maybe.mapMaybe (Maybe.listToMaybe . snd) groupedMatches
+  matchScores <- mapM (calculateMatchScore conn uid) uniqueDayMatches
+  matchUnreadCounts <- mapM (getUnreadMessageCount conn uid) uniqueDayMatches
   let matchData = zip matchScores matchUnreadCounts
   return $ Wai.responseLBS
     HTTP.status200
@@ -496,6 +499,14 @@ matchFoundTemplateRoute conn uid _ = do
                   (zip [0..] answers1)
             Nothing -> replicate (length answers1) 1
       return (match', weightedYuleQ answers1 answers2 weights)
+
+    groupMatchesByDay :: [Match] -> [(Integer, [Match])]
+    groupMatchesByDay ms =
+      Map.toList $ foldr addToDay Map.empty ms
+      where
+        addToDay m acc =
+          let dayTimestamp = (matchTimestamp m `div` 86400) * 86400
+          in Map.insertWith (++) dayTimestamp [m] acc
 
 postMessageRoute :: SQL.Connection -> UserID -> Integer -> Wai.Request
                 -> IO Wai.Response
