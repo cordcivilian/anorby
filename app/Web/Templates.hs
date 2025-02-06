@@ -893,25 +893,38 @@ matchProfileDisagreement _ mawa = do
         H.div H.! A.class_ "text-xl" $ H.toHtml theirChoice
 
 renderMessages :: Integer -> UserID -> [Message] -> H.Html
-renderMessages days uid messages =
+renderMessages days uid messages = do
+  let userMessageCount = length $ filter ((== uid) . messageSenderId) messages
+      remainingMessages = 3 - userMessageCount
+      hasReachedLimit = userMessageCount >= 3
+
   H.div H.! A.class_ "w-full max-w-2xl mx-auto space-y-4" $ do
     mapM_ (renderMessage uid) messages
-    H.form H.! A.id "message-form"
+
+    if hasReachedLimit
+      then H.div H.! A.class_ "p-4 text-center rounded-lg bg-base-200" $ do
+        "You have reached the limit of 3 messages"
+      else H.form H.! A.id "message-form"
            H.! A.method "POST"
            H.! A.action (H.textValue $ "/match/found/t-" <> T.pack (show days) <> "/message")
            H.! A.class_ "flex flex-col gap-4" $ do
-      H.textarea H.! A.class_ "w-full p-4 border border-base-300 rounded-lg resize-none font-inherit"
-        H.! A.form "message-form"
-        H.! A.type_ "text"
-        H.! A.id "new-message"
-        H.! A.name "new-message"
-        H.! A.placeholder "message"
-        H.! A.required "required"
-        H.! A.autocomplete "off"
-        H.! A.maxlength "400" $ ""
-      H.input H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg cursor-pointer font-inherit hover:bg-primary/90"
-        H.! A.type_ "submit"
-        H.! A.value "send"
+        H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ do
+          H.text $ T.pack $ show remainingMessages <> " messages remaining"
+
+        H.textarea H.! A.class_ "w-full p-4 border border-base-300 rounded-lg resize-none font-inherit"
+          H.! A.form "message-form"
+          H.! A.type_ "text"
+          H.! A.id "new-message"
+          H.! A.name "new-message"
+          H.! A.placeholder "message (max 400 characters)"
+          H.! A.required "required"
+          H.! A.autocomplete "off"
+          H.! A.maxlength "400"
+          $ ""
+
+        H.input H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg cursor-pointer font-inherit hover:bg-primary/90"
+          H.! A.type_ "submit"
+          H.! A.value "send"
 
 renderMessage :: UserID -> Message -> H.Html
 renderMessage uid msg = do
