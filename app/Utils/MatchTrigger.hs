@@ -87,7 +87,7 @@ checkAndTriggerMatching state config = do
               SQL.execute_ cleanupConn "PRAGMA wal_checkpoint(PASSIVE)"
               SQL.execute_ cleanupConn "PRAGMA wal_checkpoint(FULL)"
               SQL.execute_ cleanupConn "PRAGMA optimize"
-          cleanupExpiredMessages conn
+          cleanupExpiredMessages config conn
           return marriages
       case result of
         Just _ -> Monad.void $ Exception.evaluate result

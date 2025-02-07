@@ -474,20 +474,22 @@ matchTypeUpdateRoute config conn uid req = do
     parseAssociationScheme "Bipolar" = Just Bipolar
     parseAssociationScheme _ = Nothing
 
-matchFoundTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
-                        -> IO Wai.Response
-matchFoundTemplateRoute conn uid _ = do
+matchFoundTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request 
+                        -> IO Wai.Response 
+matchFoundTemplateRoute config conn uid _ = do
   now <- POSIXTime.getPOSIXTime
   matches <- getUserMatches conn uid
   let groupedMatches = groupMatchesByDay matches
-      uniqueDayMatches = reverse $ Maybe.mapMaybe (Maybe.listToMaybe . snd) groupedMatches
+      uniqueDayMatches =
+        reverse $ Maybe.mapMaybe (Maybe.listToMaybe . snd) groupedMatches
   matchScores <- mapM (calculateMatchScore conn uid) uniqueDayMatches
   matchUnreadCounts <- mapM (getUnreadMessageCount conn uid) uniqueDayMatches
   let matchData = zip matchScores matchUnreadCounts
   return $ Wai.responseLBS
     HTTP.status200
     [(Headers.hContentType, BS.pack "text/html")]
-    (R.renderHtml $ matchFoundTemplate (floor now) matchData)
+    (R.renderHtml $
+      matchFoundTemplate (floor now) (matchExpiryDays config) matchData)
   where
     calculateMatchScore :: SQL.Connection -> UserID -> Match
                       -> IO (Match, Double)

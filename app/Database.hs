@@ -15,6 +15,7 @@ import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Database.SQLite.Simple as SQL
 
 import Types
+import Utils.Config
 
 -- | Database initialization and connection management
 
@@ -804,12 +805,12 @@ markMessagesRead conn matchId receiverId = do
     "UPDATE messages SET is_read = 1 WHERE match_id = ? AND sender_id != ?"
     (matchId, receiverId)
 
-cleanupExpiredMessages :: SQL.Connection -> IO ()
-cleanupExpiredMessages conn = do
+cleanupExpiredMessages :: Config -> SQL.Connection -> IO ()
+cleanupExpiredMessages config conn = do
   now <- POSIXTime.getPOSIXTime
-  let sevenDaysAgo = floor now - (7 * 24 * 60 * 60) :: Integer
+  let expiryAgo = floor now - (matchExpiryDays config * 24 * 60 * 60)
       query = SQL.Query $ T.unwords
         [ "DELETE FROM messages"
         , "WHERE match_id IN (SELECT id FROM matched WHERE matched_on < ?)"
         ]
-  SQL.execute conn query (SQL.Only sevenDaysAgo)
+  SQL.execute conn query (SQL.Only expiryAgo)

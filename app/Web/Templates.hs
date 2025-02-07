@@ -677,8 +677,8 @@ schemeDetailedDescription scheme =
     schemeDetail Swing = "..."
     schemeDetail Bipolar = "..."
 
-matchFoundTemplate :: Integer -> [((Match, Double), Int)] -> H.Html
-matchFoundTemplate currentTimestamp matchData = H.docTypeHtml $ H.html $ do
+matchFoundTemplate :: Integer -> Integer -> [((Match, Double), Int)] -> H.Html
+matchFoundTemplate currentTimestamp expiryDays matchData = H.docTypeHtml $ H.html $ do
   H.head $ do
     H.title "matches"
     H.link H.! A.rel "icon" H.! A.href "data:,"
@@ -695,10 +695,10 @@ matchFoundTemplate currentTimestamp matchData = H.docTypeHtml $ H.html $ do
           H.h4 H.! A.class_ "text-center mb-8 text-base-content/70" $ "(agreement rate)"
           H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
             let startOfToday = (div currentTimestamp 86400) * 86400
-                sevenDaysAgo = currentTimestamp - (7 * 24 * 60 * 60)
+                expiryAgo = currentTimestamp - (expiryDays * 24 * 60 * 60)
                 pastMatches = filter (\((m, _), _) ->
                   let ts = matchTimestamp m
-                  in ts < startOfToday && ts >= sevenDaysAgo) matchData
+                  in ts < startOfToday && ts >= expiryAgo) matchData
             mapM_ (\((m, s), u) ->
               matchCard currentTimestamp m s u) pastMatches
 

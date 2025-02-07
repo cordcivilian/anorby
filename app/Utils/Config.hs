@@ -25,6 +25,7 @@ data Config = Config
   , profileThreshold :: Int
   , matchCutoffTime :: T.Text
   , matchReleaseTime :: T.Text
+  , matchExpiryDays :: Integer
   } deriving (Show)
 
 data EnvFlags = EnvFlags
@@ -137,4 +138,5 @@ getConfig = do
     , matchThreshold = 20
     , matchCutoffTime = "18:00"
     , matchReleaseTime = "20:00"
+    , matchExpiryDays = 7
     }

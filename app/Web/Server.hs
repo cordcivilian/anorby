@@ -176,7 +176,7 @@ routeProtected config state (method, path) conn uid req =
   ("GET", "/match") -> matchTemplateRoute config state conn uid req
   ("GET", "/match/type") -> matchTypeTemplateRoute config conn uid req
   ("POST", "/match/type") -> matchTypeUpdateRoute config conn uid req
-  ("GET", "/match/found") -> matchFoundTemplateRoute conn uid req
+  ("GET", "/match/found") -> matchFoundTemplateRoute config conn uid req
   ("GET", p) | isMatchDaysPath p ->
     matchProfileTemplateRoute conn uid (extractDays p) req
   ("POST", p) | isMatchMessagePath p ->
