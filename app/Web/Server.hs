@@ -29,6 +29,7 @@ import Utils.MatchState
 import Utils.MatchTrigger
 import Web.Types
 import Web.Handlers
+import Core.RollingShadow
 import Types
 
 type Route = (BS.ByteString, BS.ByteString)
@@ -88,6 +89,7 @@ initProductionDb config dbExists = do
   Monad.when (not dbExists) $ do
     putStrLn "Creating new production database..."
     conn <- initDB (dbPath config) True
+    ensureShadowUser conn
     SQL.close conn
   initPool (dbPath config)
 

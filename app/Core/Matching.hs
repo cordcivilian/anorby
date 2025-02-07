@@ -134,11 +134,11 @@ galeShapleyRound proposerRankings proposeeRankings marriages history rnd = do
     else do
       let (proposer, allPrefs)
             | ((x, y):_) <- unmatched = (x, y)
-            | otherwise = (-1, [-1]) -- impossible
+            | otherwise = (0, [0]) -- impossible
           proposed = Maybe.fromJust $ Map.lookup proposer history
           nextProposee
             | (x:_) <- allPrefs List.\\ proposed = x
-            | otherwise = -1 -- impossible
+            | otherwise = 0 -- impossible
 
       putStrLn $
         "Proposer "

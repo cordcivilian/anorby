@@ -121,7 +121,6 @@ ensureShadowUser conn = do
 
 matchWithShadow :: SQL.Connection -> Rankings -> IO Marriages
 matchWithShadow conn rankings = do
-  ensureShadowUser conn
   rankingsWithShadow <- addShadowUserIfNeeded conn rankings
   let (group1Rankings, group2Rankings) = splitRankings rankingsWithShadow
   marriages <- galeShapley group1Rankings group2Rankings

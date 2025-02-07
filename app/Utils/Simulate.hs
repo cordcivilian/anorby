@@ -83,12 +83,13 @@ mockBaseAorbAnswers conn n = do
   mockMainAorbs conn users
   mockAssociations conn users
   putStrLn "Mock data generation complete."
+  ensureShadowUser conn
+  putStrLn "Shadow user created."
 
 mockBaseAorbAnswersWithGaleShapley :: SQL.Connection -> Int -> IO ()
 mockBaseAorbAnswersWithGaleShapley conn n = do
   mockBaseAorbAnswers conn n
   putStrLn "Running Gale-Shapley matching..."
-  ensureShadowUser conn
   submissions <- baseAorbsToSubmissions conn
   users <- getUsersWithCompletedAnswers conn
   deprioritizationMap <- getRecentMatchMap conn users
@@ -104,7 +105,6 @@ mockBaseAorbAnswersWithLocalSearch :: SQL.Connection -> Int -> IO ()
 mockBaseAorbAnswersWithLocalSearch conn n = do
   mockBaseAorbAnswers conn n
   putStrLn "Running Local Search matching..."
-  ensureShadowUser conn
   submissions <- baseAorbsToSubmissions conn
   users <- getUsersWithCompletedAnswers conn
   deprioritizationMap <- getRecentMatchMap conn users
