@@ -748,12 +748,12 @@ getMessageCount conn matchId uid = do
   counts <- SQL.query conn query (matchId, uid) :: IO [SQL.Only Int]
   return $ maybe 0 SQL.fromOnly $ Maybe.listToMaybe counts
 
-validateNewMessage :: SQL.Connection -> Int -> UserID -> T.Text -> IO Bool
-validateNewMessage conn matchId senderId content = do
+validateNewMessage :: Config -> SQL.Connection -> Int -> UserID -> T.Text -> IO Bool
+validateNewMessage config conn matchId senderId content = do
   messageCount <- getMessageCount conn matchId senderId
-  if messageCount >= 3
+  if messageCount >= matchMessageLimit config
     then return False
-    else if T.length content > 400
+    else if T.length content > matchMessageMaxLength config
       then return False
       else do
         match <- SQL.query conn

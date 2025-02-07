@@ -367,9 +367,13 @@ matchTemplateRoute config state conn uid _ = do
           [(Headers.hContentType, BS.pack "text/html")]
           (R.renderHtml internalErrorTemplate)
 
-matchProfileTemplateRoute :: SQL.Connection -> UserID -> Integer -> Wai.Request
+matchProfileTemplateRoute :: Config
+                          -> SQL.Connection
+                          -> UserID
+                          -> Integer
+                          -> Wai.Request
                           -> IO Wai.Response
-matchProfileTemplateRoute conn uid days _ = do
+matchProfileTemplateRoute config conn uid days _ = do
   now <- POSIXTime.getPOSIXTime
   let startOfDay = floor (now / 86400) * 86400
       targetDay = startOfDay - (days * 86400)
@@ -416,7 +420,7 @@ matchProfileTemplateRoute conn uid days _ = do
         HTTP.status200
         [(Headers.hContentType, BS.pack "text/html")]
         (R.renderHtml $
-          matchProfileTemplate days uid targetId matchView messages)
+          matchProfileTemplate config days uid targetId matchView messages)
     [] -> return notFoundResponse
 
 matchTypeTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
@@ -474,8 +478,8 @@ matchTypeUpdateRoute config conn uid req = do
     parseAssociationScheme "Bipolar" = Just Bipolar
     parseAssociationScheme _ = Nothing
 
-matchFoundTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request 
-                        -> IO Wai.Response 
+matchFoundTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
+                        -> IO Wai.Response
 matchFoundTemplateRoute config conn uid _ = do
   now <- POSIXTime.getPOSIXTime
   matches <- getUserMatches conn uid
@@ -514,9 +518,13 @@ matchFoundTemplateRoute config conn uid _ = do
           let dayTimestamp = (matchTimestamp m `div` 86400) * 86400
           in Map.insertWith (++) dayTimestamp [m] acc
 
-postMessageRoute :: SQL.Connection -> UserID -> Integer -> Wai.Request
-                -> IO Wai.Response
-postMessageRoute conn uid days req = do
+postMessageRoute :: Config
+                 -> SQL.Connection
+                 -> UserID
+                 -> Integer
+                 -> Wai.Request
+                 -> IO Wai.Response
+postMessageRoute config conn uid days req = do
   (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
   case lookup "new-message" params of
     Nothing -> return invalidSubmissionResponse
@@ -537,7 +545,7 @@ postMessageRoute conn uid days req = do
         (uid, uid, targetDay, nextDay) :: IO [SQL.Only Int]
       case matches of
         [SQL.Only matchId] -> do
-          isValid <- validateNewMessage conn matchId uid content
+          isValid <- validateNewMessage config conn matchId uid content
           if isValid
             then do
               insertMessage conn matchId uid content

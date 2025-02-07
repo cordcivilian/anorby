@@ -178,9 +178,9 @@ routeProtected config state (method, path) conn uid req =
   ("POST", "/match/type") -> matchTypeUpdateRoute config conn uid req
   ("GET", "/match/found") -> matchFoundTemplateRoute config conn uid req
   ("GET", p) | isMatchDaysPath p ->
-    matchProfileTemplateRoute conn uid (extractDays p) req
+    matchProfileTemplateRoute config conn uid (extractDays p) req
   ("POST", p) | isMatchMessagePath p ->
-    postMessageRoute conn uid (extractDays p) req
+    postMessageRoute config conn uid (extractDays p) req
 
   ("GET", "/logout") -> logoutGetRoute conn uid req
   ("GET", "/logout/confirm") -> logoutConfirmRoute conn uid req

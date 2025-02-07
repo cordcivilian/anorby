@@ -26,6 +26,8 @@ data Config = Config
   , matchCutoffTime :: T.Text
   , matchReleaseTime :: T.Text
   , matchExpiryDays :: Integer
+  , matchMessageLimit :: Int
+  , matchMessageMaxLength :: Int
   } deriving (Show)
 
 data EnvFlags = EnvFlags
@@ -139,4 +141,6 @@ getConfig = do
     , matchCutoffTime = "18:00"
     , matchReleaseTime = "20:00"
     , matchExpiryDays = 7
+    , matchMessageLimit = 3
+    , matchMessageMaxLength = 400
     }

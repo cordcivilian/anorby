@@ -744,8 +744,8 @@ matchCard currentTimestamp match score unreadCount =
                            ) :: Integer
       in currentDay - matchDay
 
-matchProfileTemplate :: Integer -> UserID -> UserID -> MatchView -> [Message] -> H.Html
-matchProfileTemplate days mainUserId _ view messages =
+matchProfileTemplate :: Config -> Integer -> UserID -> UserID -> MatchView -> [Message] -> H.Html
+matchProfileTemplate config days mainUserId _ view messages =
   H.docTypeHtml $ H.html $ do
     H.head $ do
       H.title "match profile"
@@ -795,7 +795,7 @@ matchProfileTemplate days mainUserId _ view messages =
       H.span H.! A.id "messages" $ ""
       H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
         H.h1 H.! A.class_ "text-2xl font-bold mb-8" $ "head-to-head"
-        renderMessages days mainUserId messages
+        renderMessages config days mainUserId messages
 
       H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
         H.h1 H.! A.class_ "text-2xl font-bold mb-8" $ "fin"
@@ -892,18 +892,20 @@ matchProfileDisagreement _ mawa = do
           H.toHtml $ T.pack $ Text.printf "them and their precious %.0f%%" theirPct
         H.div H.! A.class_ "text-xl" $ H.toHtml theirChoice
 
-renderMessages :: Integer -> UserID -> [Message] -> H.Html
-renderMessages days uid messages = do
+renderMessages :: Config -> Integer -> UserID -> [Message] -> H.Html
+renderMessages config days uid messages = do
   let userMessageCount = length $ filter ((== uid) . messageSenderId) messages
-      remainingMessages = 3 - userMessageCount
-      hasReachedLimit = userMessageCount >= 3
+      remainingMessages = matchMessageLimit config - userMessageCount
+      hasReachedLimit = userMessageCount >= matchMessageLimit config
 
   H.div H.! A.class_ "w-full max-w-2xl mx-auto space-y-4" $ do
     mapM_ (renderMessage uid) messages
 
     if hasReachedLimit
       then H.div H.! A.class_ "p-4 text-center rounded-lg bg-base-200" $ do
-        "You have reached the limit of 3 messages"
+        "You have reached the limit of "
+        H.toHtml $ show $ matchMessageLimit config
+        " messages"
       else H.form H.! A.id "message-form"
            H.! A.method "POST"
            H.! A.action (H.textValue $ "/match/found/t-" <> T.pack (show days) <> "/message")
@@ -916,10 +918,14 @@ renderMessages days uid messages = do
           H.! A.type_ "text"
           H.! A.id "new-message"
           H.! A.name "new-message"
-          H.! A.placeholder "message (max 400 characters)"
+          H.! A.placeholder
+            ( "message (max " <>
+              (H.toValue $ show $ matchMessageMaxLength config) <>
+              " characters)"
+            )
           H.! A.required "required"
           H.! A.autocomplete "off"
-          H.! A.maxlength "400"
+          H.! A.maxlength (H.toValue $ show $ matchMessageMaxLength config)
           $ ""
 
         H.input H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg cursor-pointer font-inherit hover:bg-primary/90"
