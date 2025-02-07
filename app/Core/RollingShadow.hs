@@ -17,10 +17,10 @@ shadowUserId :: UserID
 shadowUserId = -1
 
 shadowUserName :: T.Text
-shadowUserName = "void"
+shadowUserName = "cord"
 
 shadowUserEmail :: T.Text
-shadowUserEmail = "void@anorby.com"
+shadowUserEmail = "public@cordcivilian.com"
 
 trackUnmatchedUser :: SQL.Connection -> UserID -> IO ()
 trackUnmatchedUser conn uid = do

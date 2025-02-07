@@ -69,8 +69,10 @@ rootTemplateRoute state conn _ = do
       let (shuffledAorbs, _) = fisherYatesShuffle gen as
       putInCache "root_aorbs" shuffledAorbs (appRootCache state)
       return shuffledAorbs
-  activeUsers <- SQL.query_ conn
-    "SELECT COUNT(DISTINCT user_id) FROM aorb_answers" :: IO [SQL.Only Int]
+  activeUsers <- SQL.query_ conn $ SQL.Query $ T.unwords
+    [ "SELECT COUNT(DISTINCT user_id) FROM aorb_answers"
+    , "WHERE user_id != -1"
+    ] :: IO [SQL.Only Int]
   let totalActiveUsers = maybe 0 SQL.fromOnly (Maybe.listToMaybe activeUsers)
   return $ Wai.responseLBS
     HTTP.status200
@@ -79,8 +81,10 @@ rootTemplateRoute state conn _ = do
 
 roadmapTemplateRoute :: SQL.Connection -> Wai.Request -> IO Wai.Response
 roadmapTemplateRoute conn _ = do
-  activeUsers <- SQL.query_ conn
-    "SELECT COUNT(DISTINCT user_id) FROM aorb_answers" :: IO [SQL.Only Int]
+  activeUsers <- SQL.query_ conn $ SQL.Query $ T.unwords
+    [ "SELECT COUNT(DISTINCT user_id) FROM aorb_answers"
+    , "WHERE user_id != -1"
+    ] :: IO [SQL.Only Int]
   let totalActiveUsers = maybe 0 SQL.fromOnly (Maybe.listToMaybe activeUsers)
   return $ Wai.responseLBS
     HTTP.status200
