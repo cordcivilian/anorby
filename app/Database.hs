@@ -803,3 +803,13 @@ markMessagesRead conn matchId receiverId = do
   SQL.execute conn
     "UPDATE messages SET is_read = 1 WHERE match_id = ? AND sender_id != ?"
     (matchId, receiverId)
+
+cleanupExpiredMessages :: SQL.Connection -> IO ()
+cleanupExpiredMessages conn = do
+  now <- POSIXTime.getPOSIXTime
+  let sevenDaysAgo = floor now - (7 * 24 * 60 * 60) :: Integer
+      query = SQL.Query $ T.unwords
+        [ "DELETE FROM messages"
+        , "WHERE match_id IN (SELECT id FROM matched WHERE matched_on < ?)"
+        ]
+  SQL.execute conn query (SQL.Only sevenDaysAgo)
