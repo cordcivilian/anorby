@@ -1,5 +1,7 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Utils.MatchTrigger where
 
+import qualified Control.Exception as Exception
 import qualified Control.Monad as Monad
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.MVar as MVar
@@ -72,7 +74,7 @@ checkAndTriggerMatching state config = do
   alreadyMatched <- hasAlreadyMatchedToday state now
   Monad.when (shouldTriggerMatching now config && not alreadyMatched) $ do
     Monad.void $ Concurrent.forkIO $ do
-      Monad.void $ withMatchLock (appMatchState state) $ do
+      result <- withMatchLock (appMatchState state) $ do
         Pool.withResource (appPool state) $ \conn -> do
           users <- getUsersWithCompletedAnswers conn
           subs <- allAorbsToSubmissions conn users
@@ -80,4 +82,12 @@ checkAndTriggerMatching state config = do
           let rankings = submissionsToRankings subs deprioritizationMap
           marriages <- matchWithShadow conn rankings
           insertMatches conn marriages
+          Monad.void $ Concurrent.forkIO $ do
+            Pool.withResource (appPool state) $ \cleanupConn -> do
+              SQL.execute_ cleanupConn "PRAGMA wal_checkpoint(PASSIVE)"
+              SQL.execute_ cleanupConn "PRAGMA wal_checkpoint(FULL)"
+              SQL.execute_ cleanupConn "PRAGMA optimize"
           return marriages
+      case result of
+        Just _ -> Monad.void $ Exception.evaluate result
+        Nothing -> return ()

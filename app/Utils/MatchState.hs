@@ -1,6 +1,7 @@
 module Utils.MatchState where
 
 import qualified Control.Concurrent.MVar as MVar
+import qualified Control.Exception as Exception
 import qualified Data.Time.Clock.POSIX as POSIXTime
 
 data MatchStatus = NotStarted
@@ -37,13 +38,17 @@ setMatchStatus state status = do
       MVar.modifyMVar_ (lastMatchedOn state) $ \_ -> return now
     _ -> return ()
 
+
 withMatchLock :: MatchState -> IO a -> IO (Maybe a)
-withMatchLock state action = do
-  acquired <- MVar.tryTakeMVar (matchMVar state)
-  case acquired of
-    Just NotStarted -> do
-      MVar.putMVar (matchMVar state) InProgress
-      result <- action
-      setMatchStatus state Completed
-      return $ Just result
-    _ -> return Nothing
+withMatchLock state action =
+  MVar.modifyMVar (matchMVar state) $ \status -> case status of
+    NotStarted -> do
+      Exception.catch
+        (do result <- action
+            now <- POSIXTime.getPOSIXTime
+            MVar.modifyMVar_ (lastMatchedOn state) $ \_ -> return now
+            return (Completed, Just result))
+        (\e -> do
+            let _ = e :: Exception.SomeException
+            return (Failed "matching failed", Nothing))
+    _ -> return (status, Nothing)
