@@ -48,11 +48,6 @@ navBar links = H.div H.! A.class_ "navbar bg-base-100 flex justify-center flex-w
             H.toHtml $ linkText link
   withSeparators links
 
-frame :: H.Html -> H.Html
-frame content = H.div
-  H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $
-  content
-
 -- | Core Templates
 
 rootTemplate :: Int -> [Aorb] -> H.Html
@@ -78,34 +73,13 @@ rootTemplate userCount' aorbs = H.docTypeHtml $
             H.span H.! A.class_ "border-b-4 border-primary" $ "or"
             H.span H.! A.class_ "border-b-4 border-primary" $ "b"
             H.text "y"
-            H.div $ do
-              H.a H.! A.href "#baseline" $ "the underground census"
 
-      H.span H.! A.id "baseline" $ ""
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
         H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "baseline_100"
         H.h4 H.! A.class_ "text-lg mb-6" $ "what is this... blah blah blah"
         H.a H.! A.href "/roadmap" H.! A.class_ "mb-8" $ do
           H.h4 H.! A.class_ "text-lg" $
             H.text $ T.pack $ "# of responses: " ++ show userCount'
 
-        H.div H.! A.id "sorter" H.! A.class_ "w-full max-w-md mx-auto space-y-2" $ do
-          H.div H.! A.class_ "text-left py-2" $ "sort by:"
-          H.a H.! A.class_ "block text-left py-2 hover:text-primary transition-colors"
-             H.! A.href "#by-sided" $ "> most one-sided"
-          H.a H.! A.class_ "block text-left py-2 hover:text-primary transition-colors"
-             H.! A.href "#by-polar" $ "> most polarizing"
-          H.a H.! A.class_ "block text-left py-2 hover:text-primary transition-colors"
-             H.! A.href "#by-dice" $ "> random"
-
-      H.span H.! A.id "aorbs" $ ""
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4 pt-[10vh]" $ do
-        H.div H.! A.id "by-sided" $ mempty
-        H.div H.! A.id "by-dice" $ mempty
-        H.div H.! A.id "by-polar" $ mempty
-        H.div H.! A.class_ "fixed bottom-[5vh] right-1/2 translate-x-1/2 border-2 border-primary bg-primary text-primary-content px-4 py-1 rounded-lg z-50" $ do
-          H.a H.! A.href "#baseline" H.! A.class_ "hover:opacity-80" $
-            "backtobasebasebase"
         publicAorbs aorbs
 
 roadmapTemplate :: Int -> H.Html
@@ -117,7 +91,7 @@ roadmapTemplate _ = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
     H.title "roadmap"
   H.body $ do
-    navBar [ NavLink "/#baseline" "back" False ]
+    navBar [ NavLink "/" "back" False ]
     H.h1 "roadmap"
     H.div H.! A.class_ "flex items-center justify-center" $ do
       H.ul H.! A.class_ "steps steps-vertical" $ do
@@ -134,9 +108,8 @@ publicAorbs aorbs = do
   H.div H.! A.id "aorbs-container" H.!
     A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
     Monad.forM_ (aorbWithOrders aorbs) $
-      \(_, (aorb, orders)) -> do
-        H.div H.! A.class_ "w-full max-w-2xl border border-base-300 rounded-lg p-4 transition-all hover:bg-base-200"
-              H.! A.style (aorbDynamicCSS (zip ["dice", "polar", "sided"] orders)) $ do
+      \(_, (aorb, _)) -> do
+        H.div H.! A.class_ "w-full max-w-2xl border border-base-300 rounded-lg p-4 transition-all hover:bg-base-200" $ do
           H.div H.! A.class_ "text-base-content/60 italic mb-4" $
             H.toHtml (aorbCtx aorb)
           let mean = aorbMean aorb
@@ -180,10 +153,8 @@ profileTemplate aorbs mAid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
     H.style $ case maybeUuid of
                 Just _ -> "/* Shared view overrides */"
                 Nothing -> ""
-  H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
-    profileHeadline maybeUuid $
-      H.div H.! A.class_ "text-center" $ do
-        H.a H.! A.href "#main" H.! A.class_ "link hover:text-primary transition-colors" $ "begin"
+  H.body $ do
+    profileHeadline maybeUuid $ ""
     profileFullView mAid aorbs maybeUuid shareUrl
 
 profileHead :: Maybe T.Text -> H.Html
@@ -210,7 +181,7 @@ profileHead maybeUuid = H.head $ do
 profileHeadline :: Maybe T.Text -> H.Html -> H.Html
 profileHeadline maybeUuid children = do
   H.span H.! A.id "top" $ ""
-  H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+  H.div $ do
     navBar [ NavLink "/" "home" False
       , NavLink "/whoami" "whoami" (Maybe.isNothing maybeUuid)
       , NavLink "/ans" "answer" False
@@ -225,23 +196,20 @@ profileMainAorb :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileMainAorb mAid aorbs maybeUuid =
   case (mAid, maybeUuid) of
     (Just aid, Just _) -> do
-      H.span H.! A.id "main" $ ""
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+      H.div $ do
         H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "main"
         H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
           mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) $
             filter (\awa -> aorbId (aorbData awa) == aid) aorbs
     (Nothing, Just _) -> mempty
     (Just aid, Nothing) -> do
-      H.span H.! A.id "main" $ ""
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+      H.div $ do
         H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "main"
         H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
           mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) $
             filter (\awa -> aorbId (aorbData awa) == aid) aorbs
     (Nothing, Nothing) -> do
-      H.span H.! A.id "main" $ ""
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+      H.div $ do
         H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "main"
         H.div H.! A.class_ "prose max-w-lg mx-auto text-center" $ do
           H.p "you haven't selected your main question yet"
@@ -249,34 +217,22 @@ profileMainAorb mAid aorbs maybeUuid =
 
 profileCommonplaceAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileCommonplaceAorbs mAid aorbs maybeUuid = do
-  H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+  H.div $ do
     H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "most commonplace"
     H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
       mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) (take 3 $ reverse aorbs)
 
 profileControversialAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileControversialAorbs mAid aorbs maybeUuid = do
-  H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+  H.div $ do
     H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "most controversial"
     H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
       mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) (take 3 aorbs)
 
 profileAllAnswers :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileAllAnswers mAid aorbs maybeUuid = do
-  H.span H.! A.id "all-answers" $ ""
-  H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+  H.div $ do
     H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "all answers"
-    H.div H.! A.class_ "w-full max-w-md mx-auto space-y-2" $ do
-      H.div H.! A.class_ "text-left py-2" $ "sort by:"
-      H.a H.! A.class_ "block text-left py-2 hover:text-primary transition-colors"
-         H.! A.href "#by-flake" $ "> most controversial"
-      H.a H.! A.class_ "block text-left py-2 hover:text-primary transition-colors"
-         H.! A.href "#by-basic" $ "> most commonplace"
-  H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4 pt-[10vh]" $ do
-    H.div H.! A.id "by-basic" $ mempty
-    H.div H.! A.id "by-flake" $ mempty
-    H.div H.! A.class_ "fixed bottom-[5vh] right-1/2 translate-x-1/2 border-2 border-primary bg-primary text-primary-content px-4 py-1 rounded-lg z-50" $ do
-      H.a H.! A.href "#all-answers" H.! A.class_ "hover:opacity-80" $ "backtoallanswersss"
     profileOrdinaryAorbs mAid aorbs maybeUuid
 
 profileAorb :: AorbWithAnswer -> Maybe AorbID -> Maybe [Int] -> Maybe T.Text -> H.Html
@@ -338,14 +294,14 @@ profileFullView mAid aorbs maybeUuid shareUrl = do
 
 profileSharer :: Maybe T.Text -> Maybe T.Text -> H.Html
 profileSharer maybeUuid shareUrl = case (maybeUuid, shareUrl) of
-  (Nothing, Just url) -> H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+  (Nothing, Just url) -> H.div $ do
     H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "share"
     H.div $ H.text url
   _ -> mempty
 
 accountManager :: Maybe T.Text -> H.Html
 accountManager maybeUuid = case maybeUuid of
-  Nothing -> H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+  Nothing -> H.div $ do
     H.div $ do
       H.a H.! A.href "/account" H.! A.class_ "link hover:text-primary transition-colors" $
         "manage my account"
@@ -353,7 +309,7 @@ accountManager maybeUuid = case maybeUuid of
 
 profileOrdinaryAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileOrdinaryAorbs mAid aorbs maybeUuid = do
-  H.div H.! A.id "aorbs-container" H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
+  H.div $ do
     Monad.forM_ (aorbWithAnswerWithOrders aorbs) $
       \(_, (awa, orders)) -> profileAorb awa mAid (Just orders) maybeUuid
 
@@ -391,13 +347,13 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
     H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
-  H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
-    H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+  H.body $ do
+    H.div $ do
       navBar [ NavLink "/" "home" False
-            , NavLink "/whoami" "whoami" False
-            , NavLink "/ans" "answer" True
-            , NavLink "/match" "match" False
-            ]
+             , NavLink "/whoami" "whoami" False
+             , NavLink "/ans" "answer" True
+             , NavLink "/match" "match" False
+             ]
       H.div H.! A.class_ "text-center p-8 text-base-content/60 italic" $
         H.toHtml (aorbCtx aorb)
       H.div H.! A.class_ "grid gap-20 p-4 max-w-4xl mx-auto w-4/5" $
@@ -434,8 +390,8 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token =
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
     H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
-  H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
-    H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+  H.body $ do
+    H.div $ do
       navBar [ NavLink "/" "home" False
             , NavLink "/whoami" "whoami" False
             , NavLink "/ans" "answer" True
@@ -496,9 +452,8 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
     H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
     H.title "match"
-  H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
-    H.span H.! A.id "top" $ ""
-    H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+  H.body $ do
+    H.div $ do
       navBar [ NavLink "/" "home" False
              , NavLink "/whoami" "whoami" False
              , NavLink "/ans" "answer" False
@@ -508,11 +463,9 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
       H.div H.! A.class_ "flex justify-center gap-4 flex-wrap" $ do
         H.a H.! A.href "/match/found" H.! A.class_ "link hover:text-primary transition-colors" $ "past"
         H.span H.! A.class_ "text-base-content/50" $ "|"
-        H.a H.! A.href "#today" H.! A.class_ "link hover:text-primary transition-colors" $ "present"
-        H.span H.! A.class_ "text-base-content/50" $ "|"
         H.a H.! A.href "/match/type" H.! A.class_ "link hover:text-primary transition-colors" $ "future"
     H.span H.! A.id "today" $ ""
-    H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+    H.div $ do
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "today"
       matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus
 
@@ -545,7 +498,7 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolle
         Nothing -> "soon"
       currentTimestamp = floor now
 
-  in H.div H.! A.class_ "flex flex-col gap-6 max-w-xl mx-auto text-center p-8" $ do
+  in H.div $ do
       case matchStatus of
         InProgress ->
           H.div H.! A.class_ "p-6 rounded-lg bg-base-200" $
@@ -615,20 +568,17 @@ matchTypeTemplate user = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
     H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
-  H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
-    H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+  H.body $ do
+    H.div $ do
       navBar [ NavLink "/match" "back" False ]
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "match type"
 
-      H.div H.! A.class_ "grid grid-cols-1 lg:grid-cols-3 gap-8 m-8 max-w-4xl" $ do
+      H.div $ do
         schemeCard PPPod (userAssoc user)
         schemeCard Swing (userAssoc user)
         schemeCard Bipolar (userAssoc user)
 
-      H.div $ do H.a H.! A.href "#explained" H.! A.class_ "link hover:text-primary transition-colors" $ "explain"
-
-    H.span H.! A.id "explained" $ ""
-    H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+    H.div $ do
       H.div H.! A.class_ "bg-base-200 p-8 rounded-lg max-w-2xl" $ do
         H.h2 H.! A.class_ "text-xl font-bold mb-4" $ "how it works"
         H.p H.! A.class_ "mb-4" $ "each type determines how you'll be matched with other users:"
@@ -687,13 +637,13 @@ matchFoundTemplate currentTimestamp expiryDays matchData = H.docTypeHtml $ H.htm
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
     H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
-  H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
-    H.div H.! A.class_ "min-h-[80vh] mt-[10vh]" $ do
+  H.body $ do
+    H.div $ do
       navBar [ NavLink "/match" "back" False ]
       H.h1 H.! A.class_ "text-2xl font-bold mb-4 text-center" $ "matches"
       if null matchData
-        then H.div H.! A.class_ "text-center p-8 bg-base-200 rounded-lg mx-auto max-w-xl" $ do
-          H.p "no matches found"
+        then do
+          H.h3 H.! A.class_ "text-center mb-8 text-base-content/70" $ "no matches found"
         else do
           H.h4 H.! A.class_ "text-center mb-8 text-base-content/70" $ "(agreement rate)"
           H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
@@ -755,55 +705,38 @@ matchProfileTemplate config days mainUserId _ view messages =
       H.link H.! A.rel "icon" H.! A.href "data:,"
       H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
       H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
-    H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
-      H.span H.! A.id "top" $ ""
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-        navBar [ NavLink (if days == 0 then "/match#today" else "/match/found") "back" False ]
+    H.body $ do
+      H.div $ do
+        navBar [ NavLink (if days == 0 then "/match" else "/match/found") "back" False ]
         H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "stats"
         H.div H.! A.class_ "grid grid-cols-2 gap-4 max-w-xl mx-auto w-full" $ do
           statsBox "matched on" (formatMatchDate (viewTimestamp view))
           statsBox "agreement rate" (formatPercent (viewAgreementRate view))
           statsBox "you answered" (T.pack $ show $ viewYourTotalAnswers view)
           statsBox "they answered" (T.pack $ show $ viewTargetTotalAnswers view)
-        H.div $ do
-          H.a H.! A.href "#agreement" H.! A.class_ "link hover:text-primary transition-colors" $ "begin"
 
-      H.span H.! A.id "agreement" $ ""
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+      H.div $ do
         H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "two and the truth is a majority"
         case viewTopAgreement view of
           Just mawa -> matchProfileAgreement mawa
           Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no agreements found"
-        H.div $ do
-          H.a H.! A.href "#spotlight" H.! A.class_ "link hover:text-primary transition-colors" $ "next"
 
-      H.span H.! A.id "spotlight" $ ""
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+      H.div $ do
         H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "their roman empire"
         case viewMainAorbs view of
           Just (_, theirMain) -> spotlightAorbSection mainUserId theirMain
           Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no main question found"
-        H.div $ do
-          H.a H.! A.href "#disagreement" H.! A.class_ "link hover:text-primary transition-colors" $ "next"
 
-      H.span H.! A.id "disagreement" $ ""
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+      H.div $ do
         H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "plz mend the rift"
         case viewTopDisagreement view of
           Just mawa -> matchProfileDisagreement mainUserId mawa
           Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no disagreements found"
-        H.div $ do
-          H.a H.! A.href "#messages" H.! A.class_ "link hover:text-primary transition-colors" $ "next"
 
-      H.span H.! A.id "messages" $ ""
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+      H.div $ do
         H.h1 H.! A.class_ "text-2xl font-bold mb-8" $ "head-to-head"
         renderMessages config days mainUserId messages
 
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-        H.h1 H.! A.class_ "text-2xl font-bold mb-8" $ "fin"
-        H.div $ do
-          H.a H.! A.href "#top" H.! A.class_ "link hover:text-primary transition-colors" $ "back to top"
   where
     statsBox :: T.Text -> T.Text -> H.Html
     statsBox label value =
@@ -1046,7 +979,7 @@ accountTemplate user = H.docTypeHtml $ H.html $ do
         H.h2 H.! A.class_ "text-2xl font-bold mb-4 pb-2 border-b border-base-300" $
           "account information"
         H.p H.! A.class_ "mb-4" $ do
-          H.text "Email: "
+          H.text "email: "
           H.toHtml $ userEmail user
         H.div H.! A.class_ "mt-12 p-4 border-2 border-error rounded-lg" $ do
           H.h3 H.! A.class_ "text-xl font-bold text-error mb-4" $
