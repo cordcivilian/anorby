@@ -2,10 +2,25 @@
 
 @config './tailwind.config.js';
 
-@plugin "daisyui" {
-  themes: light --default, dark --dim;
-}
-
 @theme {
   --font-sans: "Lucida Console", monospace;
+}
+
+@plugin "daisyui" {
+}
+
+@plugin "daisyui/theme" {
+  name: "corporate";
+  default: true;
+  prefersdark: false;
+  --color-primary: #0070ff;
+  --color-warning: #ff6600;
+}
+
+@plugin "daisyui/theme" {
+  name: "business";
+  default: false;
+  prefersdark: true;
+  --color-primary: #78b4fe;
+  --color-warning: #ff6600;
 }

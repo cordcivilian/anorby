@@ -52,7 +52,7 @@ navBar links = H.div H.! A.class_ "navbar bg-base-100 flex justify-center flex-w
 
 rootTemplate :: Int -> [Aorb] -> H.Html
 rootTemplate userCount' aorbs = H.docTypeHtml $
-  H.html H.! H.dataAttribute "theme" "light" $ do
+  H.html $ do
     H.head $ do
       H.link H.! A.rel "icon" H.! A.href "data:,"
       H.meta H.! A.name "viewport" H.!
@@ -66,12 +66,12 @@ rootTemplate userCount' aorbs = H.docTypeHtml $
                , NavLink "/ans" "answer" False
                , NavLink "/match" "match" False
                ]
-        H.div H.! A.class_ "prose prose-lg max-w-none" $ do
+        H.div H.! A.class_ "text-8xl max-w-none" $ do
           H.h1 H.! A.class_ "text-center" $ do
-            H.span H.! A.class_ "border-b-4 border-primary" $ "a"
+            H.span H.! A.class_ "border-b-6 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "a"
             H.text "n"
-            H.span H.! A.class_ "border-b-4 border-primary" $ "or"
-            H.span H.! A.class_ "border-b-4 border-primary" $ "b"
+            H.span H.! A.class_ "border-b-6 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "or"
+            H.span H.! A.class_ "border-b-6 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "b"
             H.text "y"
 
         H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "baseline_100"
@@ -171,7 +171,6 @@ profileHead maybeUuid = H.head $ do
       , ".percentage { @apply text-warning; }"
       , ".delta { @apply text-warning; }"
       , ".choice.selected { @apply text-warning; }"
-      , ".text-primary { color: orange; }"
       , ".aorb-clickable { pointer-events: none; cursor: default; }"
       , ".aorb-clickable:hover { transform: none; }"
       , ".aorb:hover { background-color: inherit; }"
@@ -211,7 +210,7 @@ profileMainAorb mAid aorbs maybeUuid =
     (Nothing, Nothing) -> do
       H.div $ do
         H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "main"
-        H.div H.! A.class_ "prose max-w-lg mx-auto text-center" $ do
+        H.div H.! A.class_ "max-w-lg mx-auto text-center" $ do
           H.p "you haven't selected your main question yet"
           H.p "pick from the answers below"
 
