@@ -50,6 +50,7 @@ initSQLitePragmas conn = do
   putStrLn "Initializing SQLite pragmas for performance optimization..."
   let pragmaSettings =
         [ "PRAGMA journal_mode = WAL"
+        , "PRAGMA encoding = 'UTF-8'"
         , "PRAGMA synchronous = NORMAL"
         , "PRAGMA busy_timeout = 5000"
         , "PRAGMA cache_size = -20000"
@@ -64,6 +65,7 @@ initSQLitePragmas conn = do
   putStrLn "Verifying SQLite settings:"
   let pragmas =
         [ "journal_mode"     -- TEXT
+        , "encoding"         -- TEXT
         , "synchronous"      -- INTEGER
         , "busy_timeout"     -- INTEGER
         , "cache_size"       -- INTEGER
@@ -77,6 +79,9 @@ initSQLitePragmas conn = do
     let query = SQL.Query $ "PRAGMA " <> T.pack pragma
     case pragma of
       "journal_mode" -> do
+        [SQL.Only value] <- SQL.query_ conn query :: IO [SQL.Only T.Text]
+        putStrLn $ pragma <> " = " <> T.unpack value
+      "encoding" -> do
         [SQL.Only value] <- SQL.query_ conn query :: IO [SQL.Only T.Text]
         putStrLn $ pragma <> " = " <> T.unpack value
       _ -> do

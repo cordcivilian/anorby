@@ -8,6 +8,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Encoding.Error as TEE
 import qualified Data.Text.IO as TIO
 import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Word as Word
@@ -288,7 +289,9 @@ application _ state request respond = do
 
     parseAnswerBody :: BSL.ByteString -> Maybe AnswerSubmission
     parseAnswerBody body = do
-      let params = HTTP.parseQueryText $ BSL.toStrict body
+      let params = HTTP.parseQueryText $ BSL.toStrict $
+            BSL.fromStrict $ TE.encodeUtf8 $
+              TE.decodeUtf8With TEE.lenientDecode $ BSL.toStrict body
       aorb <- Monad.join (lookup "aorb_id" params) >>=
         Read.readMaybe . T.unpack
       choice <- Monad.join (lookup "choice" params) >>=

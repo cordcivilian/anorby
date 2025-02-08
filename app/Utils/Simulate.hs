@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+ {-# LANGUAGE OverloadedStrings #-}
 
 module Utils.Simulate where
 
@@ -86,35 +86,58 @@ mockBaseAorbAnswers conn n = do
   ensureShadowUser conn
   putStrLn "Shadow user created."
 
-mockBaseAorbAnswersWithGaleShapley :: SQL.Connection -> Int -> IO ()
-mockBaseAorbAnswersWithGaleShapley conn n = do
+type MatchingAlgorithm = Rankings -> Rankings -> IO Marriages
+
+mockBaseAorbAnswersWithMatching :: SQL.Connection -> Int -> MatchingAlgorithm
+                                -> IO ()
+mockBaseAorbAnswersWithMatching conn n matchingAlgorithm = do
   mockBaseAorbAnswers conn n
-  putStrLn "Running Gale-Shapley matching..."
-  submissions <- baseAorbsToSubmissions conn
-  users <- getUsersWithCompletedAnswers conn
-  deprioritizationMap <- getRecentMatchMap conn users
-  let rankings = submissionsToRankings submissions deprioritizationMap
-  rankingsWithShadow <- addShadowUserIfNeeded conn rankings
-  let (group1Rankings, group2Rankings) = splitRankings rankingsWithShadow
-  marriages <- galeShapley group1Rankings group2Rankings
-  updateUnmatchedStatus conn marriages
-  insertMatches conn marriages
-  putStrLn "Mock data with Gale-Shapley matching complete."
+  putStrLn "Running matching backfill..."
+
+  now <- POSIXTime.getPOSIXTime
+  let currentTimestamp = floor now :: Integer
+      secondsPerDay = 86400
+      backfillDays = 14
+
+  Monad.forM_ [0..backfillDays-1] $ \daysAgo -> do
+    let dayTimestamp = currentTimestamp - (daysAgo * secondsPerDay)
+        startOfDay = (div dayTimestamp secondsPerDay) * secondsPerDay
+
+    putStrLn $ "Generating matches for " ++ show daysAgo ++ " days ago..."
+
+    submissions <- baseAorbsToSubmissions conn
+    users <- getUsersWithCompletedAnswers conn
+    deprioritizationMap <- getRecentMatchMap conn users
+    let rankings = submissionsToRankings submissions deprioritizationMap
+    rankingsWithShadow <- addShadowUserIfNeeded conn rankings
+    let (group1Rankings, group2Rankings) = splitRankings rankingsWithShadow
+    marriages <- matchingAlgorithm group1Rankings group2Rankings
+
+    let matches = marriagesToMatches (fromIntegral startOfDay) marriages
+    SQL.withTransaction conn $
+      SQL.executeMany conn
+        (SQL.Query $ T.unwords
+          [ "INSERT INTO matched"
+          , "(user_id, target_id, matched_on)"
+          , "VALUES (?, ?, ?)"
+          ]
+        ) matches
+
+    updateUnmatchedStatus conn marriages
+    putStrLn $ "Completed matches for day " ++ show daysAgo
+
+  putStrLn "Mock data with matching history complete."
+
+localSearchWithParams :: Rankings -> Rankings -> IO Marriages
+localSearchWithParams = \g1 g2 -> localSearch g1 g2 1000 1.0 5
+
+mockBaseAorbAnswersWithGaleShapley :: SQL.Connection -> Int -> IO ()
+mockBaseAorbAnswersWithGaleShapley conn n =
+  mockBaseAorbAnswersWithMatching conn n galeShapley
 
 mockBaseAorbAnswersWithLocalSearch :: SQL.Connection -> Int -> IO ()
-mockBaseAorbAnswersWithLocalSearch conn n = do
-  mockBaseAorbAnswers conn n
-  putStrLn "Running Local Search matching..."
-  submissions <- baseAorbsToSubmissions conn
-  users <- getUsersWithCompletedAnswers conn
-  deprioritizationMap <- getRecentMatchMap conn users
-  let rankings = submissionsToRankings submissions deprioritizationMap
-  rankingsWithShadow <- addShadowUserIfNeeded conn rankings
-  let (group1Rankings, group2Rankings) = splitRankings rankingsWithShadow
-  marriages <- localSearch group1Rankings group2Rankings 1000 1.0 5
-  updateUnmatchedStatus conn marriages
-  insertMatches conn marriages
-  putStrLn "Mock data with Local Search matching complete."
+mockBaseAorbAnswersWithLocalSearch conn n =
+  mockBaseAorbAnswersWithMatching conn n localSearchWithParams
 
 mockUsers :: SQL.Connection -> Int -> IO ()
 mockUsers conn n = do

@@ -7,9 +7,12 @@ import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Ord as Ord
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Encoding.Error as TEE
 import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Time.Format as DateTimeFormat
 import qualified Data.Word as Word
+import qualified Text.HTML.SanitizeXSS as XSS
 import qualified Text.Printf as Text
 
 import qualified Text.Blaze.Html5 as H
@@ -938,9 +941,11 @@ renderMessage uid msg = do
       messageClasses = if messageSenderId msg == uid
         then baseClasses <> "ml-auto border-2 border-primary"
         else baseClasses <> "mr-auto border-2 border-warning"
+      decodedContent = H.preEscapedToHtml $ XSS.sanitize $
+        TE.decodeUtf8With TEE.lenientDecode $ TE.encodeUtf8 $
+          messageContent msg
   H.div H.! A.class_ messageClasses $ do
-    H.div H.! A.class_ "message-content" $
-      H.toHtml $ messageContent msg
+    H.div H.! A.class_ "message-content" $ decodedContent
 
 -- | Auth Templates
 

@@ -10,6 +10,7 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Encoding.Error as TEE
 import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
@@ -418,7 +419,7 @@ matchProfileTemplateRoute config conn uid days _ = do
             }
       return $ Wai.responseLBS
         HTTP.status200
-        [(Headers.hContentType, BS.pack "text/html")]
+        [ (Headers.hContentType, "text/html; charset=utf-8") ]
         (R.renderHtml $
           matchProfileTemplate config days uid targetId matchView messages)
     [] -> return notFoundResponse
@@ -529,7 +530,7 @@ postMessageRoute config conn uid days req = do
   case lookup "new-message" params of
     Nothing -> return invalidSubmissionResponse
     Just contentBS -> do
-      let content = TE.decodeUtf8 contentBS
+      let content = TE.decodeUtf8With TEE.lenientDecode contentBS
       now <- POSIXTime.getPOSIXTime
       let startOfDay = floor (now / 86400) * 86400
           targetDay = startOfDay - (days * 86400)
