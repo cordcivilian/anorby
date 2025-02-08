@@ -2,7 +2,7 @@
   "name": "anorby",
   "version": "1.0.0",
   "scripts": {
-    "build": "tailwindcss -i ./src/input.css -o ./static/css/output.css -w"
+    "build": "tailwindcss -i ./styles/input.css -o ./styles/output.css -w"
   },
   "devDependencies": {
     "daisyui": "^5.0.0-beta.7",

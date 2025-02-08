@@ -57,7 +57,7 @@ rootTemplate userCount' aorbs = H.docTypeHtml $
       H.link H.! A.rel "icon" H.! A.href "data:,"
       H.meta H.! A.name "viewport" H.!
         A.content "width=device-width, initial-scale=1.0"
-      H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+      H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
       H.title "anorby"
     H.body $ do
       H.div $ do
@@ -88,7 +88,7 @@ roadmapTemplate _ = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
       A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
     H.title "roadmap"
   H.body $ do
     navBar [ NavLink "/" "back" False ]
@@ -149,7 +149,7 @@ profileTemplate aorbs mAid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
                 Nothing -> "whoami"
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
     H.style $ case maybeUuid of
                 Just _ -> "/* Shared view overrides */"
                 Nothing -> ""
@@ -164,7 +164,7 @@ profileHead maybeUuid = H.head $ do
     Nothing -> "whoami"
   H.link H.! A.rel "icon" H.! A.href "data:,"
   H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-  H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+  H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   case maybeUuid of
     Just _ -> H.style $ I.preEscapedText $ T.unlines
       [ "/* Shared view color overrides */"
@@ -345,7 +345,7 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
     H.title "answer"
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body $ do
     H.div $ do
       navBar [ NavLink "/" "home" False
@@ -388,7 +388,7 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token =
     H.title "answer"
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body $ do
     H.div $ do
       navBar [ NavLink "/" "home" False
@@ -449,7 +449,7 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
     H.title "match"
   H.body $ do
     H.div $ do
@@ -566,7 +566,7 @@ matchTypeTemplate user = H.docTypeHtml $ H.html $ do
     H.title "match type"
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body $ do
     H.div $ do
       navBar [ NavLink "/match" "back" False ]
@@ -635,7 +635,7 @@ matchFoundTemplate currentTimestamp expiryDays matchData = H.docTypeHtml $ H.htm
     H.title "matches"
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body $ do
     H.div $ do
       navBar [ NavLink "/match" "back" False ]
@@ -703,7 +703,7 @@ matchProfileTemplate config days mainUserId _ view messages =
       H.title "match profile"
       H.link H.! A.rel "icon" H.! A.href "data:,"
       H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-      H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+      H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
     H.body $ do
       H.div $ do
         navBar [ NavLink (if days == 0 then "/match" else "/match/found") "back" False ]
@@ -887,7 +887,7 @@ loginTemplate token = H.docTypeHtml $ H.html $ do
     H.title "login"
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       navBar [ NavLink "/" "home" False
@@ -915,7 +915,7 @@ registerTemplate token = H.docTypeHtml $ H.html $ do
     H.title "register"
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       navBar [ NavLink "/" "home" False
@@ -944,7 +944,7 @@ confirmTemplate title warning action token actionText cancelUrl =
       H.title $ H.toHtml title
       H.link H.! A.rel "icon" H.! A.href "data:,"
       H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-      H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+      H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
     H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
       H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
         H.form H.! A.method "POST" H.! A.action (H.textValue action) $ do
@@ -966,7 +966,7 @@ accountTemplate user = H.docTypeHtml $ H.html $ do
     H.title "account"
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       navBar [ NavLink "/" "home" False
@@ -1000,7 +1000,7 @@ msgTemplate template = H.docTypeHtml $ H.html $ do
     H.title $ H.toHtml $ messageTitle template
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ H.toHtml $ messageHeading template
