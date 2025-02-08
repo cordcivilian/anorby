@@ -6,7 +6,6 @@ license-file:       LICENSE
 author:             cordcivilian
 maintainer:         public@cordcivilian.com
 build-type:         Simple
-extra-doc-files:    README.md
 
 executable anorby
   hs-source-dirs:   app
