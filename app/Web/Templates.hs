@@ -59,8 +59,8 @@ rootTemplate userCount' aorbs = H.docTypeHtml $
         A.content "width=device-width, initial-scale=1.0"
       H.link H.! A.rel "stylesheet" H.! A.href "/static/css/output.css"
       H.title "anorby"
-    H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
-      H.div H.! A.class_ "container mx-auto px-4" $ do
+    H.body $ do
+      H.div $ do
         navBar [ NavLink "/" "home" True
                , NavLink "/whoami" "whoami" False
                , NavLink "/ans" "answer" False
