@@ -18,6 +18,8 @@ import qualified Text.Printf as Text
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 import qualified Text.Blaze.Internal as I
+-- import qualified Text.Blaze.Svg11 as S
+-- import qualified Text.Blaze.Svg11.Attributes as SA
 
 import Types
 import Web.Styles
@@ -47,6 +49,13 @@ navBar links = H.div H.! A.class_ "navbar bg-base-100 flex justify-center flex-w
             H.! A.href (H.textValue $ linkPath link) $
             H.toHtml $ linkText link
   withSeparators links
+  H.div H.! A.class_ "text-8xl max-w-none" $ do
+    H.h1 H.! A.class_ "text-center" $ do
+      H.span H.! A.class_ "border-b-10 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "a"
+      H.text "n"
+      H.span H.! A.class_ "border-b-10 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "or"
+      H.span H.! A.class_ "border-b-10 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "b"
+      H.text "y"
 
 -- | Core Templates
 
@@ -66,14 +75,6 @@ rootTemplate userCount' aorbs = H.docTypeHtml $
                , NavLink "/ans" "answer" False
                , NavLink "/match" "match" False
                ]
-        H.div H.! A.class_ "text-8xl max-w-none" $ do
-          H.h1 H.! A.class_ "text-center" $ do
-            H.span H.! A.class_ "border-b-6 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "a"
-            H.text "n"
-            H.span H.! A.class_ "border-b-6 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "or"
-            H.span H.! A.class_ "border-b-6 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "b"
-            H.text "y"
-
         H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "baseline_100"
         H.h4 H.! A.class_ "text-lg mb-6" $ "what is this... blah blah blah"
         H.a H.! A.href "/roadmap" H.! A.class_ "mb-8" $ do
@@ -496,24 +497,23 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolle
         Just rt -> formatTimeUntil now rt
         Nothing -> "soon"
       currentTimestamp = floor now
-
+      effectiveMatchStatus = if isBeforeCutoff || not isBeforeRelease
+                                then NotStarted
+                                else matchStatus
   in H.div $ do
-      case matchStatus of
+      case effectiveMatchStatus of
         InProgress ->
           H.div H.! A.class_ "p-6 rounded-lg bg-base-200" $
             H.text "matching in progress..."
-
         Failed err ->
           H.div H.! A.class_ "p-6 rounded-lg bg-base-200" $ do
             H.text "matching failed: "
             H.text (T.pack err)
-
         Completed ->
           Monad.when isBeforeRelease $
             H.div H.! A.class_ "p-6 rounded-lg bg-base-200" $ do
               H.text "matching completed"
-
-        _ -> do
+        NotStarted -> do
           Monad.when isBeforeRelease $
             H.div H.! A.class_ "p-6 rounded-lg bg-base-200 text-sm text-base-content/70" $
               H.text enrolledText
