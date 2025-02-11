@@ -80,18 +80,6 @@ rootTemplateRoute state conn _ = do
     [(Headers.hContentType, BS.pack "text/html")]
     (R.renderHtml $ rootTemplate totalActiveUsers aorbs)
 
-roadmapTemplateRoute :: SQL.Connection -> Wai.Request -> IO Wai.Response
-roadmapTemplateRoute conn _ = do
-  activeUsers <- SQL.query_ conn $ SQL.Query $ T.unwords
-    [ "SELECT COUNT(DISTINCT user_id) FROM aorb_answers"
-    , "WHERE user_id != -1"
-    ] :: IO [SQL.Only Int]
-  let totalActiveUsers = maybe 0 SQL.fromOnly (Maybe.listToMaybe activeUsers)
-  return $ Wai.responseLBS
-    HTTP.status200
-    [(Headers.hContentType, BS.pack "text/html")]
-    (R.renderHtml $ roadmapTemplate totalActiveUsers)
-
 profileTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
                      -> IO Wai.Response
 profileTemplateRoute config conn uid _ = do

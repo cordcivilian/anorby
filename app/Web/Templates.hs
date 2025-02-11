@@ -75,34 +75,8 @@ rootTemplate userCount' aorbs = H.docTypeHtml $
                , NavLink "/ans" "answer" False
                , NavLink "/match" "match" False
                ]
-        H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "baseline_100"
-        H.h4 H.! A.class_ "text-lg mb-6" $ "what is this... blah blah blah"
-        H.a H.! A.href "/roadmap" H.! A.class_ "mb-8" $ do
-          H.h4 H.! A.class_ "text-lg" $
-            H.text $ T.pack $ "# of responses: " ++ show userCount'
-
+        H.h4 H.! A.class_ "text-lg" $ H.text $ T.pack $ "# of responses: " ++ show userCount'
         publicAorbs aorbs
-
-roadmapTemplate :: Int -> H.Html
-roadmapTemplate _ = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.!
-      A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
-    H.title "roadmap"
-  H.body $ do
-    navBar [ NavLink "/" "back" False ]
-    H.h1 "roadmap"
-    H.div H.! A.class_ "flex items-center justify-center" $ do
-      H.ul H.! A.class_ "steps steps-vertical" $ do
-        H.li H.! A.class_ "step step-primary" H.! H.dataAttribute "content" "+" $ "100"
-        H.li H.! A.class_ "step step-primary" H.! H.dataAttribute "content" "+" $ "500"
-        H.li H.! A.class_ "step" H.! H.dataAttribute "content" "?" $ "1000"
-        H.li H.! A.class_ "step" H.! H.dataAttribute "content" "?" $ "5000"
-        H.li H.! A.class_ "step" H.! H.dataAttribute "content" "?" $ "10000"
-        H.li H.! A.class_ "step" H.! H.dataAttribute "content" "?" $ "20000"
-        H.li H.! A.class_ "step" H.! H.dataAttribute "content" "?" $ "30000"
 
 publicAorbs :: [Aorb] -> H.Html
 publicAorbs aorbs = do

@@ -138,7 +138,6 @@ routePublic state (method, path) conn req =
     ("GET", p) | isStylesPath p -> do
       serveStaticFile p
     ("GET", "/") -> rootTemplateRoute state conn req
-    ("GET", "/roadmap") -> roadmapTemplateRoute conn req
     ("GET", p) | isSharePath p ->
       sharedProfileTemplateRoute conn (extractUuid p) req
     _ -> return notFoundResponse
@@ -230,7 +229,6 @@ application _ state request respond = do
 
     ("GET", "/styles/output.css") -> handlePublicRoute route
     ("GET", "/") -> handlePublicRoute route
-    ("GET", "/roadmap") -> handlePublicRoute route
 
     ("GET", "/login") -> handleAuthRoute route
     ("POST", "/login") -> handleAuthRoute route
