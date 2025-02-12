@@ -31,46 +31,37 @@ import Utils.MatchState
 -- | Navigation Components
 
 navBar :: [NavLink] -> H.Html
-navBar links = H.div H.! A.class_ "navbar bg-base-100 flex justify-center flex-wrap gap-4" $ do
-  let separator = H.span H.! A.class_ "text-base-content/50" $ "///"
-      withSeparators [] = return ()
-      withSeparators [x] = navLink x
-      withSeparators (x:xs) = H.div H.! A.class_ "flex items-center gap-4" $ do
-        navLink x
-        separator
-        withSeparators xs
-      navLink link =
-        if linkActive link
-          then H.span
-            H.! A.class_ "text-primary font-medium" $
+navBar links = do
+  let navLink link = if linkActive link
+          then H.span H.! A.class_ "text-primary font-medium" $
             H.toHtml $ linkText link
-          else H.a
-            H.! A.class_ "link hover:text-primary transition-colors"
+          else H.a H.! A.class_ "link hover:text-primary transition-colors"
             H.! A.href (H.textValue $ linkPath link) $
             H.toHtml $ linkText link
-  withSeparators links
-  H.div H.! A.class_ "text-8xl max-w-none" $ do
-    H.h1 H.! A.class_ "text-center" $ do
-      H.span H.! A.class_ "border-b-10 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "a"
-      H.text "n"
-      H.span H.! A.class_ "border-b-10 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "or"
-      H.span H.! A.class_ "border-b-10 border-primary inline-block leading-[0.85] px-[3px] mx-[3px] -mb-[3px]" $ "b"
-      H.text "y"
+  H.div H.! A.class_ "ds-navbar" $ do
+    H.div H.! A.class_ "ds-navbar-start" $ do
+      mapM_ navLink links
+    H.div $ H.a H.! A.class_ "ds-navbar-center" H.! A.href "/" $ do
+      H.span H.! A.class_ "border-b-3 border-primary inline-block leading-[0.85] mx-[3px]" $ "a"
+      H.span H.! A.class_ "border-b-3 border-transparent inline-block" $ "n"
+      H.span H.! A.class_ "border-b-3 border-secondary inline-block leading-[0.85] mx-[3px]" $ "or"
+      H.span H.! A.class_ "border-b-3 border-primary inline-block leading-[0.85] mx-[3px]" $ "b"
+      H.span H.! A.class_ "border-b-3 border-transparent inline-block" $ "y"
+    H.div H.! A.class_ "ds-navbar-end" $ ""
 
 -- | Core Templates
---
+
 adminTemplate :: H.Html
 adminTemplate = H.docTypeHtml $ H.html $ do
   H.head $ do
-    H.title "admin"
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
       A.content "width=device-width, initial-scale=1.0"
     H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+    H.title "admin"
   H.body $ do
     H.div $ do
-      navBar [ NavLink "/" "home" False
-             , NavLink "/admin" "admin" True
+      navBar [ NavLink "/admin" "admin" True
              ]
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "admin"
 
@@ -85,8 +76,7 @@ rootTemplate userCount' aorbs = H.docTypeHtml $
       H.title "anorby"
     H.body $ do
       H.div $ do
-        navBar [ NavLink "/" "home" True
-               , NavLink "/whoami" "whoami" False
+        navBar [ NavLink "/whoami" "whoami" False
                , NavLink "/ans" "answer" False
                , NavLink "/match" "match" False
                ]
@@ -169,13 +159,11 @@ profileHead maybeUuid = H.head $ do
 
 profileHeadline :: Maybe T.Text -> H.Html -> H.Html
 profileHeadline maybeUuid children = do
-  H.span H.! A.id "top" $ ""
   H.div $ do
-    navBar [ NavLink "/" "home" False
-      , NavLink "/whoami" "whoami" (Maybe.isNothing maybeUuid)
-      , NavLink "/ans" "answer" False
-      , NavLink "/match" "match" False
-      ]
+    navBar [ NavLink "/whoami" "whoami" (Maybe.isNothing maybeUuid)
+           , NavLink "/ans" "answer" False
+           , NavLink "/match" "match" False
+           ]
     H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ case maybeUuid of
       Just uuid -> H.text $ "#" <> uuid
       Nothing -> "whoami"
@@ -274,7 +262,6 @@ profileAorb awa mFavoriteId mOrders maybeUuid = do
 profileFullView :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> Maybe T.Text -> H.Html
 profileFullView mAid aorbs maybeUuid shareUrl = do
   profileMainAorb mAid aorbs maybeUuid
-  Monad.when (Maybe.isNothing mAid) $ H.span H.! A.id "main" $ ""
   profileCommonplaceAorbs mAid aorbs maybeUuid
   profileControversialAorbs mAid aorbs maybeUuid
   profileAllAnswers mAid aorbs maybeUuid
@@ -338,8 +325,7 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body $ do
     H.div $ do
-      navBar [ NavLink "/" "home" False
-             , NavLink "/whoami" "whoami" False
+      navBar [ NavLink "/whoami" "whoami" False
              , NavLink "/ans" "answer" True
              , NavLink "/match" "match" False
              ]
@@ -381,11 +367,10 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token =
     H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body $ do
     H.div $ do
-      navBar [ NavLink "/" "home" False
-            , NavLink "/whoami" "whoami" False
-            , NavLink "/ans" "answer" True
-            , NavLink "/match" "match" False
-            ]
+      navBar [ NavLink "/whoami" "whoami" False
+             , NavLink "/ans" "answer" True
+             , NavLink "/match" "match" False
+             ]
       H.div H.! A.class_ "text-center p-8 text-base-content/60 italic" $
         H.toHtml (aorbCtx aorb)
       H.div H.! A.class_ "grid gap-20 p-4 max-w-4xl mx-auto w-4/5" $ do
@@ -438,13 +423,13 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
   H.docTypeHtml $ H.html $ do
   H.head $ do
     H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
     H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
     H.title "match"
   H.body $ do
     H.div $ do
-      navBar [ NavLink "/" "home" False
-             , NavLink "/whoami" "whoami" False
+      navBar [ NavLink "/whoami" "whoami" False
              , NavLink "/ans" "answer" False
              , NavLink "/match" "match" True
              ]
@@ -453,8 +438,6 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
         H.a H.! A.href "/match/found" H.! A.class_ "link hover:text-primary transition-colors" $ "past"
         H.span H.! A.class_ "text-base-content/50" $ "|"
         H.a H.! A.href "/match/type" H.! A.class_ "link hover:text-primary transition-colors" $ "future"
-    H.span H.! A.id "today" $ ""
-    H.div $ do
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "today"
       matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus
 
@@ -879,10 +862,9 @@ loginTemplate token = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-      navBar [ NavLink "/" "home" False
-            , NavLink "/login" "login" True
-            , NavLink "/register" "register" False
-            ]
+      navBar [ NavLink "/login" "login" True
+             , NavLink "/register" "register" False
+             ]
       H.div H.! A.class_ "w-full max-w-sm mx-auto" $ do
         H.form H.! A.class_ "flex flex-col gap-4"
           H.! A.method "POST" H.! A.action "/login" $ do
@@ -907,10 +889,9 @@ registerTemplate token = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-      navBar [ NavLink "/" "home" False
-            , NavLink "/login" "login" False
-            , NavLink "/register" "register" True
-            ]
+      navBar [ NavLink "/login" "login" False
+             , NavLink "/register" "register" True
+             ]
       H.div H.! A.class_ "w-full max-w-sm mx-auto" $ do
         H.form H.! A.class_ "flex flex-col gap-4"
           H.! A.method "POST" H.! A.action "/register" $ do
@@ -958,11 +939,10 @@ accountTemplate user = H.docTypeHtml $ H.html $ do
     H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-      navBar [ NavLink "/" "home" False
-            , NavLink "/whoami" "whoami" False
-            , NavLink "/ans" "answer" False
-            , NavLink "/match" "match" False
-            ]
+      navBar [ NavLink "/whoami" "whoami" False
+             , NavLink "/ans" "answer" False
+             , NavLink "/match" "match" False
+             ]
       H.div H.! A.class_ "w-full max-w-xl mx-auto" $ do
         H.h2 H.! A.class_ "text-2xl font-bold mb-4 pb-2 border-b border-base-300" $
           "account information"
