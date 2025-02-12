@@ -164,6 +164,7 @@ routeProtected
 routeProtected config state (method, path) conn uid req =
   case (method, path) of
 
+  ("GET", "/admin") | uid == shadowUserId -> adminTemplateRoute conn uid req
   ("GET", "/whoami") -> profileTemplateRoute config conn uid req
   ("GET", "/account") -> accountTemplateRoute conn uid req
 
@@ -237,6 +238,7 @@ application _ state request respond = do
     ("GET", p) | isAuthHashPath p -> handleAuthRoute route
 
     ("GET", p) | isSharePath p -> handlePublicRoute route
+    ("GET", "/admin") -> handleProtectedRoute route
     ("GET", "/whoami") -> handleProtectedRoute route
     ("GET", "/account") -> handleProtectedRoute route
 

@@ -80,6 +80,13 @@ rootTemplateRoute state conn _ = do
     [(Headers.hContentType, BS.pack "text/html")]
     (R.renderHtml $ rootTemplate totalActiveUsers aorbs)
 
+adminTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+adminTemplateRoute _ _ _ = do
+  return $ Wai.responseLBS
+    HTTP.status200
+    [(Headers.hContentType, BS.pack "text/html")]
+    (R.renderHtml $ adminTemplate)
+
 profileTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
                      -> IO Wai.Response
 profileTemplateRoute config conn uid _ = do

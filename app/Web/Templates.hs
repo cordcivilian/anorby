@@ -58,6 +58,21 @@ navBar links = H.div H.! A.class_ "navbar bg-base-100 flex justify-center flex-w
       H.text "y"
 
 -- | Core Templates
+--
+adminTemplate :: H.Html
+adminTemplate = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "admin"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+  H.body $ do
+    H.div $ do
+      navBar [ NavLink "/" "home" False
+             , NavLink "/admin" "admin" True
+             ]
+      H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "admin"
 
 rootTemplate :: Int -> [Aorb] -> H.Html
 rootTemplate userCount' aorbs = H.docTypeHtml $
