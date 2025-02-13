@@ -5,6 +5,8 @@ module Web.Server where
 import qualified Control.Monad as Monad
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.List as List
+import qualified Data.Maybe as Maybe
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -33,22 +35,7 @@ import Web.Handlers
 import Core.RollingShadow
 import Types
 
-type Route = (BS.ByteString, BS.ByteString)
-
-data AnswerSubmission = AnswerSubmission
-  { submissionAorbId :: AorbID
-  , submissionChoice :: Word.Word8
-  , submissionToken :: T.Text
-  }
-
-type PublicRouteHandler =
-  Route -> SQL.Connection -> Wai.Request -> IO Wai.Response
-
-type ProtectedRouteHandler =
-  Route -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-
-type AuthRouteHandler =
-  Route -> SQL.Connection -> Wai.Request -> IO Wai.Response
+-- | Server Runners
 
 runServer :: IO ()
 runServer = do
@@ -73,6 +60,8 @@ initAppState config = do
 
 getServerPort :: IO Int
 getServerPort = maybe 5001 read <$> Env.lookupEnv "PORT"
+
+-- | Database Runners
 
 initDatabasePool :: Config -> IO (Pool.Pool SQL.Connection)
 initDatabasePool config = do
@@ -130,233 +119,245 @@ initLocalSearchTestDb config dbExists = do
     SQL.close conn
   initPool (dbPath config)
 
-routePublic
-  :: AppState -> Route -> SQL.Connection -> Wai.Request
-  -> IO Wai.Response
-routePublic state (method, path) conn req =
-  case (method, path) of
-    ("GET", p) | isStylesPath p -> do
-      serveStaticFile p
-    ("GET", "/") -> rootTemplateRoute state conn req
-    ("GET", p) | isSharePath p ->
-      sharedProfileTemplateRoute conn (extractUuid p) req
-    _ -> return notFoundResponse
+-- | Routing
+
+pathMatches :: BS.ByteString -> BS.ByteString -> Bool
+pathMatches pattern path =
+  let patternParts = BS.split '/' pattern
+      pathParts = BS.split '/' path
+  in length patternParts == length pathParts &&
+     and (zipWith matchPart patternParts pathParts)
   where
-    isSharePath = BS.isPrefixOf "/share/"
-    isStylesPath = BS.isPrefixOf "/styles/"
-    extractUuid = T.pack . BS.unpack . BS.drop 7
+    matchPart p1 p2
+      | BS.isPrefixOf "t-:" p1 = True
+      | BS.elem ':' p1 = True
+      | otherwise = p1 == p2
 
-routeAuth :: Route -> SQL.Connection -> Wai.Request -> IO Wai.Response
-routeAuth (method, path) conn req = case (method, path) of
-  ("GET", "/login") -> loginGetRoute conn req
-  ("POST", "/login") -> loginPostRoute conn req
-  ("GET", "/register") -> registerGetRoute conn req
-  ("POST", "/register") -> registerPostRoute conn req
-  ("GET", p) | isAuthPath p -> authHashRoute conn (extractHash p) req
-  _ -> return notFoundResponse
-  where
-    isAuthPath = BS.isPrefixOf "/auth/"
-    extractHash = T.pack . BS.unpack . BS.drop 6
+extractParam :: BS.ByteString -> BS.ByteString -> BS.ByteString -> Maybe BS.ByteString
+extractParam pattern path paramName =
+  let patternParts = BS.split '/' pattern
+      pathParts = BS.split '/' path
+      findParam p1 p2
+        | BS.isPrefixOf "t-:" p1 = Just (BS.drop 2 p2)
+        | BS.pack (':' : BS.unpack paramName) == p1 = Just p2
+        | otherwise = Nothing
+  in Maybe.listToMaybe $ Maybe.catMaybes $ zipWith findParam patternParts pathParts
 
-routeProtected
-  :: Config -> AppState -> Route -> SQL.Connection -> UserID -> Wai.Request
-  -> IO Wai.Response
-routeProtected config state (method, path) conn uid req =
-  case (method, path) of
+data Route = Route
+  { routeMethod :: BS.ByteString
+  , routePath :: BS.ByteString
+  , routeHandler :: RouteHandler
+  }
 
-  ("GET", "/admin") | uid == shadowUserId -> adminTemplateRoute conn uid req
-  ("POST", "/admin/aorb/add") -> handleAddAorb config conn uid req
-  ("GET", p) | isEditAorbPath p -> handleEditAorbForm config conn uid (extractAdminAorbId p) req
-  ("POST", p) | isEditAorbPath p -> handleEditAorb config conn uid (extractAdminAorbId p) req
-  ("POST", p) | isDeleteAorbPath p -> handleDeleteAorb config conn uid (extractAdminAorbId p) req
+routes :: [Route]
+routes =
+  -- Public routes
+  [ Route "GET" "/styles/output.css" $ PublicHandler $ \_ _ _->
+      serveStaticFile "/styles/output.css"
+  , Route "GET" "/" $ PublicHandler rootTemplateRoute
+  , Route "GET" "/share/:uuid" $ PublicHandler $ \_ conn req ->
+      case extractParam "/share/:uuid" (Wai.rawPathInfo req) ":uuid" of
+        Just uuid -> sharedProfileTemplateRoute conn (T.pack $ BS.unpack uuid) req
+        Nothing -> return notFoundResponse
 
-  ("GET", "/whoami") -> profileTemplateRoute config conn uid req
-  ("GET", "/account") -> accountTemplateRoute conn uid req
+  -- Auth routes
+  , Route "GET" "/login" $ AuthHandler loginGetRoute
+  , Route "POST" "/login" $ AuthHandler loginPostRoute
+  , Route "GET" "/register" $ AuthHandler registerGetRoute
+  , Route "POST" "/register" $ AuthHandler registerPostRoute
+  , Route "GET" "/auth/:hash" $ AuthHandler $ \conn req ->
+      case extractParam "/auth/:hash" (Wai.rawPathInfo req) ":hash" of
+        Just hash -> authHashRoute conn (T.pack $ BS.unpack hash) req
+        Nothing -> return notFoundResponse
 
-  ("GET", "/ans") -> ansTemplateRoute conn uid req
-  ("GET", p) | isAorbPath p -> existingAnswerTemplateRoute conn uid (extractAorbId p) req
-  ("POST", p) | isFavoritePath p -> setFavoriteAorbRoute conn uid (extractFavoriteAorbId p) req
+  -- Admin routes (protected)
+  , Route "GET" "/admin" $ ProtectedHandler $ \_ _ conn uid req ->
+      adminTemplateRoute conn uid req
+  , Route "POST" "/admin/aorb/add" $ ProtectedHandler $ \config _ conn uid req ->
+      handleAddAorb config conn uid req
+  , Route "GET" "/admin/aorb/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/admin/aorb/:id/edit" (Wai.rawPathInfo req) ":id" of
+        Just idBS -> case reads (BS.unpack idBS) of
+          [(id', "")] -> handleEditAorbForm config conn uid id' req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
+  , Route "POST" "/admin/aorb/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/admin/aorb/:id/edit" (Wai.rawPathInfo req) ":id" of
+        Just idBS -> case reads (BS.unpack idBS) of
+          [(id', "")] -> handleEditAorb config conn uid id' req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
+  , Route "POST" "/admin/aorb/:id/delete" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/admin/aorb/:id/delete" (Wai.rawPathInfo req) ":id" of
+        Just idBS -> case reads (BS.unpack idBS) of
+          [(id', "")] -> handleDeleteAorb config conn uid id' req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
 
-  ("GET", "/match") -> matchTemplateRoute config state conn uid req
-  ("GET", "/match/type") -> matchTypeTemplateRoute config conn uid req
-  ("POST", "/match/type") -> matchTypeUpdateRoute config conn uid req
-  ("GET", "/match/found") -> matchFoundTemplateRoute config conn uid req
-  ("GET", p) | isMatchDaysPath p -> matchProfileTemplateRoute config conn uid (extractDays p) req
-  ("POST", p) | isMatchMessagePath p -> postMessageRoute config conn uid (extractDays p) req
+  -- User routes (protected)
+  , Route "GET" "/whoami" $ ProtectedHandler $ \config _ conn uid req ->
+      profileTemplateRoute config conn uid req
+  , Route "GET" "/account" $ ProtectedHandler $ \_ _ conn uid req ->
+      accountTemplateRoute conn uid req
 
-  ("GET", "/logout") -> logoutGetRoute conn uid req
-  ("GET", "/logout/confirm") -> logoutConfirmRoute conn uid req
-  ("POST", "/logout/confirm") -> logoutConfirmPostRoute conn uid req
-  ("GET", "/delete") -> deleteGetRoute conn uid req
-  ("GET", "/delete/confirm") -> deleteConfirmRoute conn uid req
-  ("POST", "/delete/confirm") -> deleteConfirmPostRoute conn uid req
+  -- Answer routes (protected)
+  , Route "GET" "/ans" $ ProtectedHandler $ \_ _ conn uid req ->
+      ansTemplateRoute conn uid req
+  , Route "GET" "/ans/:id" $ ProtectedHandler $ \_ _ conn uid req ->
+      case extractParam "/ans/:id" (Wai.rawPathInfo req) ":id" of
+        Just idBS -> case reads (BS.unpack idBS) of
+          [(id', "")] -> existingAnswerTemplateRoute conn uid id' req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
+  , Route "POST" "/ans/submit" $ ProtectedHandler $ \_ state conn uid req ->
+      handleAnswerSubmission state conn uid req
+  , Route "POST" "/ans/edit" $ ProtectedHandler $ \_ state conn uid req ->
+      handleAnswerEdit state conn uid req
+  , Route "POST" "/aorb/favorite/:id" $ ProtectedHandler $ \_ _ conn uid req ->
+      case extractParam "/aorb/favorite/:id" (Wai.rawPathInfo req) ":id" of
+        Just idBS -> case reads (BS.unpack idBS) of
+          [(id', "")] -> setFavoriteAorbRoute conn uid id' req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
 
-  _ -> return notFoundResponse
-  where
-    isAorbPath = BS.isPrefixOf "/ans/"
-    isFavoritePath = BS.isPrefixOf "/aorb/favorite/"
-    isMatchDaysPath = BS.isPrefixOf "/match/found/t-"
-    isMatchMessagePath p = BS.isPrefixOf "/match/found/t-" p && BS.isSuffixOf "/message" p
-    isEditAorbPath p = BS.isPrefixOf "/admin/aorb/" p && BS.isSuffixOf "/edit" p
-    isDeleteAorbPath p = BS.isPrefixOf "/admin/aorb/" p && BS.isSuffixOf "/delete" p
+  -- Match routes (protected)
+  , Route "GET" "/match" $ ProtectedHandler $ \config state conn uid req ->
+      matchTemplateRoute config state conn uid req
+  , Route "GET" "/match/type" $ ProtectedHandler $ \config _ conn uid req ->
+      matchTypeTemplateRoute config conn uid req
+  , Route "POST" "/match/type" $ ProtectedHandler $ \config _ conn uid req ->
+      matchTypeUpdateRoute config conn uid req
+  , Route "GET" "/match/found" $ ProtectedHandler $ \config _ conn uid req ->
+      matchFoundTemplateRoute config conn uid req
+  , Route "GET" "/match/found/t-:days" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/match/found/t-:days" (Wai.rawPathInfo req) ":days" of
+        Just daysBS -> case reads (BS.unpack daysBS) of
+          [(days, "")] -> matchProfileTemplateRoute config conn uid days req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
+  , Route "POST" "/match/found/t-:days/message" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/match/found/t-:days/message" (Wai.rawPathInfo req) ":days" of
+        Just daysBS -> case reads (BS.unpack daysBS) of
+          [(days, "")] -> postMessageRoute config conn uid days req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
 
-    extractAorbId p = read . BS.unpack . BS.drop 5 $ p
+  -- Account management routes (protected)
+  , Route "GET" "/logout" $ ProtectedHandler $ \_ _ conn uid req ->
+      logoutGetRoute conn uid req
+  , Route "GET" "/logout/confirm" $ ProtectedHandler $ \_ _ conn uid req ->
+      logoutConfirmRoute conn uid req
+  , Route "POST" "/logout/confirm" $ ProtectedHandler $ \_ _ conn uid req ->
+      logoutConfirmPostRoute conn uid req
+  , Route "GET" "/delete" $ ProtectedHandler $ \_ _ conn uid req ->
+      deleteGetRoute conn uid req
+  , Route "GET" "/delete/confirm" $ ProtectedHandler $ \_ _ conn uid req ->
+      deleteConfirmRoute conn uid req
+  , Route "POST" "/delete/confirm" $ ProtectedHandler $ \_ _ conn uid req ->
+      deleteConfirmPostRoute conn uid req
+  ]
 
-    extractAdminAorbId :: BS.ByteString -> AorbID
-    extractAdminAorbId p =
-      let parts = BS.split '/' p
-          idPart = if length parts >= 4 then parts !! 3 else "0"
-      in case reads (BS.unpack idPart) of
-           [(n, "")] -> n
-           _ -> 0
-    extractFavoriteAorbId p = read . BS.unpack . BS.drop 15 $ p
-
-    extractDays p =
-      let base = BS.drop 15 p
-          days = if BS.isSuffixOf "/message" base
-                    then BS.take (BS.length base - 8) base
-                    else base
-      in read . BS.unpack $ days
+-- | Server
 
 monolith :: AppState -> Wai.Application
 monolith state = Mid.logStdout $ application TIO.putStrLn state
+
+data RouteHandler
+  = PublicHandler (AppState -> SQL.Connection -> Wai.Request -> IO Wai.Response)
+  | ProtectedHandler (Config -> AppState -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response)
+  | AuthHandler (SQL.Connection -> Wai.Request -> IO Wai.Response)
 
 application :: Logger -> AppState -> Wai.Application
 application _ state request respond = do
   config <- getConfig
   checkAndTriggerMatching state config
 
-  _ <- Wai.lazyRequestBody request
-
   let method = Wai.requestMethod request
       path = Wai.rawPathInfo request
-      route = (method, path)
-      handleAuthRoute r = runHandlerWithConn $ routeAuth r
-      handlePublicRoute r = runHandlerWithConn $ routePublic state r
-      handleProtectedRoute r =
-        runProtectedHandlerWithConn $ routeProtected config state r
 
-  case route of
+      matchingRoute =
+        List.find
+          (\r -> routeMethod r == method && pathMatches (routePath r) path)
+          routes
 
-    ("GET", "/styles/output.css") -> handlePublicRoute route
-    ("GET", "/") -> handlePublicRoute route
+  case matchingRoute of
+    Nothing -> respond notFoundResponse
+    Just route -> case routeHandler route of
+      PublicHandler h ->
+        Pool.withResource (appPool state) (\conn -> h state conn request) >>= respond
 
-    ("GET", "/login") -> handleAuthRoute route
-    ("POST", "/login") -> handleAuthRoute route
-    ("GET", "/register") -> handleAuthRoute route
-    ("POST", "/register") -> handleAuthRoute route
-    ("GET", p) | isAuthHashPath p -> handleAuthRoute route
+      AuthHandler h ->
+        Pool.withResource (appPool state) (\conn -> h conn request) >>= respond
 
-    ("GET", "/admin") -> handleProtectedRoute route
-    ("POST", "/admin/aorb/add") -> handleProtectedRoute route
-    ("GET", p) | isEditAorbPath p -> handleProtectedRoute route
-    ("POST", p) | isEditAorbPath p -> handleProtectedRoute route
-    ("POST", p) | isDeleteAorbPath p -> handleProtectedRoute route
+      ProtectedHandler h ->
+        Pool.withResource (appPool state) (\conn -> do
+          maybeUser <- getAuthenticatedUser conn request
+          case maybeUser of
+            Nothing -> return redirectToLogin
+            Just user -> do
+              updateLastAccessed conn request
+              h config state conn (userId user) request
+        ) >>= respond
 
-    ("GET", p) | isSharePath p -> handlePublicRoute route
-    ("GET", "/whoami") -> handleProtectedRoute route
-    ("GET", "/account") -> handleProtectedRoute route
+data AnswerSubmission = AnswerSubmission
+  { submissionAorbId :: AorbID
+  , submissionChoice :: Word.Word8
+  , submissionToken :: T.Text
+  }
 
-    ("GET", "/ans") -> handleProtectedRoute route
-    ("GET", p) | isAorbPath p -> handleProtectedRoute route
-    ("POST", "/ans/submit") -> handleAnswerSubmission
-    ("POST", "/ans/edit") -> handleAnswerEdit
-    ("POST", p) | isFavoriteAorbPath p -> handleProtectedRoute route
+parseAnswerBody :: BSL.ByteString -> Maybe AnswerSubmission
+parseAnswerBody body = do
+  let params = HTTP.parseQueryText $ BSL.toStrict $
+        BSL.fromStrict $ TE.encodeUtf8 $
+          TE.decodeUtf8With TEE.lenientDecode $ BSL.toStrict body
+  aorb <- Monad.join (lookup "aorb_id" params) >>=
+    Read.readMaybe . T.unpack
+  choice <- Monad.join (lookup "choice" params) >>=
+    Read.readMaybe . T.unpack
+  token <- Monad.join (lookup "token" params)
+  return AnswerSubmission
+    { submissionAorbId = aorb
+    , submissionChoice = choice
+    , submissionToken = token
+    }
 
-    ("GET", "/match") -> handleProtectedRoute route
-    ("GET", "/match/type") -> handleProtectedRoute route
-    ("POST", "/match/type") -> handleProtectedRoute route
-    ("GET", "/match/found") -> handleProtectedRoute route
-    ("GET", p) | isMatchDaysPath p -> handleProtectedRoute route
-    ("POST", p) | isMatchMessagePath p -> handleProtectedRoute route
+routeAnswerSubmit :: AnswerSubmission -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+routeAnswerSubmit submission conn uid req =
+  submitAnswerRoute conn uid
+    (submissionAorbId submission)
+    (AorbAnswer $ submissionChoice submission)
+    (submissionToken submission)
+    req
 
-    ("GET", "/logout") -> handleProtectedRoute route
-    ("GET", "/logout/confirm") -> handleProtectedRoute route
-    ("POST", "/logout/confirm") -> handleProtectedRoute route
-    ("GET", "/delete") -> handleProtectedRoute route
-    ("GET", "/delete/confirm") -> handleProtectedRoute route
-    ("POST", "/delete/confirm") -> handleProtectedRoute route
+routeAnswerEdit :: AnswerSubmission -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+routeAnswerEdit submission conn uid req =
+  editAnswerRoute conn uid
+    (submissionAorbId submission)
+    (AorbAnswer $ submissionChoice submission)
+    (submissionToken submission)
+    req
 
-    _ -> respond notFoundResponse
+handleAnswerSubmission :: AppState -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+handleAnswerSubmission _ conn uid req = do
+  body <- Wai.strictRequestBody req
+  case parseAnswerBody body of
+    Just submission -> routeAnswerSubmit submission conn uid req
+    Nothing -> return invalidSubmissionResponse
 
-  where
-    isAuthHashPath = BS.isPrefixOf "/auth/"
-    isSharePath = BS.isPrefixOf "/share/"
-    isAorbPath = BS.isPrefixOf "/ans/"
-    isFavoriteAorbPath = BS.isPrefixOf "/aorb/favorite/"
-    isMatchDaysPath = BS.isPrefixOf "/match/found/t-"
-    isMatchMessagePath p = BS.isPrefixOf "/match/found/t-" p && BS.isSuffixOf "/message" p
-    isEditAorbPath p = BS.isPrefixOf "/admin/aorb/" p && BS.isSuffixOf "/edit" p
-    isDeleteAorbPath p = BS.isPrefixOf "/admin/aorb/" p && BS.isSuffixOf "/delete" p
+handleAnswerEdit :: AppState -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+handleAnswerEdit _ conn uid req = do
+  body <- Wai.strictRequestBody req
+  case parseAnswerBody body of
+    Just submission -> routeAnswerEdit submission conn uid req
+    Nothing -> return invalidSubmissionResponse
 
-
-    runHandlerWithConn handler =
-      Pool.withResource (appPool state) (\conn ->
-        handler conn request) >>= respond
-
-    runProtectedHandlerWithConn handler =
-      Pool.withResource (appPool state) (\conn -> do
-        maybeUser <- getAuthenticatedUser conn request
-        case maybeUser of
-          Nothing -> return redirectToLogin
-          Just user -> do
-            updateLastAccessed conn user
-            handler conn (userId user) request
-      ) >>= respond
-
-    parseAnswerBody :: BSL.ByteString -> Maybe AnswerSubmission
-    parseAnswerBody body = do
-      let params = HTTP.parseQueryText $ BSL.toStrict $
-            BSL.fromStrict $ TE.encodeUtf8 $
-              TE.decodeUtf8With TEE.lenientDecode $ BSL.toStrict body
-      aorb <- Monad.join (lookup "aorb_id" params) >>=
-        Read.readMaybe . T.unpack
-      choice <- Monad.join (lookup "choice" params) >>=
-        Read.readMaybe . T.unpack
-      token <- Monad.join (lookup "token" params)
-      return AnswerSubmission
-        { submissionAorbId = aorb
-        , submissionChoice = choice
-        , submissionToken = token
-        }
-    routeAnswerSubmit
-      :: AnswerSubmission -> SQL.Connection -> UserID -> Wai.Request
-      -> IO Wai.Response
-    routeAnswerSubmit submission conn uid req =
-      submitAnswerRoute conn uid
-        (submissionAorbId submission)
-        (AorbAnswer $ submissionChoice submission)
-        (submissionToken submission)
-        req
-    routeAnswerEdit
-      :: AnswerSubmission -> SQL.Connection -> UserID -> Wai.Request
-      -> IO Wai.Response
-    routeAnswerEdit submission conn uid req =
-      editAnswerRoute conn uid
-        (submissionAorbId submission)
-        (AorbAnswer $ submissionChoice submission)
-        (submissionToken submission)
-        req
-    handleAnswerSubmission = do
-      body <- Wai.strictRequestBody request
-      case parseAnswerBody body of
-        Just submission -> runProtectedHandlerWithConn $
-          routeAnswerSubmit submission
-        Nothing -> respond invalidSubmissionResponse
-
-    handleAnswerEdit = do
-      body <- Wai.strictRequestBody request
-      case parseAnswerBody body of
-        Just submission -> runProtectedHandlerWithConn $
-          routeAnswerEdit submission
-        Nothing -> respond invalidSubmissionResponse
-
-    updateLastAccessed conn _ = do
-      now <- POSIXTime.getPOSIXTime
-      case getCookie request of
-        Just cookieBS -> do
-          let hash = TE.decodeUtf8 cookieBS
-          SQL.execute conn
-            "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-            (floor now :: Integer, hash)
-        Nothing -> return ()
+updateLastAccessed :: SQL.Connection -> Wai.Request -> IO ()
+updateLastAccessed conn req = do
+  now <- POSIXTime.getPOSIXTime
+  case getCookie req of
+    Just cookieBS -> do
+      let hash = TE.decodeUtf8 cookieBS
+      SQL.execute conn
+        "UPDATE auth SET last_accessed = ? WHERE hash = ?"
+        (floor now :: Integer, hash)
+    Nothing -> return ()
