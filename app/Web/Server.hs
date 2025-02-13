@@ -166,27 +166,23 @@ routeProtected config state (method, path) conn uid req =
 
   ("GET", "/admin") | uid == shadowUserId -> adminTemplateRoute conn uid req
   ("POST", "/admin/aorb/add") -> handleAddAorb config conn uid req
-  ("GET", p) | isEditAorbPath p -> handleEditAorbForm config conn uid (extractAorbId p) req
-  ("POST", p) | isEditAorbPath p -> handleEditAorb config conn uid (extractAorbId p) req
-  ("POST", p) | isDeleteAorbPath p -> handleDeleteAorb config conn uid (extractAorbId p) req
+  ("GET", p) | isEditAorbPath p -> handleEditAorbForm config conn uid (extractAdminAorbId p) req
+  ("POST", p) | isEditAorbPath p -> handleEditAorb config conn uid (extractAdminAorbId p) req
+  ("POST", p) | isDeleteAorbPath p -> handleDeleteAorb config conn uid (extractAdminAorbId p) req
 
   ("GET", "/whoami") -> profileTemplateRoute config conn uid req
   ("GET", "/account") -> accountTemplateRoute conn uid req
 
   ("GET", "/ans") -> ansTemplateRoute conn uid req
-  ("GET", p) | isAorbPath p ->
-    existingAnswerTemplateRoute conn uid (extractAorbId p) req
-  ("POST", p) | isFavoritePath p ->
-    setFavoriteAorbRoute conn uid (extractFavoriteAorbId p) req
+  ("GET", p) | isAorbPath p -> existingAnswerTemplateRoute conn uid (extractAorbId p) req
+  ("POST", p) | isFavoritePath p -> setFavoriteAorbRoute conn uid (extractFavoriteAorbId p) req
 
   ("GET", "/match") -> matchTemplateRoute config state conn uid req
   ("GET", "/match/type") -> matchTypeTemplateRoute config conn uid req
   ("POST", "/match/type") -> matchTypeUpdateRoute config conn uid req
   ("GET", "/match/found") -> matchFoundTemplateRoute config conn uid req
-  ("GET", p) | isMatchDaysPath p ->
-    matchProfileTemplateRoute config conn uid (extractDays p) req
-  ("POST", p) | isMatchMessagePath p ->
-    postMessageRoute config conn uid (extractDays p) req
+  ("GET", p) | isMatchDaysPath p -> matchProfileTemplateRoute config conn uid (extractDays p) req
+  ("POST", p) | isMatchMessagePath p -> postMessageRoute config conn uid (extractDays p) req
 
   ("GET", "/logout") -> logoutGetRoute conn uid req
   ("GET", "/logout/confirm") -> logoutConfirmRoute conn uid req
@@ -204,12 +200,12 @@ routeProtected config state (method, path) conn uid req =
     isEditAorbPath p = BS.isPrefixOf "/admin/aorb/" p && BS.isSuffixOf "/edit" p
     isDeleteAorbPath p = BS.isPrefixOf "/admin/aorb/" p && BS.isSuffixOf "/delete" p
 
-    extractAorbId :: BS.ByteString -> AorbID
-    extractAorbId p =
+    extractAorbId p = read . BS.unpack . BS.drop 5 $ p
+
+    extractAdminAorbId :: BS.ByteString -> AorbID
+    extractAdminAorbId p =
       let parts = BS.split '/' p
-          idPart = if length parts >= 4
-                   then parts !! 3
-                   else "0"
+          idPart = if length parts >= 4 then parts !! 3 else "0"
       in case reads (BS.unpack idPart) of
            [(n, "")] -> n
            _ -> 0

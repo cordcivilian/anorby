@@ -3,9 +3,7 @@
 module Web.Templates where
 
 import qualified Control.Monad as Monad
-import qualified Data.List as List
 import qualified Data.Maybe as Maybe
-import qualified Data.Ord as Ord
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding.Error as TEE
@@ -22,7 +20,6 @@ import qualified Text.Blaze.Internal as I
 -- import qualified Text.Blaze.Svg11.Attributes as SA
 
 import Types
-import Web.Styles
 import Web.Types
 import Utils.Time
 import Utils.Config
@@ -234,8 +231,8 @@ publicAorbs :: [Aorb] -> H.Html
 publicAorbs aorbs = do
   H.div H.! A.id "aorbs-container" H.!
     A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
-    Monad.forM_ (aorbWithOrders aorbs) $
-      \(_, (aorb, _)) -> do
+    Monad.forM_ aorbs $
+      \aorb -> do
         H.div H.! A.class_ "w-full max-w-2xl border border-base-300 rounded-lg p-4 transition-all hover:bg-base-200" $ do
           H.div H.! A.class_ "text-base-content/60 italic mb-4" $
             H.toHtml (aorbCtx aorb)
@@ -323,14 +320,14 @@ profileMainAorb mAid aorbs maybeUuid =
       H.div $ do
         H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "main"
         H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
-          mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) $
+          mapM_ (\awa -> profileAorb awa mAid maybeUuid) $
             filter (\awa -> aorbId (aorbData awa) == aid) aorbs
     (Nothing, Just _) -> mempty
     (Just aid, Nothing) -> do
       H.div $ do
         H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "main"
         H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
-          mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) $
+          mapM_ (\awa -> profileAorb awa mAid maybeUuid) $
             filter (\awa -> aorbId (aorbData awa) == aid) aorbs
     (Nothing, Nothing) -> do
       H.div $ do
@@ -344,14 +341,14 @@ profileCommonplaceAorbs mAid aorbs maybeUuid = do
   H.div $ do
     H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "most commonplace"
     H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
-      mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) (take 3 $ reverse aorbs)
+      mapM_ (\awa -> profileAorb awa mAid maybeUuid) (take 3 $ reverse aorbs)
 
 profileControversialAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileControversialAorbs mAid aorbs maybeUuid = do
   H.div $ do
     H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "most controversial"
     H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
-      mapM_ (\awa -> profileAorb awa mAid Nothing maybeUuid) (take 3 aorbs)
+      mapM_ (\awa -> profileAorb awa mAid maybeUuid) (take 3 aorbs)
 
 profileAllAnswers :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileAllAnswers mAid aorbs maybeUuid = do
@@ -359,8 +356,8 @@ profileAllAnswers mAid aorbs maybeUuid = do
     H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "all answers"
     profileOrdinaryAorbs mAid aorbs maybeUuid
 
-profileAorb :: AorbWithAnswer -> Maybe AorbID -> Maybe [Int] -> Maybe T.Text -> H.Html
-profileAorb awa mFavoriteId mOrders maybeUuid = do
+profileAorb :: AorbWithAnswer -> Maybe AorbID -> Maybe T.Text -> H.Html
+profileAorb awa mFavoriteId maybeUuid = do
   let aorb = aorbData awa
       ans = userAnswer awa
       aid = aorbId aorb
@@ -368,16 +365,13 @@ profileAorb awa mFavoriteId mOrders maybeUuid = do
       percentage = case ans of
         AorbAnswer 0 -> 100 * (1 - aorbMean aorb)
         _ -> 100 * aorbMean aorb
-      dynamicStyle = case mOrders of
-        Just orders -> (H.! A.style (aorbDynamicCSS (zip ["basic", "flake"] orders)))
-        Nothing -> id
       baseWrapper contents = case maybeUuid of
         Just _ -> H.div H.! wrapperClass $ contents
         Nothing -> H.a H.! A.href (H.toValue $ "/ans/" ++ show aid) H.! wrapperClass $ contents
       wrapperClass = A.class_ $ "w-full hover:-translate-y-1 transition-transform " <>
         if maybeUuid == Nothing then "cursor-pointer" else "cursor-default"
 
-  dynamicStyle $ baseWrapper $ do
+  baseWrapper $ do
     H.div H.! A.class_ ("w-full border border-base-300 rounded-lg p-4 transition-colors hover:bg-base-200" <>
       if isFavorite then " border-warning" else "") $ do
       H.div H.! A.class_ "text-base-content/60 italic mb-4" $ H.toHtml $ aorbCtx aorb
@@ -432,36 +426,7 @@ accountManager maybeUuid = case maybeUuid of
 
 profileOrdinaryAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileOrdinaryAorbs mAid aorbs maybeUuid = do
-  H.div $ do
-    Monad.forM_ (aorbWithAnswerWithOrders aorbs) $
-      \(_, (awa, orders)) -> profileAorb awa mAid (Just orders) maybeUuid
-
-aorbsWithOrders :: (Eq a) => [a] -> [OrderingFunction a] -> [(Int, (a, [Int]))]
-aorbsWithOrders as orderingFuncs = zip [(1::Int)..] $
-  let orderedLists = map (\f -> f as) orderingFuncs
-      lookupOrder list a = maybe 0 (+1) $ List.elemIndex a list
-  in [ (a, map (\orderedList -> lookupOrder orderedList a) orderedLists)
-     | a <- as ]
-
-aorbWithOrders :: [Aorb] -> [(Int, (Aorb, [Int]))]
-aorbWithOrders as = aorbsWithOrders as aorbOrderings
-
-aorbWithAnswerWithOrders :: [AorbWithAnswer]
-                         -> [(Int, (AorbWithAnswer, [Int]))]
-aorbWithAnswerWithOrders awas = aorbsWithOrders awas aorbWithAnswerOrderings
-
-aorbOrderings :: [OrderingFunction Aorb]
-aorbOrderings =
-  [ id                                                     -- byDice
-  , List.sortOn (\a -> abs (aorbMean a - 0.5))             -- byPolar
-  , List.sortOn (Ord.Down . \a -> abs (aorbMean a - 0.5))  -- bySided
-  ]
-
-aorbWithAnswerOrderings :: [OrderingFunction AorbWithAnswer]
-aorbWithAnswerOrderings =
-  [ reverse   -- byBasic
-  , id        -- byFlake
-  ]
+  H.div $ Monad.forM_ aorbs $ \awa -> profileAorb awa mAid maybeUuid
 
 ansTemplate :: Aorb -> Bool -> T.Text -> H.Html
 ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do

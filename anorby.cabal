@@ -26,7 +26,6 @@ executable anorby
                     Utils.MatchTrigger
                     Web.Handlers
                     Web.Server
-                    Web.Styles
                     Web.Templates
                     Web.Types
   build-depends:    base ^>=4.20.0.0
