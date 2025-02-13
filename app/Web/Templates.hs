@@ -226,7 +226,7 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers match
 
 rootStats :: Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> H.Html
 rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus =
-  H.div H.! A.class_ "ds-stats ds-stats-vertical lg:ds-stats-horizontal grid grid-cols-2 lg:grid-cols-4 shadow" $ do
+  H.div H.! A.class_ "ds-stats ds-stats-vertical lg:ds-stats-horizontal grid grid-cols-2 lg:grid-cols-4 shadow m-8" $ do
     H.div H.! A.class_ "ds-stat" $ do
       H.div H.! A.class_ "ds-stat-title" $ "population"
       H.div H.! A.class_ "ds-stat-value" $ H.toHtml $ show activeUsers
