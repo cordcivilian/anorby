@@ -520,211 +520,323 @@
   }
 }
 @layer utilities {
-  .ds-drawer-side {
-    pointer-events: none;
-    visibility: hidden;
-    position: fixed;
-    inset-inline-start: calc(0.25rem * 0);
-    top: calc(0.25rem * 0);
-    grid-column-start: 1;
-    grid-row-start: 1;
-    display: grid;
-    width: 100%;
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-    grid-template-rows: repeat(1, minmax(0, 1fr));
-    align-items: flex-start;
-    justify-items: start;
-    overflow-x: hidden;
-    overflow-y: hidden;
-    overscroll-behavior: contain;
-    opacity: 0%;
-    transition: opacity 0.2s ease-out 0.1s allow-discrete, visibility 0.3s ease-out 0.1s allow-discrete;
-    height: 100vh;
-    height: 100dvh;
-     > .ds-drawer-overlay {
-      position: sticky;
-      top: calc(0.25rem * 0);
+  .ds-menu {
+    display: flex;
+    width: fit-content;
+    flex-direction: column;
+    flex-wrap: wrap;
+    padding: calc(0.25rem * 2);
+    --ds-menu-active-fg: var(--color-neutral-content);
+    --ds-menu-active-bg: var(--color-neutral);
+    font-size: 0.875rem;
+    :where(li ul) {
+      position: relative;
+      margin-inline-start: calc(0.25rem * 4);
+      padding-inline-start: calc(0.25rem * 2);
+      white-space: nowrap;
+      &:before {
+        position: absolute;
+        inset-inline-start: calc(0.25rem * 0);
+        top: calc(0.25rem * 3);
+        bottom: calc(0.25rem * 3);
+        background-color: var(--color-base-content);
+        opacity: 10%;
+        width: var(--border);
+        content: "";
+      }
+    }
+    :where(li > .ds-menu-dropdown:not(.ds-menu-dropdown-show)) {
+      display: none;
+    }
+    :where(li:not(.ds-menu-title) > *:not(ul, details, .ds-menu-title, .ds-btn)), :where(li:not(.ds-menu-title) > details > summary:not(.ds-menu-title)) {
+      display: grid;
+      grid-auto-flow: column;
+      align-content: flex-start;
+      align-items: center;
+      gap: calc(0.25rem * 2);
+      border-radius: var(--radius-field);
+      padding-inline: calc(0.25rem * 3);
+      padding-block: calc(0.25rem * 1.5);
+      text-align: start;
+      transition-property: color, background-color, box-shadow;
+      transition-duration: 0.2s;
+      transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+      grid-auto-columns: minmax(auto, max-content) auto max-content;
+      text-wrap: balance;
+      user-select: none;
+    }
+    :where(li > details > summary) {
+      outline-style: none;
+      @media (forced-colors: active) {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+      }
+      &::-webkit-details-marker {
+        display: none;
+      }
+    }
+    :where(li > details > summary), :where(li > .ds-menu-dropdown-toggle) {
+      &:after {
+        justify-self: flex-end;
+        display: block;
+        height: 0.375rem;
+        width: 0.375rem;
+        rotate: -135deg;
+        translate: 0 -1px;
+        transition-property: rotate, translate;
+        transition-duration: 0.2s;
+        content: "";
+        transform-origin: 50% 50%;
+        box-shadow: 2px 2px inset;
+        pointer-events: none;
+      }
+    }
+    :where(li > details[open] > summary):after, :where(li > .ds-menu-dropdown-toggle.ds-menu-dropdown-show):after {
+      rotate: 45deg;
+      translate: 0 1px;
+    }
+    :where( li:not(.ds-menu-title, .ds-disabled) > *:not(ul, details, .ds-menu-title), li:not(.ds-menu-title, .ds-disabled) > details > summary:not(.ds-menu-title) ):not(.ds-menu-active, :active, .ds-btn) {
+      &.ds-menu-focus, &:focus-visible {
+        cursor: pointer;
+        background-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+        color: var(--color-base-content);
+        outline-style: none;
+        @media (forced-colors: active) {
+          outline: 2px solid transparent;
+          outline-offset: 2px;
+        }
+      }
+    }
+    :where( li:not(.ds-menu-title, .ds-disabled) > *:not(ul, details, .ds-menu-title):not(.ds-menu-active, :active, .ds-btn):hover, li:not(.ds-menu-title, .ds-disabled) > details > summary:not(.ds-menu-title):not(.ds-menu-active, :active, .ds-btn):hover ) {
       cursor: pointer;
-      place-self: stretch;
-      background-color: oklch(0% 0 0 / 40%);
+      background-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+      outline-style: none;
+      @media (forced-colors: active) {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+      }
+      box-shadow: 0 1px oklch(0% 0 0 / 0.01) inset, 0 -1px oklch(100% 0 0 / 0.01) inset;
     }
-     > * {
-      grid-column-start: 1;
-      grid-row-start: 1;
+    :where(li:empty) {
+      background-color: var(--color-base-content);
+      opacity: 10%;
+      margin: 0.5rem 1rem;
+      height: 1px;
     }
-     > *:not(.ds-drawer-overlay) {
-      will-change: transform;
-      transition: translate 0.3s ease-out;
-      translate: -100%;
-      [dir="rtl"] & {
-        translate: 100%;
+    :where(li) {
+      position: relative;
+      display: flex;
+      flex-shrink: 0;
+      flex-direction: column;
+      flex-wrap: wrap;
+      align-items: stretch;
+      .ds-badge {
+        justify-self: flex-end;
+      }
+      & > *:not(ul, .ds-menu-title, details, .ds-btn):active, & > *:not(ul, .ds-menu-title, details, .ds-btn).ds-menu-active, & > details > summary:active {
+        outline-style: none;
+        @media (forced-colors: active) {
+          outline: 2px solid transparent;
+          outline-offset: 2px;
+        }
+        color: var(--ds-menu-active-fg);
+        background-color: var(--ds-menu-active-bg);
+        background-size: auto, calc(var(--noise) * 100%);
+        background-image: none, var(--ds-fx-noise);
+        &:not(&:active) {
+          box-shadow: 0 2px calc(var(--depth) * 3px) -2px var(--ds-menu-active-bg);
+        }
+      }
+      &.ds-menu-disabled {
+        pointer-events: none;
+        color: color-mix(in oklab, var(--color-base-content) 20%, transparent);
       }
     }
   }
-  .ds-modal {
-    pointer-events: none;
-    visibility: hidden;
-    position: fixed;
-    inset: calc(0.25rem * 0);
-    margin: calc(0.25rem * 0);
-    display: grid;
-    height: 100%;
-    max-height: none;
-    width: 100%;
-    max-width: none;
+  .ds-btn {
+    display: inline-flex;
+    flex-shrink: 0;
+    cursor: pointer;
+    flex-wrap: nowrap;
     align-items: center;
-    justify-items: center;
-    background-color: transparent;
-    padding: calc(0.25rem * 0);
-    color: inherit;
-    overflow-x: hidden;
-    transition: transform 0.3s ease-out, visibility 0s allow-discrete, opacity 0.1s ease-out;
-    overflow-y: hidden;
-    overscroll-behavior: contain;
-    z-index: 999;
-    &:not(dialog:not(.ds-modal-open)), &::backdrop {
-      opacity: 100%;
-      @starting-style {
-        visibility: hidden;
-      }
-      @starting-style {
-        opacity: 0%;
-      }
-      background-color: oklch(0% 0 0/ 0.4);
-      transition: display 0.3s ease-out allow-discrete, opacity 0.3s ease-out, visibility 0.3s ease-out allow-discrete;
+    justify-content: center;
+    gap: calc(0.25rem * 1.5);
+    text-align: center;
+    vertical-align: middle;
+    text-decoration-line: none;
+    outline-offset: 2px;
+    webkit-user-select: none;
+    user-select: none;
+    padding-inline: var(--ds-btn-p);
+    color: var(--ds-btn-fg);
+    height: var(--ds-size);
+    font-size: 0.875rem;
+    font-weight: 600;
+    outline-color: var(--ds-btn-color, var(--color-base-content));
+    transition-property: color, background-color, border-color, box-shadow;
+    transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    transition-duration: 0.2s;
+    border-start-start-radius: var(--ds-join-ss, var(--radius-field));
+    border-start-end-radius: var(--ds-join-se, var(--radius-field));
+    border-end-start-radius: var(--ds-join-es, var(--radius-field));
+    border-end-end-radius: var(--ds-join-ee, var(--radius-field));
+    background-color: var(--ds-btn-bg);
+    background-size: auto, calc(var(--noise) * 100%);
+    background-image: none, var(--ds-btn-noise);
+    border-width: var(--border);
+    border-style: solid;
+    border-color: var(--ds-btn-border);
+    text-shadow: 0 0.5px oklch(100% 0 0 / calc(var(--depth) * 0.15));
+    box-shadow: 0 0.5px 0 0.5px oklch(100% 0 0 / calc(var(--depth) * 6%)) inset, var(--ds-btn-shadow);
+    --ds-size: calc(var(--size-field, 0.25rem) * 10);
+    --ds-btn-bg: var(--ds-btn-color, var(--color-base-200));
+    --ds-btn-fg: var(--color-base-content);
+    --ds-btn-p: 1rem;
+    --ds-btn-border: color-mix(in oklab, var(--ds-btn-bg), #000 calc(var(--depth) * 5%));
+    --ds-btn-shadow: 0 3px 2px -2px color-mix(in oklab, var(--ds-btn-bg) calc(var(--depth) * 30%), #0000),
+    0 4px 3px -2px color-mix(in oklab, var(--ds-btn-bg) calc(var(--depth) * 30%), #0000);
+    --ds-btn-noise: var(--ds-fx-noise);
+    &:hover {
+      --ds-btn-bg: color-mix(in oklab, var(--ds-btn-color, var(--color-base-200)), #000 7%);
     }
-    &.ds-modal-open, &[open], &:target {
-      pointer-events: auto;
-      visibility: visible;
-      opacity: 100%;
-      @starting-style {
-        visibility: hidden;
+    &.ds-btn-active {
+      --ds-btn-bg: color-mix(in oklab, var(--ds-btn-color, var(--color-base-200)), #000 7%);
+      --ds-btn-shadow: 0 0 0 0 oklch(0% 0 0/0), 0 0 0 0 oklch(0% 0 0/0);
+      isolation: isolate;
+    }
+    &:focus-visible {
+      outline-width: 2px;
+      outline-style: solid;
+    }
+    &:active:not(.ds-btn-active) {
+      translate: 0 0.5px;
+      --ds-btn-bg: color-mix(in oklab, var(--ds-btn-color, var(--color-base-200)), #000 5%);
+      --ds-btn-border: color-mix(in oklab, var(--ds-btn-color, var(--color-base-200)), #000 7%);
+      --ds-btn-shadow: 0 0 0 0 oklch(0% 0 0/0), 0 0 0 0 oklch(0% 0 0/0);
+    }
+    &:is(:disabled, [disabled], .ds-btn-disabled) {
+      &:not(.ds-btn-link, .ds-btn-ghost) {
+        background-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+        box-shadow: none;
       }
-      @starting-style {
-        opacity: 0%;
+      pointer-events: none;
+      --ds-btn-border: #0000;
+      --ds-btn-noise: none;
+      --ds-btn-fg: color-mix(in oklch, var(--color-base-content) 20%, #0000);
+      &:hover {
+        pointer-events: none;
+        background-color: color-mix(in oklab, var(--color-neutral) 20%, transparent);
+        --ds-btn-border: #0000;
+        --ds-btn-fg: color-mix(in oklch, var(--color-base-content) 20%, #0000);
       }
-      .ds-modal-box {
-        translate: 0 0;
-        scale: 1;
-        opacity: 1;
+    }
+    &:is(input[type="checkbox"], input[type="radio"]) {
+      appearance: none;
+      &::after {
+        content: attr(aria-label);
+      }
+      &:checked {
+        --ds-btn-color: var(--color-primary);
+        --ds-btn-bg: var(--color-primary);
+        --ds-btn-fg: var(--color-primary-content);
+        --ds-btn-border: var(--color-primary);
+        &:focus-visible {
+          outline-color: var(--color-primary);
+        }
+        &:hover {
+          --ds-btn-bg: color-mix(in oklab, var(--color-primary) 90%, #000);
+          --ds-btn-border: color-mix(in oklab, var(--color-primary) 90%, #000);
+        }
       }
     }
   }
-  .ds-tooltip {
+  .ds-dropdown {
     position: relative;
     display: inline-block;
-    --ds-tt-bg: var(--color-neutral);
-    --ds-tt-off: calc(100% + 0.5rem);
-    --ds-tt-tail: calc(100% + 1px + 0.25rem);
-     > :where(.ds-tooltip-content), &[data-tip]:before {
-      position: absolute;
-      max-width: 20rem;
-      border-radius: var(--radius-field);
-      padding-inline: calc(0.25rem * 2);
-      padding-block: calc(0.25rem * 1);
-      text-align: center;
-      white-space: normal;
-      color: var(--color-neutral-content);
-      opacity: 0%;
-      font-size: 0.875rem;
-      line-height: 1.25em;
-      transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1) 75ms, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) 75ms;
-      background-color: var(--ds-tt-bg);
-      width: max-content;
-      pointer-events: none;
-      z-index: 1;
-      --ds-tw-content: attr(data-tip);
-      content: var(--ds-tw-content);
-    }
-    &:after {
-      position: absolute;
-      position: absolute;
-      opacity: 0%;
-      background-color: var(--ds-tt-bg);
-      transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1) 75ms, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) 75ms;
-      content: "";
-      pointer-events: none;
-      width: 0.625rem;
-      height: 0.25rem;
-      display: block;
-      mask-repeat: no-repeat;
-      mask-position: -1px 0;
-      mask-image: var(--ds-mask-tooltip);
-    }
-    &.ds-tooltip-open, &[data-tip]:hover, &:hover, &:has(:focus-visible) {
-       > .ds-tooltip-content, &[data-tip]:before, &:after {
-        opacity: 100%;
-        --ds-tt-pos: 0rem;
-        transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1) 0s, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) 0ms;
+    position-area: var(--ds-anchor-v, bottom) var(--ds-anchor-h, span-right);
+    & > *:not(summary):focus {
+      outline-style: none;
+      @media (forced-colors: active) {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
       }
     }
-     > .ds-tooltip-content, &[data-tip]:before {
-      transform: translateX(-50%) translateY(var(--ds-tt-pos, 0.25rem));
-      inset: auto auto var(--ds-tt-off) 50%;
+    .ds-dropdown-content {
+      position: absolute;
     }
-    &:after {
-      transform: translateX(-50%) translateY(var(--ds-tt-pos, 0.25rem));
-      inset: auto auto var(--ds-tt-tail) 50%;
-    }
-  }
-  .ds-drawer-open {
-     > .ds-drawer-side {
-      overflow-y: auto;
-    }
-     > .ds-drawer-toggle {
-      display: none;
-      & ~ .ds-drawer-side {
-        pointer-events: auto;
-        visibility: visible;
-        position: sticky;
-        display: block;
-        width: auto;
-        overscroll-behavior: auto;
-        opacity: 100%;
-        & > .ds-drawer-overlay {
-          cursor: default;
-          background-color: transparent;
-        }
-        & > *:not(.ds-drawer-overlay) {
-          translate: 0%;
-          [dir="rtl"] & {
-            translate: 0%;
-          }
-        }
-      }
-      &:checked ~ .ds-drawer-side {
-        pointer-events: auto;
-        visibility: visible;
+    &:not(details, .ds-dropdown-open, .ds-dropdown-hover:hover, :focus-within) {
+      .ds-dropdown-content {
+        display: none;
+        transform-origin: top;
+        opacity: 0%;
+        scale: 95%;
       }
     }
-  }
-  .ds-drawer-toggle {
-    position: fixed;
-    height: calc(0.25rem * 0);
-    width: calc(0.25rem * 0);
-    appearance: none;
-    opacity: 0%;
-    &:checked {
-      & ~ .ds-drawer-side {
-        pointer-events: auto;
-        visibility: visible;
-        overflow-y: auto;
+    &[popover], .ds-dropdown-content {
+      @starting-style {
+        scale: 95%;
+      }
+      @starting-style {
+        opacity: 0;
+      }
+      z-index: 999;
+      animation: dropdown 0.2s;
+      transition-property: opacity, scale, display;
+      transition-behavior: allow-discrete;
+      transition-duration: 0.2s;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    &.ds-dropdown-open, &:not(.ds-dropdown-hover):focus, &:focus-within {
+       > [tabindex]:first-child {
+        pointer-events: none;
+      }
+      .ds-dropdown-content {
         opacity: 100%;
-        & > *:not(.ds-drawer-overlay) {
-          translate: 0%;
+      }
+    }
+    &.ds-dropdown-hover:hover {
+      .ds-dropdown-content {
+        opacity: 100%;
+        scale: 100%;
+      }
+    }
+    &:is(details) {
+      summary {
+        &::-webkit-details-marker {
+          display: none;
         }
       }
     }
-    &:focus-visible ~ .ds-drawer-content label.ds-drawer-button {
-      outline: 2px solid;
-      outline-offset: 2px;
+    &.ds-dropdown-open, &:focus, &:focus-within {
+      .ds-dropdown-content {
+        scale: 100%;
+      }
     }
-  }
-  .collapse {
-    visibility: collapse;
-  }
-  .visible {
-    visibility: visible;
+    &:where([popover]) {
+      background: #0000;
+    }
+    &[popover] {
+      position: fixed;
+      color: inherit;
+      @supports not (position-area: bottom) {
+        margin: auto;
+        &.ds-dropdown-open:not(:popover-open) {
+          display: none;
+          transform-origin: top;
+          opacity: 0%;
+          scale: 95%;
+        }
+        &::backdrop {
+          background-color: color-mix(in oklab, #000 30%, #0000);
+        }
+      }
+      &:not(.ds-dropdown-open, :popover-open) {
+        display: none;
+        transform-origin: top;
+        opacity: 0%;
+        scale: 95%;
+      }
+    }
   }
   .ds-avatar {
     position: relative;
@@ -741,61 +853,37 @@
       object-fit: cover;
     }
   }
-  .absolute {
-    position: absolute;
-  }
-  .fixed {
-    position: fixed;
-  }
   .relative {
     position: relative;
   }
-  .sticky {
-    position: sticky;
-  }
-  .isolate {
-    isolation: isolate;
-  }
-  .ds-modal-box {
-    grid-column-start: 1;
-    grid-row-start: 1;
-    max-height: 100vh;
-    width: calc(11/12 * 100%);
-    max-width: 32rem;
-    background-color: var(--color-base-100);
-    padding: calc(0.25rem * 6);
-    transition: translate 0.3s ease-out, scale 0.3s ease-out, opacity 0.2s ease-out 0.05s, box-shadow 0.3s ease-out;
-    border-top-left-radius: var(--ds-modal-tl, var(--radius-box));
-    border-top-right-radius: var(--ds-modal-tr, var(--radius-box));
-    border-bottom-left-radius: var(--ds-modal-bl, var(--radius-box));
-    border-bottom-right-radius: var(--ds-modal-br, var(--radius-box));
-    scale: 95%;
-    opacity: 0;
-    box-shadow: oklch(0% 0 0/ 0.25) 0px 25px 50px -12px;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-  .ds-drawer-content {
-    grid-column-start: 2;
-    grid-row-start: 1;
-    min-width: calc(0.25rem * 0);
-  }
-  .container {
-    width: 100%;
-    @media (width >= 40rem) {
-      max-width: 40rem;
+  .ds-dropdown-end {
+    --ds-anchor-h: span-left;
+    :where(.ds-dropdown-content) {
+      inset-inline-end: calc(0.25rem * 0);
     }
-    @media (width >= 48rem) {
-      max-width: 48rem;
+    &.ds-dropdown-left {
+      --ds-anchor-h: left;
+      --ds-anchor-v: span-top;
+      .ds-dropdown-content {
+        top: auto;
+        bottom: calc(0.25rem * 0);
+      }
     }
-    @media (width >= 64rem) {
-      max-width: 64rem;
+    &.ds-dropdown-right {
+      --ds-anchor-h: right;
+      --ds-anchor-v: span-top;
+      .ds-dropdown-content {
+        top: auto;
+        bottom: calc(0.25rem * 0);
+      }
     }
-    @media (width >= 80rem) {
-      max-width: 80rem;
-    }
-    @media (width >= 96rem) {
-      max-width: 96rem;
+  }
+  .ds-dropdown-bottom {
+    --ds-anchor-v: bottom;
+    .ds-dropdown-content {
+      top: 100%;
+      bottom: auto;
+      transform-origin: top;
     }
   }
   .mx-\[3px\] {
@@ -859,11 +947,6 @@
     width: 50%;
     justify-content: flex-start;
   }
-  .ds-chat {
-    display: grid;
-    column-gap: calc(0.25rem * 3);
-    padding-block: calc(0.25rem * 1);
-  }
   .ds-navbar-center {
     display: inline-flex;
     align-items: center;
@@ -887,23 +970,14 @@
   .inline-block {
     display: inline-block;
   }
-  .inline-flex {
-    display: inline-flex;
-  }
-  .list-item {
-    display: list-item;
-  }
   .table {
     display: table;
   }
-  .h-14 {
-    height: calc(var(--spacing) * 14);
-  }
-  .h-16 {
-    height: calc(var(--spacing) * 16);
-  }
-  .h-32 {
-    height: calc(var(--spacing) * 32);
+  .ds-btn-circle {
+    border-radius: calc(infinity * 1px);
+    padding-inline: calc(0.25rem * 0);
+    width: var(--ds-size);
+    height: var(--ds-size);
   }
   .min-h-\[30vh\] {
     min-height: 30vh;
@@ -914,20 +988,8 @@
   .min-h-screen {
     min-height: 100vh;
   }
-  .w-4 {
-    width: calc(var(--spacing) * 4);
-  }
   .w-4\/5 {
     width: calc(4/5 * 100%);
-  }
-  .w-14 {
-    width: calc(var(--spacing) * 14);
-  }
-  .w-16 {
-    width: calc(var(--spacing) * 16);
-  }
-  .w-32 {
-    width: calc(var(--spacing) * 32);
   }
   .w-\[60vw\] {
     width: 60vw;
@@ -956,45 +1018,11 @@
   .max-w-xl {
     max-width: var(--container-xl);
   }
-  .flex-0 {
-    flex: 0;
-  }
-  .flex-1 {
-    flex: 1;
-  }
-  .flex-2 {
-    flex: 2;
-  }
-  .flex-shrink {
-    flex-shrink: 1;
-  }
-  .border-collapse {
-    border-collapse: collapse;
-  }
-  .transform {
-    transform: var(--tw-rotate-x) var(--tw-rotate-y) var(--tw-rotate-z) var(--tw-skew-x) var(--tw-skew-y);
-  }
-  .ds-skeleton {
-    border-radius: var(--radius-box);
-    background-color: var(--color-base-300);
-    @media (prefers-reduced-motion: reduce) {
-      transition-duration: 15s;
-    }
-    will-change: background-position;
-    animation: skeleton 1.8s ease-in-out infinite;
-    background-image: linear-gradient( 105deg, #0000 0% 40%, var(--color-base-100) 50%, #0000 60% 100% );
-    background-size: 200% auto;
-    background-repeat: no-repeat;
-    background-position-x: -50%;
-  }
   .cursor-default {
     cursor: default;
   }
   .cursor-pointer {
     cursor: pointer;
-  }
-  .resize {
-    resize: both;
   }
   .resize-none {
     resize: none;
@@ -1120,9 +1148,6 @@
   .bg-primary\/10 {
     background-color: color-mix(in oklab, var(--color-primary) 10%, transparent);
   }
-  .bg-success {
-    background-color: var(--color-success);
-  }
   .bg-success\/10 {
     background-color: color-mix(in oklab, var(--color-success) 10%, transparent);
   }
@@ -1181,10 +1206,6 @@
   .text-3xl {
     font-size: var(--text-3xl);
     line-height: var(--tw-leading, var(--text-3xl--line-height));
-  }
-  .text-4xl {
-    font-size: var(--text-4xl);
-    line-height: var(--tw-leading, var(--text-4xl--line-height));
   }
   .text-base {
     font-size: var(--text-base);
@@ -1261,28 +1282,20 @@
   .italic {
     font-style: italic;
   }
-  .underline {
-    text-decoration-line: underline;
-  }
-  .shadow {
-    --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-  }
-  .outline {
-    outline-style: var(--tw-outline-style);
-    outline-width: 1px;
+  .ds-btn-ghost {
+    &:not(.ds-btn-active, :hover, :active:focus, :focus-visible) {
+      --ds-btn-shadow: "";
+      --ds-btn-bg: #0000;
+      --ds-btn-border: #0000;
+      --ds-btn-noise: none;
+      &:not(:disabled, [disabled], .ds-btn-disabled) {
+        outline-color: currentColor;
+        --ds-btn-fg: currentColor;
+      }
+    }
   }
   .filter {
     filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
-  }
-  .backdrop-filter {
-    -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
-    backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
-  }
-  .transition {
-    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter;
-    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
-    transition-duration: var(--tw-duration, var(--default-transition-duration));
   }
   .transition-all {
     transition-property: all;
@@ -1298,14 +1311,6 @@
     transition-property: transform, translate, scale, rotate;
     transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
     transition-duration: var(--tw-duration, var(--default-transition-duration));
-  }
-  .ease-in-out {
-    --tw-ease: var(--ease-in-out);
-    transition-timing-function: var(--ease-in-out);
-  }
-  .ease-out {
-    --tw-ease: var(--ease-out);
-    transition-timing-function: var(--ease-out);
   }
   .backdrop\:bg-black\/50 {
     &::backdrop {
@@ -1390,6 +1395,9 @@
       }
     }
   }
+}
+* {
+  scrollbar-gutter: stable both-edges;
 }
 @layer base {
   :where(:root),:root:has(input.theme-controller[value=light]:checked),[data-theme=light] {
@@ -1856,31 +1864,6 @@ video {
     animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
   }
 }
-@property --tw-rotate-x {
-  syntax: "*";
-  inherits: false;
-  initial-value: rotateX(0);
-}
-@property --tw-rotate-y {
-  syntax: "*";
-  inherits: false;
-  initial-value: rotateY(0);
-}
-@property --tw-rotate-z {
-  syntax: "*";
-  inherits: false;
-  initial-value: rotateZ(0);
-}
-@property --tw-skew-x {
-  syntax: "*";
-  inherits: false;
-  initial-value: skewX(0);
-}
-@property --tw-skew-y {
-  syntax: "*";
-  inherits: false;
-  initial-value: skewY(0);
-}
 @property --tw-space-y-reverse {
   syntax: "*";
   inherits: false;
@@ -1903,66 +1886,6 @@ video {
 @property --tw-font-weight {
   syntax: "*";
   inherits: false;
-}
-@property --tw-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-shadow-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-inset-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-inset-shadow-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-ring-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-ring-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-inset-ring-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-inset-ring-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-ring-inset {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-ring-offset-width {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-@property --tw-ring-offset-color {
-  syntax: "*";
-  inherits: false;
-  initial-value: #fff;
-}
-@property --tw-ring-offset-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-outline-style {
-  syntax: "*";
-  inherits: false;
-  initial-value: solid;
 }
 @property --tw-blur {
   syntax: "*";
@@ -1997,46 +1920,6 @@ video {
   inherits: false;
 }
 @property --tw-sepia {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-backdrop-blur {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-backdrop-brightness {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-backdrop-contrast {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-backdrop-grayscale {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-backdrop-hue-rotate {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-backdrop-invert {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-backdrop-opacity {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-backdrop-saturate {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-backdrop-sepia {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-ease {
   syntax: "*";
   inherits: false;
 }
