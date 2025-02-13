@@ -219,46 +219,43 @@ rootTemplate userCount' aorbs = H.docTypeHtml $ H.html $ do
   H.body $ do
     H.div $ do
       navBar
-      H.h4 H.! A.class_ "text-lg" $ H.text $ T.pack $ "# of responses: " ++ show userCount'
+      H.h4 H.! A.class_ "text-lg" $ H.text $ T.pack $ show userCount'
       publicAorbs aorbs
 
 publicAorbs :: [Aorb] -> H.Html
 publicAorbs aorbs = do
-  H.div H.! A.id "aorbs-container" H.!
-    A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
+  H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
     Monad.forM_ aorbs $
-      \aorb -> do
-        H.div H.! A.class_ "w-full max-w-2xl border border-base-300 rounded-lg p-4 transition-all hover:bg-base-200" $ do
-          H.div H.! A.class_ "text-base-content/60 italic mb-4" $
-            H.toHtml (aorbCtx aorb)
-          let mean = aorbMean aorb
-              delta = (abs (mean - 0.5)) * 100
-              formatDelta = T.concat ["(+", T.pack (Text.printf "%.2f" delta), ")"]
-          if delta < 0.01
-            then do
-              H.div H.! A.class_ "my-2" $ do
-                H.toHtml (aorbA aorb)
-                H.span H.! A.class_ "text-base-content/50" $
-                  H.toHtml $ T.pack " ...?"
-              H.div H.! A.class_ "my-2" $ do
-                H.toHtml (aorbB aorb)
-                H.span H.! A.class_ "text-base-content/50" $
-                  H.toHtml $ T.pack " ...?"
-            else if mean > 0.5
-            then do
-              H.div H.! A.class_ "text-lg font-medium my-2" $ do
-                H.toHtml (aorbB aorb)
-                H.span H.! A.class_ "text-warning ml-2" $
-                  H.toHtml formatDelta
-              H.div H.! A.class_ "text-base-content/70 text-sm my-2" $
-                H.toHtml (aorbA aorb)
-            else do
-              H.div H.! A.class_ "text-lg font-medium my-2" $ do
-                H.toHtml (aorbA aorb)
-                H.span H.! A.class_ "text-warning ml-2" $
-                  H.toHtml formatDelta
-              H.div H.! A.class_ "text-base-content/70 text-sm my-2" $
-                H.toHtml (aorbB aorb)
+      \aorb -> H.div $ do
+        H.div H.! A.class_ "italic mb-4" $
+          H.toHtml (aorbCtx aorb)
+        let mean = aorbMean aorb
+            delta = (abs (mean - 0.5)) * 100
+            formatDelta = T.concat ["(+", T.pack (Text.printf "%.2f" delta), ")"]
+        if delta < 0.01
+          then do
+            H.div H.! A.class_ "my-2" $ do
+              H.toHtml (aorbA aorb)
+              H.span H.! A.class_ "" $ H.toHtml $ T.pack " ...?"
+            H.div H.! A.class_ "ds-divider" $ mempty
+            H.div H.! A.class_ "my-2" $ do
+              H.toHtml (aorbB aorb)
+              H.span H.! A.class_ "" $ H.toHtml $ T.pack " ...?"
+          else if mean > 0.5
+          then do
+            H.div H.! A.class_ "text-lg my-2" $ do
+              H.toHtml (aorbB aorb)
+              H.span H.! A.class_ "text-warning ml-2" $ H.toHtml formatDelta
+            H.div H.! A.class_ "ds-divider" $ mempty
+            H.div H.! A.class_ "text-sm" $
+              H.toHtml (aorbA aorb)
+          else do
+            H.div H.! A.class_ "text-lg my-2" $ do
+              H.toHtml (aorbA aorb)
+              H.span H.! A.class_ "text-warning ml-2" $ H.toHtml formatDelta
+            H.div H.! A.class_ "ds-divider" $ mempty
+            H.div H.! A.class_ "text-sm" $
+              H.toHtml (aorbB aorb)
 
 profileTemplate :: [AorbWithAnswer] -> Maybe AorbID -> Maybe T.Text -> Maybe T.Text -> H.Html
 profileTemplate aorbs mAid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do

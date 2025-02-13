@@ -176,19 +176,19 @@ routes =
   , Route "POST" "/admin/aorb/add" $ ProtectedHandler $ \config _ conn uid req ->
       handleAddAorb config conn uid req
   , Route "GET" "/admin/aorb/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
-      case extractParam "/admin/aorb/:id/edit" (Wai.rawPathInfo req) ":id" of
+      case extractParam "/admin/aorb/:id/edit" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleEditAorbForm config conn uid id' req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
   , Route "POST" "/admin/aorb/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
-      case extractParam "/admin/aorb/:id/edit" (Wai.rawPathInfo req) ":id" of
+      case extractParam "/admin/aorb/:id/edit" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleEditAorb config conn uid id' req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
   , Route "POST" "/admin/aorb/:id/delete" $ ProtectedHandler $ \config _ conn uid req ->
-      case extractParam "/admin/aorb/:id/delete" (Wai.rawPathInfo req) ":id" of
+      case extractParam "/admin/aorb/:id/delete" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleDeleteAorb config conn uid id' req
           _ -> return notFoundResponse
@@ -204,17 +204,17 @@ routes =
   , Route "GET" "/ans" $ ProtectedHandler $ \_ _ conn uid req ->
       ansTemplateRoute conn uid req
   , Route "GET" "/ans/:id" $ ProtectedHandler $ \_ _ conn uid req ->
-      case extractParam "/ans/:id" (Wai.rawPathInfo req) ":id" of
-        Just idBS -> case reads (BS.unpack idBS) of
-          [(id', "")] -> existingAnswerTemplateRoute conn uid id' req
-          _ -> return notFoundResponse
-        Nothing -> return notFoundResponse
+        case extractParam "/ans/:id" (Wai.rawPathInfo req) "id" of
+          Just idBS -> case reads (BS.unpack idBS) of
+            [(id', "")] -> existingAnswerTemplateRoute conn uid id' req
+            _ -> return notFoundResponse
+          Nothing -> return notFoundResponse
   , Route "POST" "/ans/submit" $ ProtectedHandler $ \_ state conn uid req ->
       handleAnswerSubmission state conn uid req
   , Route "POST" "/ans/edit" $ ProtectedHandler $ \_ state conn uid req ->
       handleAnswerEdit state conn uid req
   , Route "POST" "/aorb/favorite/:id" $ ProtectedHandler $ \_ _ conn uid req ->
-      case extractParam "/aorb/favorite/:id" (Wai.rawPathInfo req) ":id" of
+      case extractParam "/aorb/favorite/:id" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> setFavoriteAorbRoute conn uid id' req
           _ -> return notFoundResponse
@@ -230,13 +230,13 @@ routes =
   , Route "GET" "/match/found" $ ProtectedHandler $ \config _ conn uid req ->
       matchFoundTemplateRoute config conn uid req
   , Route "GET" "/match/found/t-:days" $ ProtectedHandler $ \config _ conn uid req ->
-      case extractParam "/match/found/t-:days" (Wai.rawPathInfo req) ":days" of
+      case extractParam "/match/found/t-:days" (Wai.rawPathInfo req) "days" of
         Just daysBS -> case reads (BS.unpack daysBS) of
           [(days, "")] -> matchProfileTemplateRoute config conn uid days req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
   , Route "POST" "/match/found/t-:days/message" $ ProtectedHandler $ \config _ conn uid req ->
-      case extractParam "/match/found/t-:days/message" (Wai.rawPathInfo req) ":days" of
+      case extractParam "/match/found/t-:days/message" (Wai.rawPathInfo req) "days" of
         Just daysBS -> case reads (BS.unpack daysBS) of
           [(days, "")] -> postMessageRoute config conn uid days req
           _ -> return notFoundResponse
