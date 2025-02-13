@@ -25,6 +25,7 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as R
 import Auth
 import Core.Matching
 import Core.Similarity
+import Core.RollingShadow
 import Database
 import Types
 import Utils.Config
@@ -58,8 +59,7 @@ getMimeType path
   | ".js" `BS.isSuffixOf` path = "application/javascript"
   | otherwise = "application/octet-stream"
 
-rootTemplateRoute :: AppState -> SQL.Connection -> Wai.Request
-                  -> IO Wai.Response
+rootTemplateRoute :: AppState -> SQL.Connection -> Wai.Request -> IO Wai.Response
 rootTemplateRoute state conn _ = do
   cachedAorbs <- getFromCache "root_aorbs" (appRootCache state)
   aorbs <- case cachedAorbs of
@@ -70,15 +70,47 @@ rootTemplateRoute state conn _ = do
       let (shuffledAorbs, _) = fisherYatesShuffle gen as
       putInCache "root_aorbs" shuffledAorbs (appRootCache state)
       return shuffledAorbs
-  activeUsers <- SQL.query_ conn $ SQL.Query $ T.unwords
-    [ "SELECT COUNT(DISTINCT user_id) FROM aorb_answers"
-    , "WHERE user_id != -1"
-    ] :: IO [SQL.Only Int]
-  let totalActiveUsers = maybe 0 SQL.fromOnly (Maybe.listToMaybe activeUsers)
+
+  let totalQuestions = length aorbs
+  now <- POSIXTime.getPOSIXTime
+  let startOfDay = (floor (now / 86400) * 86400) :: Integer
+  totalAnswers <- SQL.query_ conn
+    "SELECT COUNT(*) FROM aorb_answers WHERE user_id != -1" :: IO [SQL.Only Int]
+  todayAnswers <- SQL.query conn
+    "SELECT COUNT(*) FROM aorb_answers WHERE answered_on >= ?"
+    (SQL.Only startOfDay) :: IO [SQL.Only Int]
+
+  activeUsers <- SQL.query_ conn
+    "SELECT COUNT(DISTINCT user_id) FROM aorb_answers WHERE user_id != -1"
+      :: IO [SQL.Only Int]
+  let weekAgo = floor now - (7 * 24 * 60 * 60) :: Integer
+  newUsersThisWeek <- SQL.query conn
+    ( SQL.Query $ T.unwords
+      [ "SELECT COUNT(DISTINCT user_id) FROM auth"
+      , "WHERE created_on >= ? AND user_id != -1"
+      ]
+    ) (SQL.Only weekAgo) :: IO [SQL.Only Int]
+
+  enrolledUsers <- getUsersWithCompletedAnswers conn
+  matchStatus <- getMatchStatus (appMatchState state)
+  let totalAnswerCount = maybe 0 SQL.fromOnly (Maybe.listToMaybe totalAnswers)
+      todayAnswerCount = maybe 0 SQL.fromOnly (Maybe.listToMaybe todayAnswers)
+      activeUserCount = maybe 0 SQL.fromOnly (Maybe.listToMaybe activeUsers)
+      newUserCount = maybe 0 SQL.fromOnly (Maybe.listToMaybe newUsersThisWeek)
+      enrolledCount = length $ filter (/= shadowUserId) enrolledUsers
   return $ Wai.responseLBS
     HTTP.status200
     [(Headers.hContentType, BS.pack "text/html")]
-    (R.renderHtml $ rootTemplate totalActiveUsers aorbs)
+    (R.renderHtml $ rootTemplate
+      totalQuestions
+      totalAnswerCount
+      todayAnswerCount
+      activeUserCount
+      newUserCount
+      enrolledCount
+      matchStatus
+      aorbs
+    )
 
 adminTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 adminTemplateRoute conn _ _ = do

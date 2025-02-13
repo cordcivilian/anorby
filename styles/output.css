@@ -978,6 +978,86 @@
   .collapse {
     visibility: collapse;
   }
+  .ds-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius-box);
+    outline-width: 2px;
+    transition: outline 0.2s ease-in-out;
+    outline: 0 solid #0000;
+    outline-offset: 2px;
+    &:focus {
+      outline-style: none;
+      @media (forced-colors: active) {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+      }
+    }
+    &:focus-visible {
+      outline-color: currentColor;
+    }
+    :where(figure:first-child) {
+      overflow: hidden;
+      border-start-start-radius: inherit;
+      border-start-end-radius: inherit;
+      border-end-start-radius: unset;
+      border-end-end-radius: unset;
+    }
+    :where(figure:last-child) {
+      overflow: hidden;
+      border-start-start-radius: unset;
+      border-start-end-radius: unset;
+      border-end-start-radius: inherit;
+      border-end-end-radius: inherit;
+    }
+    &:where(.ds-card-border) {
+      border: var(--border) solid var(--color-base-200);
+    }
+    &:where(.ds-card-dash) {
+      border: var(--border) dashed var(--color-base-200);
+    }
+    &.ds-image-full {
+      display: grid;
+      &:before {
+        position: relative;
+        grid-column-start: 1;
+        grid-row-start: 1;
+        border-radius: var(--radius-box);
+        background-color: var(--color-neutral);
+        opacity: 75%;
+        content: "";
+      }
+       > * {
+        grid-column-start: 1;
+        grid-row-start: 1;
+      }
+       > .ds-card-body {
+        position: relative;
+        color: var(--color-neutral-content);
+      }
+      :where(figure) {
+        overflow: hidden;
+        border-radius: inherit;
+      }
+       > figure img {
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+    figure {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    &:has(> input:is(input[type="checkbox"], input[type="radio"])) {
+      cursor: pointer;
+      user-select: none;
+    }
+    &:has(> :checked) {
+      outline: 2px solid currentColor;
+    }
+  }
   .ds-avatar {
     position: relative;
     display: inline-flex;
@@ -992,6 +1072,13 @@
       width: 100%;
       object-fit: cover;
     }
+  }
+  .ds-stats {
+    position: relative;
+    display: inline-grid;
+    grid-auto-flow: column;
+    overflow-x: auto;
+    border-radius: var(--radius-box);
   }
   .absolute {
     position: absolute;
@@ -1054,6 +1141,24 @@
   }
   .isolate {
     isolation: isolate;
+  }
+  .ds-stat-desc {
+    grid-column-start: 1;
+    white-space: nowrap;
+    color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+    font-size: 0.75rem;
+  }
+  .ds-stat-title {
+    grid-column-start: 1;
+    white-space: nowrap;
+    color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+    font-size: 0.75rem;
+  }
+  .ds-stat-value {
+    grid-column-start: 1;
+    white-space: nowrap;
+    font-size: 2rem;
+    font-weight: 800;
   }
   .ds-divider {
     display: flex;
@@ -1160,6 +1265,36 @@
       box-shadow: none;
     }
   }
+  .ds-card-body {
+    display: flex;
+    flex: auto;
+    flex-direction: column;
+    gap: calc(0.25rem * 2);
+    padding: var(--ds-card-p, 2rem);
+    font-size: var(--ds-card-fs, 0.875rem);
+    :where(p) {
+      flex-grow: 1;
+    }
+  }
+  .ds-stat {
+    display: inline-grid;
+    width: 100%;
+    column-gap: calc(0.25rem * 4);
+    padding-inline: calc(0.25rem * 6);
+    padding-block: calc(0.25rem * 4);
+    grid-template-columns: repeat(1, 1fr);
+    &:not(:last-child) {
+      border-inline-end: var(--border) dashed color-mix(in oklab, currentColor 10%, #0000);
+      border-block-end: none;
+    }
+  }
+  .ds-card-title {
+    display: flex;
+    align-items: center;
+    gap: calc(0.25rem * 2);
+    font-size: var(--ds-cardtitle-fs, 1.125rem);
+    font-weight: 600;
+  }
   .ds-navbar {
     display: flex;
     width: 100%;
@@ -1237,6 +1372,15 @@
   .w-4\/5 {
     width: calc(4/5 * 100%);
   }
+  .w-9\/10 {
+    width: calc(9/10 * 100%);
+  }
+  .w-90 {
+    width: calc(var(--spacing) * 90);
+  }
+  .w-99 {
+    width: calc(var(--spacing) * 99);
+  }
   .w-\[60vw\] {
     width: 60vw;
   }
@@ -1291,6 +1435,14 @@
   .resize-none {
     resize: none;
   }
+  .ds-stats-vertical {
+    grid-auto-flow: row;
+    overflow-y: auto;
+    .ds-stat:not(:last-child) {
+      border-inline-end: none;
+      border-block-end: var(--border) dashed color-mix(in oklab, currentColor 10%, #0000);
+    }
+  }
   .grid-cols-1 {
     grid-template-columns: repeat(1, minmax(0, 1fr));
   }
@@ -1299,6 +1451,15 @@
   }
   .grid-cols-4 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .grid-rows-1 {
+    grid-template-rows: repeat(1, minmax(0, 1fr));
+  }
+  .grid-rows-2 {
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+  .grid-rows-none {
+    grid-template-rows: none;
   }
   .flex-col {
     flex-direction: column;
@@ -1363,8 +1524,14 @@
   .rounded-2xl {
     border-radius: var(--radius-2xl);
   }
+  .rounded-4xl {
+    border-radius: var(--radius-4xl);
+  }
   .rounded-lg {
     border-radius: var(--radius-lg);
+  }
+  .rounded-xl {
+    border-radius: var(--radius-xl);
   }
   .border {
     border-style: var(--tw-border-style);
@@ -1373,6 +1540,10 @@
   .border-2 {
     border-style: var(--tw-border-style);
     border-width: 2px;
+  }
+  .border-3 {
+    border-style: var(--tw-border-style);
+    border-width: 3px;
   }
   .border-4 {
     border-style: var(--tw-border-style);
@@ -1513,6 +1684,10 @@
   .text-xl {
     font-size: var(--text-xl);
     line-height: var(--tw-leading, var(--text-xl--line-height));
+  }
+  .text-xs {
+    font-size: var(--text-xs);
+    line-height: var(--tw-leading, var(--text-xs--line-height));
   }
   .leading-\[0\.85\] {
     --tw-leading: 0.85;
@@ -1712,6 +1887,31 @@
       @media (hover: hover) {
         opacity: 80%;
       }
+    }
+  }
+  .md\:grid-rows-2 {
+    @media (width >= 48rem) {
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .lg\:ds-stats-horizontal {
+    @media (width >= 64rem) {
+      grid-auto-flow: column;
+      overflow-x: auto;
+      .ds-stat:not(:last-child) {
+        border-inline-end: var(--border) dashed color-mix(in oklab, currentColor 10%, #0000);
+        border-block-end: none;
+      }
+    }
+  }
+  .lg\:grid-cols-4 {
+    @media (width >= 64rem) {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  .lg\:grid-rows-2 {
+    @media (width >= 64rem) {
+      grid-template-rows: repeat(2, minmax(0, 1fr));
     }
   }
 }

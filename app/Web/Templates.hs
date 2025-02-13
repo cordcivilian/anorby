@@ -213,49 +213,78 @@ editAorbTemplate aorb = H.docTypeHtml $ H.html $ do
                 H.! A.class_ "px-4 py-2 border border-base-300 rounded-lg"
                 $ "Cancel"
 
-rootTemplate :: Int -> [Aorb] -> H.Html
-rootTemplate userCount' aorbs = H.docTypeHtml $ H.html $ do
+rootTemplate :: Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> [Aorb] -> H.Html
+rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus aorbs =
+  H.docTypeHtml $ H.html $ do
   pageHead "anorby"
   H.body $ do
     H.div $ do
       navBar
-      H.h4 H.! A.class_ "text-lg" $ H.text $ T.pack $ show userCount'
-      publicAorbs aorbs
+      H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
+        rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus
+        publicAorbs aorbs
+
+rootStats :: Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> H.Html
+rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus =
+  H.div H.! A.class_ "ds-stats ds-stats-vertical lg:ds-stats-horizontal grid grid-cols-2 lg:grid-cols-4 shadow" $ do
+    H.div H.! A.class_ "ds-stat" $ do
+      H.div H.! A.class_ "ds-stat-title" $ "population"
+      H.div H.! A.class_ "ds-stat-value" $ H.toHtml $ show activeUsers
+      H.div H.! A.class_ "ds-stat-desc" $ H.toHtml $ ("+" <> show newUsers <> " this week")
+    H.div H.! A.class_ "ds-stat" $ do
+      H.div H.! A.class_ "ds-stat-title" $ "questions"
+      H.div H.! A.class_ "ds-stat-value" $ H.toHtml $ show totalQuestions
+      H.div H.! A.class_ "ds-stat-desc" $ "(more to come)"
+    H.div H.! A.class_ "ds-stat" $ do
+      H.div H.! A.class_ "ds-stat-title" $ "answers"
+      H.div H.! A.class_ "ds-stat-value" $ H.toHtml $ show totalAnswers
+      H.div H.! A.class_ "ds-stat-desc" $ H.toHtml $ ("+" <> show todayAnswers <> " today")
+    H.div H.! A.class_ "ds-stat" $ do
+      H.div H.! A.class_ "ds-stat-title" $ "clashes"
+      H.div H.! A.class_ "ds-stat-value" $ H.toHtml $ show matchingEnrolled
+      H.div H.! A.class_ "ds-stat-desc" $ case matchStatus of
+        NotStarted -> "enrolled for matching"
+        InProgress -> "matching in progress"
+        Completed -> "matched today"
+        Failed _ -> "matching failed"
 
 publicAorbs :: [Aorb] -> H.Html
-publicAorbs aorbs = do
-  H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
-    Monad.forM_ aorbs $
-      \aorb -> H.div $ do
-        H.div H.! A.class_ "italic mb-4" $
-          H.toHtml (aorbCtx aorb)
-        let mean = aorbMean aorb
-            delta = (abs (mean - 0.5)) * 100
-            formatDelta = T.concat ["(+", T.pack (Text.printf "%.2f" delta), ")"]
-        if delta < 0.01
-          then do
-            H.div H.! A.class_ "my-2" $ do
-              H.toHtml (aorbA aorb)
-              H.span H.! A.class_ "" $ H.toHtml $ T.pack " ...?"
-            H.div H.! A.class_ "ds-divider" $ mempty
-            H.div H.! A.class_ "my-2" $ do
-              H.toHtml (aorbB aorb)
-              H.span H.! A.class_ "" $ H.toHtml $ T.pack " ...?"
-          else if mean > 0.5
-          then do
-            H.div H.! A.class_ "text-lg my-2" $ do
-              H.toHtml (aorbB aorb)
-              H.span H.! A.class_ "text-warning ml-2" $ H.toHtml formatDelta
-            H.div H.! A.class_ "ds-divider" $ mempty
-            H.div H.! A.class_ "text-sm" $
-              H.toHtml (aorbA aorb)
-          else do
-            H.div H.! A.class_ "text-lg my-2" $ do
-              H.toHtml (aorbA aorb)
-              H.span H.! A.class_ "text-warning ml-2" $ H.toHtml formatDelta
-            H.div H.! A.class_ "ds-divider" $ mempty
-            H.div H.! A.class_ "text-sm" $
-              H.toHtml (aorbB aorb)
+publicAorbs aorbs = Monad.forM_ aorbs $ \aorb -> showAorb aorb
+
+showAorb :: Aorb -> H.Html
+showAorb aorb =
+  H.div H.! A.class_ "w-9/10 ds-card ds-card-border border-3 rounded-4xl" $ do
+    H.div H.! A.class_ "ds-card-body" $ do
+      H.div H.! A.class_ "ds-card-title italic mb-4" $ H.toHtml context
+      showChoice topChoice topChoicePopularity
+      H.div H.! A.class_ "ds-divider" $ "OR"
+      showChoice bottomChoice bottomChoicePopularity
+  where
+    context = aorbCtx aorb
+    choiceA = aorbA aorb
+    choiceAPopularity = aorbMean aorb
+    choiceB = aorbB aorb
+    choiceBPopularity = 1 - choiceAPopularity
+    showChoice = showPopulationChoice
+    (topChoice, topChoicePopularity, bottomChoice, bottomChoicePopularity) =
+      if choiceAPopularity > choiceBPopularity
+        then (choiceA, choiceAPopularity, choiceB, choiceBPopularity)
+        else (choiceB, choiceBPopularity, choiceA, choiceAPopularity)
+
+showPopulationChoice :: T.Text -> Double -> H.Html
+showPopulationChoice choice popularity =
+  H.div H.! (if hasClearWinner then clearChoiceClass else unclearChoiceClass) $ do
+    H.toHtml choice
+    Monad.when (popularity > 0.5 || not hasClearWinner) $
+      H.span H.! (if hasClearWinner then A.class_ "ml-2 text-warning" else A.class_ "ml-2") $
+        H.toHtml $ formatDelta popularity
+  where
+    hasClearWinner = popularity > 0.51 || popularity < 0.49
+    clearChoiceClass = if popularity > 0.5 then A.class_ "text-lg" else A.class_ "text-sm"
+    unclearChoiceClass = mempty
+
+formatDelta :: Double -> T.Text
+formatDelta d = T.concat ["(", T.pack (Text.printf "%.2f" $ d * 100), "%)"]
 
 profileTemplate :: [AorbWithAnswer] -> Maybe AorbID -> Maybe T.Text -> Maybe T.Text -> H.Html
 profileTemplate aorbs mAid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
@@ -274,6 +303,14 @@ profileHeadline maybeUuid children = do
       Just uuid -> H.text $ "#" <> uuid
       Nothing -> "whoami"
     children
+
+profileFullView :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> Maybe T.Text -> H.Html
+profileFullView mAid aorbs maybeUuid shareUrl = do
+  profileMainAorb mAid aorbs maybeUuid
+  profileCommonplaceAorbs mAid aorbs maybeUuid
+  profileControversialAorbs mAid aorbs maybeUuid
+  profileAllAnswers mAid aorbs maybeUuid
+  profileSharer maybeUuid shareUrl
 
 profileMainAorb :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileMainAorb mAid aorbs maybeUuid =
@@ -317,6 +354,10 @@ profileAllAnswers mAid aorbs maybeUuid = do
   H.div $ do
     H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "all answers"
     profileOrdinaryAorbs mAid aorbs maybeUuid
+
+profileOrdinaryAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
+profileOrdinaryAorbs mAid aorbs maybeUuid = do
+  H.div $ Monad.forM_ aorbs $ \awa -> profileAorb awa mAid maybeUuid
 
 profileAorb :: AorbWithAnswer -> Maybe AorbID -> Maybe T.Text -> H.Html
 profileAorb awa mFavoriteId maybeUuid = do
@@ -362,24 +403,12 @@ profileAorb awa mFavoriteId maybeUuid = do
       Just _ -> "text-warning ml-2"
       Nothing -> "text-primary ml-2"
 
-profileFullView :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> Maybe T.Text -> H.Html
-profileFullView mAid aorbs maybeUuid shareUrl = do
-  profileMainAorb mAid aorbs maybeUuid
-  profileCommonplaceAorbs mAid aorbs maybeUuid
-  profileControversialAorbs mAid aorbs maybeUuid
-  profileAllAnswers mAid aorbs maybeUuid
-  profileSharer maybeUuid shareUrl
-
 profileSharer :: Maybe T.Text -> Maybe T.Text -> H.Html
 profileSharer maybeUuid shareUrl = case (maybeUuid, shareUrl) of
   (Nothing, Just url) -> H.div $ do
     H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "share"
     H.div $ H.text url
   _ -> mempty
-
-profileOrdinaryAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
-profileOrdinaryAorbs mAid aorbs maybeUuid = do
-  H.div $ Monad.forM_ aorbs $ \awa -> profileAorb awa mAid maybeUuid
 
 ansTemplate :: Aorb -> Bool -> T.Text -> H.Html
 ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
@@ -881,6 +910,30 @@ renderMessage uid msg = do
 
 -- | Auth Templates
 
+accountTemplate :: User -> H.Html
+accountTemplate user = H.docTypeHtml $ H.html $ do
+  pageHead "account"
+  H.body $ do
+    H.div $ do
+      navBar
+      H.div H.! A.class_ "w-full max-w-xl mx-auto" $ do
+        H.h2 H.! A.class_ "text-2xl font-bold mb-4 pb-2 border-b border-base-300" $
+          "account information"
+        H.p H.! A.class_ "mb-4" $ do
+          H.text "email: "
+          H.toHtml $ userEmail user
+        H.div H.! A.class_ "mt-12 p-4 border-2 border-error rounded-lg" $ do
+          H.h3 H.! A.class_ "text-xl font-bold text-error mb-4" $
+            "danger zone"
+          H.p H.! A.class_ "mb-2" $ do
+            H.text "logout from all devices: "
+            H.a H.! A.href "/logout" H.! A.class_ "link text-error hover:opacity-80" $
+              "confirm via email"
+          H.p H.! A.class_ "mb-2" $ do
+            H.text "delete account and all data: "
+            H.a H.! A.href "/delete" H.! A.class_ "link text-error hover:opacity-80" $
+              "confirm via email"
+
 loginTemplate :: T.Text -> H.Html
 loginTemplate token = H.docTypeHtml $ H.html $ do
   pageHead "login"
@@ -941,37 +994,14 @@ confirmTemplate title warning action token actionText cancelUrl = H.docTypeHtml 
           H.! A.class_ "px-8 py-4 border border-base-300 rounded-lg hover:bg-base-200" $
         "cancel"
 
-accountTemplate :: User -> H.Html
-accountTemplate user = H.docTypeHtml $ H.html $ do
-  pageHead "account"
-  H.body $ do
-    H.div $ do
-      navBar
-      H.div H.! A.class_ "w-full max-w-xl mx-auto" $ do
-        H.h2 H.! A.class_ "text-2xl font-bold mb-4 pb-2 border-b border-base-300" $
-          "account information"
-        H.p H.! A.class_ "mb-4" $ do
-          H.text "email: "
-          H.toHtml $ userEmail user
-        H.div H.! A.class_ "mt-12 p-4 border-2 border-error rounded-lg" $ do
-          H.h3 H.! A.class_ "text-xl font-bold text-error mb-4" $
-            "danger zone"
-          H.p H.! A.class_ "mb-2" $ do
-            H.text "logout from all devices: "
-            H.a H.! A.href "/logout" H.! A.class_ "link text-error hover:opacity-80" $
-              "confirm via email"
-          H.p H.! A.class_ "mb-2" $ do
-            H.text "delete account and all data: "
-            H.a H.! A.href "/delete" H.! A.class_ "link text-error hover:opacity-80" $
-              "confirm via email"
-
 -- | Message Templates
 
 msgTemplate :: MessageTemplate -> H.Html
 msgTemplate template = H.docTypeHtml $ H.html $ do
   pageHead $ messageTitle template
-  H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
+  H.body $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+      H.div H.! A.class_ "text-2xl mb-4" $ anorbyTitle
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ H.toHtml $ messageHeading template
       H.div $ do
         H.a H.! A.href (H.textValue $ fst $ messageLink template)

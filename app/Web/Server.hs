@@ -156,7 +156,7 @@ routes =
       serveStaticFile "/styles/output.css"
   , Route "GET" "/" $ PublicHandler rootTemplateRoute
   , Route "GET" "/share/:uuid" $ PublicHandler $ \_ conn req ->
-      case extractParam "/share/:uuid" (Wai.rawPathInfo req) ":uuid" of
+      case extractParam "/share/:uuid" (Wai.rawPathInfo req) "uuid" of
         Just uuid -> sharedProfileTemplateRoute conn (T.pack $ BS.unpack uuid) req
         Nothing -> return notFoundResponse
 
@@ -166,7 +166,7 @@ routes =
   , Route "GET" "/register" $ AuthHandler registerGetRoute
   , Route "POST" "/register" $ AuthHandler registerPostRoute
   , Route "GET" "/auth/:hash" $ AuthHandler $ \conn req ->
-      case extractParam "/auth/:hash" (Wai.rawPathInfo req) ":hash" of
+      case extractParam "/auth/:hash" (Wai.rawPathInfo req) "hash" of
         Just hash -> authHashRoute conn (T.pack $ BS.unpack hash) req
         Nothing -> return notFoundResponse
 
