@@ -51,19 +51,166 @@ navBar links = do
 
 -- | Core Templates
 
-adminTemplate :: H.Html
-adminTemplate = H.docTypeHtml $ H.html $ do
+adminTemplate :: [Aorb] -> H.Html
+adminTemplate aorbs = H.docTypeHtml $ H.html $ do
   H.head $ do
+    H.title "admin"
     H.link H.! A.rel "icon" H.! A.href "data:,"
     H.meta H.! A.name "viewport" H.!
       A.content "width=device-width, initial-scale=1.0"
     H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
-    H.title "admin"
   H.body $ do
     H.div $ do
-      navBar [ NavLink "/admin" "admin" True
-             ]
-      H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "admin"
+      navBar []
+
+      H.div H.! A.class_ "p-4 max-w-4xl mx-auto" $ do
+        H.h2 H.! A.class_ "text-2xl font-bold mb-4" $ "Add New Question"
+        H.form H.! A.method "POST"
+               H.! A.action "/admin/aorb/add"
+               H.! A.class_ "space-y-4" $ do
+          H.div $ do
+            H.label H.! A.for "context" $ "Context"
+            H.textarea H.! A.id "context"
+                      H.! A.name "context"
+                      H.! A.class_ "w-full p-2 border border-base-300 rounded-lg"
+                      H.! A.required "required"
+                      $ ""
+          H.div $ do
+            H.label H.! A.for "subtext" $ "Subtext"
+            H.textarea H.! A.id "subtext"
+                      H.! A.name "subtext"
+                      H.! A.class_ "w-full p-2 border border-base-300 rounded-lg"
+                      $ ""
+          H.div $ do
+            H.label H.! A.for "option_a" $ "Option A"
+            H.input H.! A.type_ "text"
+                   H.! A.id "option_a"
+                   H.! A.name "option_a"
+                   H.! A.class_ "w-full p-2 border border-base-300 rounded-lg"
+                   H.! A.required "required"
+          H.div $ do
+            H.label H.! A.for "option_b" $ "Option B"
+            H.input H.! A.type_ "text"
+                   H.! A.id "option_b"
+                   H.! A.name "option_b"
+                   H.! A.class_ "w-full p-2 border border-base-300 rounded-lg"
+                   H.! A.required "required"
+          H.button H.! A.type_ "submit"
+                  H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg"
+                  $ "Add Question"
+
+      H.div H.! A.class_ "p-4 max-w-4xl mx-auto" $ do
+        H.h2 H.! A.class_ "text-2xl font-bold mb-4" $ "All Questions"
+        H.div H.! A.class_ "space-y-4" $ do
+          mapM_ renderAorbAdmin aorbs
+
+renderAorbAdmin :: Aorb -> H.Html
+renderAorbAdmin aorb =
+  H.div H.! A.class_ "border border-base-300 rounded-lg p-4" $ do
+    H.div H.! A.class_ "flex justify-between items-start" $ do
+      H.div H.! A.class_ "space-y-2" $ do
+        H.div H.! A.class_ "font-bold" $
+          H.toHtml $ "ID: " <> T.pack (show $ aorbId aorb)
+        H.div H.! A.class_ "text-base-content/60 italic" $
+          H.toHtml $ aorbCtx aorb
+        H.div $ H.toHtml $ aorbStx aorb
+        H.div H.! A.class_ "mt-2" $ do
+          H.div $ H.toHtml $ "A: " <> aorbA aorb
+          H.div $ H.toHtml $ "B: " <> aorbB aorb
+          H.div H.! A.class_ "text-sm text-base-content/60" $
+            H.toHtml $ "Mean: " <> T.pack (show $ aorbMean aorb)
+
+      H.div H.! A.class_ "space-x-2" $ do
+        -- Edit button
+        H.form H.! A.method "GET"
+               H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/edit")
+               H.! A.class_ "inline-block" $ do
+          H.button H.! A.type_ "submit"
+                  H.! A.class_ "px-4 py-2 bg-warning text-warning-content rounded-lg"
+                  $ "Edit"
+
+        -- Delete button and confirmation dialog
+        let dialogId = "delete-dialog-" <> T.pack (show $ aorbId aorb)
+        H.button H.! A.type_ "button"
+                H.! A.class_ "px-4 py-2 bg-error text-error-content rounded-lg"
+                H.! A.onclick (H.textValue $ "document.getElementById('" <> dialogId <> "').showModal()")
+                $ "Delete"
+
+        -- Confirmation Dialog
+        H.dialog H.! A.id (H.textValue dialogId)
+                H.! A.class_ "p-6 rounded-lg backdrop:bg-black/50" $ do
+          H.h3 H.! A.class_ "text-lg font-bold mb-4" $
+            "Confirm Delete"
+          H.p H.! A.class_ "mb-6" $
+            "Are you sure you want to delete this question? This action cannot be undone."
+          H.div H.! A.class_ "flex justify-end gap-4" $ do
+            H.button H.! A.type_ "button"
+                    H.! A.class_ "px-4 py-2 border border-base-300 rounded-lg"
+                    H.! A.onclick (H.textValue $ "document.getElementById('" <> dialogId <> "').close()")
+                    $ "Cancel"
+            H.form H.! A.method "POST"
+                  H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/delete")
+                  H.! A.class_ "inline-block" $ do
+              H.button H.! A.type_ "submit"
+                      H.! A.class_ "px-4 py-2 bg-error text-error-content rounded-lg"
+                      $ "Delete"
+
+editAorbTemplate :: Aorb -> H.Html
+editAorbTemplate aorb = H.docTypeHtml $ H.html $ do
+  H.head $ do
+    H.title "edit question"
+    H.link H.! A.rel "icon" H.! A.href "data:,"
+    H.meta H.! A.name "viewport" H.!
+      A.content "width=device-width, initial-scale=1.0"
+    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+  H.body $ do
+    H.div $ do
+      navBar [ NavLink "/admin" "back" False ]
+
+      H.div H.! A.class_ "p-4 max-w-4xl mx-auto" $ do
+        H.h2 H.! A.class_ "text-2xl font-bold mb-4" $
+          H.toHtml $ "Edit Question #" <> T.pack (show $ aorbId aorb)
+
+        H.form H.! A.method "POST"
+               H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/edit")
+               H.! A.class_ "space-y-4" $ do
+          H.div $ do
+            H.label H.! A.for "context" $ "Context"
+            H.textarea H.! A.id "context"
+                      H.! A.name "context"
+                      H.! A.class_ "w-full p-2 border border-base-300 rounded-lg"
+                      H.! A.required "required"
+                      $ H.toHtml (aorbCtx aorb)
+          H.div $ do
+            H.label H.! A.for "subtext" $ "Subtext"
+            H.textarea H.! A.id "subtext"
+                      H.! A.name "subtext"
+                      H.! A.class_ "w-full p-2 border border-base-300 rounded-lg"
+                      $ H.toHtml (aorbStx aorb)
+          H.div $ do
+            H.label H.! A.for "option_a" $ "Option A"
+            H.input H.! A.type_ "text"
+                   H.! A.id "option_a"
+                   H.! A.name "option_a"
+                   H.! A.class_ "w-full p-2 border border-base-300 rounded-lg"
+                   H.! A.value (H.toValue $ aorbA aorb)
+                   H.! A.required "required"
+          H.div $ do
+            H.label H.! A.for "option_b" $ "Option B"
+            H.input H.! A.type_ "text"
+                   H.! A.id "option_b"
+                   H.! A.name "option_b"
+                   H.! A.class_ "w-full p-2 border border-base-300 rounded-lg"
+                   H.! A.value (H.toValue $ aorbB aorb)
+                   H.! A.required "required"
+
+          H.div H.! A.class_ "flex gap-4" $ do
+            H.button H.! A.type_ "submit"
+                    H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg"
+                    $ "Save Changes"
+            H.a H.! A.href "/admin"
+                H.! A.class_ "px-4 py-2 border border-base-300 rounded-lg"
+                $ "Cancel"
 
 rootTemplate :: Int -> [Aorb] -> H.Html
 rootTemplate userCount' aorbs = H.docTypeHtml $

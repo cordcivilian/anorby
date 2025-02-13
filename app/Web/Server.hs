@@ -165,6 +165,11 @@ routeProtected config state (method, path) conn uid req =
   case (method, path) of
 
   ("GET", "/admin") | uid == shadowUserId -> adminTemplateRoute conn uid req
+  ("POST", "/admin/aorb/add") -> handleAddAorb config conn uid req
+  ("GET", p) | isEditAorbPath p -> handleEditAorbForm config conn uid (extractAorbId p) req
+  ("POST", p) | isEditAorbPath p -> handleEditAorb config conn uid (extractAorbId p) req
+  ("POST", p) | isDeleteAorbPath p -> handleDeleteAorb config conn uid (extractAorbId p) req
+
   ("GET", "/whoami") -> profileTemplateRoute config conn uid req
   ("GET", "/account") -> accountTemplateRoute conn uid req
 
@@ -195,10 +200,19 @@ routeProtected config state (method, path) conn uid req =
     isAorbPath = BS.isPrefixOf "/ans/"
     isFavoritePath = BS.isPrefixOf "/aorb/favorite/"
     isMatchDaysPath = BS.isPrefixOf "/match/found/t-"
-    isMatchMessagePath p =
-      BS.isPrefixOf "/match/found/t-" p && BS.isSuffixOf "/message" p
+    isMatchMessagePath p = BS.isPrefixOf "/match/found/t-" p && BS.isSuffixOf "/message" p
+    isEditAorbPath p = BS.isPrefixOf "/admin/aorb/" p && BS.isSuffixOf "/edit" p
+    isDeleteAorbPath p = BS.isPrefixOf "/admin/aorb/" p && BS.isSuffixOf "/delete" p
 
-    extractAorbId p = read . BS.unpack . BS.drop 5 $ p
+    extractAorbId :: BS.ByteString -> AorbID
+    extractAorbId p =
+      let parts = BS.split '/' p
+          idPart = if length parts >= 4
+                   then parts !! 3
+                   else "0"
+      in case reads (BS.unpack idPart) of
+           [(n, "")] -> n
+           _ -> 0
     extractFavoriteAorbId p = read . BS.unpack . BS.drop 15 $ p
 
     extractDays p =
@@ -237,8 +251,13 @@ application _ state request respond = do
     ("POST", "/register") -> handleAuthRoute route
     ("GET", p) | isAuthHashPath p -> handleAuthRoute route
 
-    ("GET", p) | isSharePath p -> handlePublicRoute route
     ("GET", "/admin") -> handleProtectedRoute route
+    ("POST", "/admin/aorb/add") -> handleProtectedRoute route
+    ("GET", p) | isEditAorbPath p -> handleProtectedRoute route
+    ("POST", p) | isEditAorbPath p -> handleProtectedRoute route
+    ("POST", p) | isDeleteAorbPath p -> handleProtectedRoute route
+
+    ("GET", p) | isSharePath p -> handlePublicRoute route
     ("GET", "/whoami") -> handleProtectedRoute route
     ("GET", "/account") -> handleProtectedRoute route
 
@@ -270,8 +289,10 @@ application _ state request respond = do
     isAorbPath = BS.isPrefixOf "/ans/"
     isFavoriteAorbPath = BS.isPrefixOf "/aorb/favorite/"
     isMatchDaysPath = BS.isPrefixOf "/match/found/t-"
-    isMatchMessagePath p =
-      BS.isPrefixOf "/match/found/t-" p && BS.isSuffixOf "/message" p
+    isMatchMessagePath p = BS.isPrefixOf "/match/found/t-" p && BS.isSuffixOf "/message" p
+    isEditAorbPath p = BS.isPrefixOf "/admin/aorb/" p && BS.isSuffixOf "/edit" p
+    isDeleteAorbPath p = BS.isPrefixOf "/admin/aorb/" p && BS.isSuffixOf "/delete" p
+
 
     runHandlerWithConn handler =
       Pool.withResource (appPool state) (\conn ->

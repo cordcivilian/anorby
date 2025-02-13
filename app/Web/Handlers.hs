@@ -81,11 +81,75 @@ rootTemplateRoute state conn _ = do
     (R.renderHtml $ rootTemplate totalActiveUsers aorbs)
 
 adminTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-adminTemplateRoute _ _ _ = do
+adminTemplateRoute conn _ _ = do
+  aorbs <- SQL.query_ conn "SELECT * FROM aorb ORDER BY id" :: IO [Aorb]
   return $ Wai.responseLBS
     HTTP.status200
     [(Headers.hContentType, BS.pack "text/html")]
-    (R.renderHtml $ adminTemplate)
+    (R.renderHtml $ adminTemplate aorbs)
+
+handleAddAorb :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+handleAddAorb _ conn _ req = do
+  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  let getParam name = TE.decodeUtf8 <$> lookup name params
+  case (getParam "context", getParam "subtext", getParam "option_a", getParam "option_b") of
+    (Just ctx, Just stx, Just a, Just b) -> do
+      SQL.execute conn
+        "INSERT INTO aorb (context, subtext, a, b) VALUES (?, ?, ?, ?)"
+        (ctx, stx, a, b)
+      return $ Wai.responseLBS
+        HTTP.status303
+        [(Headers.hLocation, "/admin")]
+        ""
+    _ -> return invalidSubmissionResponse
+
+handleEditAorbForm :: Config -> SQL.Connection -> UserID -> AorbID -> Wai.Request -> IO Wai.Response
+handleEditAorbForm _ conn _ aid _ = do
+  aorbs <- SQL.query conn
+    "SELECT * FROM aorb WHERE id = ?"
+    (SQL.Only aid) :: IO [Aorb]
+  case aorbs of
+    [aorb] -> return $ Wai.responseLBS
+      HTTP.status200
+      [(Headers.hContentType, "text/html")]
+      (R.renderHtml $ editAorbTemplate aorb)
+    _ -> return notFoundResponse
+
+handleEditAorb :: Config -> SQL.Connection -> UserID -> AorbID -> Wai.Request -> IO Wai.Response
+handleEditAorb _ conn _ aid req = do
+  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  let getParam name = TE.decodeUtf8 <$> lookup name params
+  case (getParam "context", getParam "subtext", getParam "option_a", getParam "option_b") of
+    (Just ctx, Just stx, Just a, Just b) -> do
+      SQL.execute conn
+        "UPDATE aorb SET context = ?, subtext = ?, a = ?, b = ? WHERE id = ?"
+        (ctx, stx, a, b, aid)
+      return $ Wai.responseLBS
+        HTTP.status303
+        [(Headers.hLocation, "/admin")]
+        ""
+    _ -> return invalidSubmissionResponse
+
+handleDeleteAorb :: Config -> SQL.Connection -> UserID -> AorbID -> Wai.Request -> IO Wai.Response
+handleDeleteAorb _ conn _ aid _ = do
+  exists <- SQL.query conn
+    "SELECT 1 FROM aorb WHERE id = ? LIMIT 1"
+    (SQL.Only aid) :: IO [SQL.Only Int]
+  case exists of
+    [] -> return notFoundResponse
+    _ -> do
+      SQL.execute conn
+        "DELETE FROM aorb_answers WHERE aorb_id = ?"
+        (SQL.Only aid)
+      SQL.execute conn
+        "DELETE FROM aorb WHERE id = ?"
+        (SQL.Only aid)
+      return $ Wai.responseLBS
+        HTTP.status303
+        [ (Headers.hLocation, "/admin")
+        , (Headers.hContentType, "text/html")
+        ]
+        ""
 
 profileTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
                      -> IO Wai.Response
