@@ -16,14 +16,22 @@ import qualified Text.Printf as Text
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 -- import qualified Text.Blaze.Internal as I
--- import qualified Text.Blaze.Svg11 as S
--- import qualified Text.Blaze.Svg11.Attributes as SA
+import qualified Text.Blaze.Svg11 as S
+import qualified Text.Blaze.Svg11.Attributes as SA
 
 import Types
 import Web.Types
 import Utils.Time
 import Utils.Config
 import Utils.MatchState
+
+userIcon :: S.Svg
+userIcon = S.svg
+  H.! SA.width "36" H.! SA.height "36" H.! SA.viewbox "0 0 100 100"
+  H.! A.xmlns "http://www.w3.org/2000/svg" $ do
+    S.circle H.! SA.cx "50" H.! SA.cy "30" H.! SA.r "15" H.! SA.fill "#ccc"
+    S.rect H.! SA.x "25" H.! SA.y "55" H.! SA.width "50" H.! SA.height "30" H.! SA.rx "15" H.! SA.fill "#ccc"
+    S.circle H.! SA.cx "50" H.! SA.cy "50" H.! SA.r "48" H.! SA.fill "none" H.! SA.stroke "#ccc" H.! SA.strokeWidth "4"
 
 -- | Navigation Components
 
@@ -36,15 +44,18 @@ navBar links = do
             H.! A.href (H.textValue $ linkPath link) $
             H.toHtml $ linkText link
   H.div H.! A.class_ "ds-navbar" $ do
-    H.div H.! A.class_ "ds-navbar-start" $ do
-      mapM_ navLink links
-    H.div $ H.a H.! A.class_ "ds-navbar-center" H.! A.href "/" $ do
-      H.span H.! A.class_ "border-b-3 border-primary inline-block leading-[0.85] mx-[3px]" $ "a"
-      H.span H.! A.class_ "border-b-3 border-transparent inline-block" $ "n"
-      H.span H.! A.class_ "border-b-3 border-secondary inline-block leading-[0.85] mx-[3px]" $ "or"
-      H.span H.! A.class_ "border-b-3 border-primary inline-block leading-[0.85] mx-[3px]" $ "b"
-      H.span H.! A.class_ "border-b-3 border-transparent inline-block" $ "y"
-    H.div H.! A.class_ "ds-navbar-end" $ ""
+    H.div H.! A.class_ "ds-navbar-start" $ do mapM_ navLink links
+    H.div $ H.a H.! A.class_ "ds-navbar-center text-3xl" H.! A.href "/" $ anorbyTitle
+    H.div H.! A.class_ "ds-navbar-end" $ do
+      userIcon
+
+anorbyTitle :: H.Html
+anorbyTitle = do
+  H.span H.! A.class_ "border-b-3 border-primary inline-block leading-[0.85] mx-[3px]" $ "a"
+  H.span H.! A.class_ "border-b-3 border-transparent inline-block" $ "n"
+  H.span H.! A.class_ "border-b-3 border-secondary inline-block leading-[0.85] mx-[3px]" $ "or"
+  H.span H.! A.class_ "border-b-3 border-primary inline-block leading-[0.85] mx-[3px]" $ "b"
+  H.span H.! A.class_ "border-b-3 border-transparent inline-block" $ "y"
 
 pageHead :: T.Text -> H.Html
 pageHead title = H.head $ do
