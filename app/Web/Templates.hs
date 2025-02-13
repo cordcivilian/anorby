@@ -15,7 +15,7 @@ import qualified Text.Printf as Text
 
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
-import qualified Text.Blaze.Internal as I
+-- import qualified Text.Blaze.Internal as I
 -- import qualified Text.Blaze.Svg11 as S
 -- import qualified Text.Blaze.Svg11.Attributes as SA
 
@@ -46,16 +46,18 @@ navBar links = do
       H.span H.! A.class_ "border-b-3 border-transparent inline-block" $ "y"
     H.div H.! A.class_ "ds-navbar-end" $ ""
 
+pageHead :: T.Text -> H.Html
+pageHead title = H.head $ do
+  H.title $ H.toHtml title
+  H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
+  H.link H.! A.rel "icon" H.! A.href "data:,"
+  H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+
 -- | Core Templates
 
 adminTemplate :: [Aorb] -> H.Html
 adminTemplate aorbs = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "admin"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.!
-      A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+  pageHead "admin"
   H.body $ do
     H.div $ do
       navBar []
@@ -154,12 +156,7 @@ renderAorbAdmin aorb =
 
 editAorbTemplate :: Aorb -> H.Html
 editAorbTemplate aorb = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "edit question"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.!
-      A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+  pageHead "edit question"
   H.body $ do
     H.div $ do
       navBar [ NavLink "/admin" "back" False ]
@@ -210,22 +207,16 @@ editAorbTemplate aorb = H.docTypeHtml $ H.html $ do
                 $ "Cancel"
 
 rootTemplate :: Int -> [Aorb] -> H.Html
-rootTemplate userCount' aorbs = H.docTypeHtml $
-  H.html $ do
-    H.head $ do
-      H.link H.! A.rel "icon" H.! A.href "data:,"
-      H.meta H.! A.name "viewport" H.!
-        A.content "width=device-width, initial-scale=1.0"
-      H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
-      H.title "anorby"
-    H.body $ do
-      H.div $ do
-        navBar [ NavLink "/whoami" "whoami" False
-               , NavLink "/ans" "answer" False
-               , NavLink "/match" "match" False
-               ]
-        H.h4 H.! A.class_ "text-lg" $ H.text $ T.pack $ "# of responses: " ++ show userCount'
-        publicAorbs aorbs
+rootTemplate userCount' aorbs = H.docTypeHtml $ H.html $ do
+  pageHead "anorby"
+  H.body $ do
+    H.div $ do
+      navBar [ NavLink "/whoami" "whoami" False
+             , NavLink "/ans" "answer" False
+             , NavLink "/match" "match" False
+             ]
+      H.h4 H.! A.class_ "text-lg" $ H.text $ T.pack $ "# of responses: " ++ show userCount'
+      publicAorbs aorbs
 
 publicAorbs :: [Aorb] -> H.Html
 publicAorbs aorbs = do
@@ -267,39 +258,12 @@ publicAorbs aorbs = do
 
 profileTemplate :: [AorbWithAnswer] -> Maybe AorbID -> Maybe T.Text -> Maybe T.Text -> H.Html
 profileTemplate aorbs mAid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title $ case maybeUuid of
-                Just uuid -> H.text $ "share/" <> uuid
-                Nothing -> "whoami"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
-    H.style $ case maybeUuid of
-                Just _ -> "/* Shared view overrides */"
-                Nothing -> ""
+  pageHead $ case maybeUuid of
+    Just uuid -> "share/" <> uuid
+    Nothing -> "whoami"
   H.body $ do
     profileHeadline maybeUuid $ ""
     profileFullView mAid aorbs maybeUuid shareUrl
-
-profileHead :: Maybe T.Text -> H.Html
-profileHead maybeUuid = H.head $ do
-  H.title $ case maybeUuid of
-    Just uuid -> H.text $ "share/" <> uuid
-    Nothing -> "whoami"
-  H.link H.! A.rel "icon" H.! A.href "data:,"
-  H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-  H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
-  case maybeUuid of
-    Just _ -> H.style $ I.preEscapedText $ T.unlines
-      [ "/* Shared view color overrides */"
-      , ".percentage { @apply text-warning; }"
-      , ".delta { @apply text-warning; }"
-      , ".choice.selected { @apply text-warning; }"
-      , ".aorb-clickable { pointer-events: none; cursor: default; }"
-      , ".aorb-clickable:hover { transform: none; }"
-      , ".aorb:hover { background-color: inherit; }"
-      ]
-    Nothing -> mempty
 
 profileHeadline :: Maybe T.Text -> H.Html -> H.Html
 profileHeadline maybeUuid children = do
@@ -430,11 +394,7 @@ profileOrdinaryAorbs mAid aorbs maybeUuid = do
 
 ansTemplate :: Aorb -> Bool -> T.Text -> H.Html
 ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "answer"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+  pageHead "answer"
   H.body $ do
     H.div $ do
       navBar [ NavLink "/whoami" "whoami" False
@@ -470,13 +430,8 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
           H.toHtml choice
 
 existingAnswerTemplate :: Aorb -> Maybe AorbAnswer -> Bool -> T.Text -> H.Html
-existingAnswerTemplate aorb mCurrentAnswer isFavorite token =
-  H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "answer"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+existingAnswerTemplate aorb mCurrentAnswer isFavorite token = H.docTypeHtml $ H.html $ do
+  pageHead "answer (edit)"
   H.body $ do
     H.div $ do
       navBar [ NavLink "/whoami" "whoami" False
@@ -531,14 +486,8 @@ matchTemplate :: Config
               -> Maybe (Match, Double)
               -> MatchStatus
               -> H.Html
-matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus =
-  H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.!
-      A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
-    H.title "match"
+matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus = H.docTypeHtml $ H.html $ do
+  pageHead "match"
   H.body $ do
     H.div $ do
       navBar [ NavLink "/whoami" "whoami" False
@@ -646,11 +595,7 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolle
 
 matchTypeTemplate :: User -> H.Html
 matchTypeTemplate user = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "match type"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+  pageHead "match type"
   H.body $ do
     H.div $ do
       navBar [ NavLink "/match" "back" False ]
@@ -715,11 +660,7 @@ schemeDetailedDescription scheme =
 
 matchFoundTemplate :: Integer -> Integer -> [((Match, Double), Int)] -> H.Html
 matchFoundTemplate currentTimestamp expiryDays matchData = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "matches"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+  pageHead "matches"
   H.body $ do
     H.div $ do
       navBar [ NavLink "/match" "back" False ]
@@ -781,44 +722,39 @@ matchCard currentTimestamp match score unreadCount =
       in currentDay - matchDay
 
 matchProfileTemplate :: Config -> Integer -> UserID -> UserID -> MatchView -> [Message] -> H.Html
-matchProfileTemplate config days mainUserId _ view messages =
-  H.docTypeHtml $ H.html $ do
-    H.head $ do
-      H.title "match profile"
-      H.link H.! A.rel "icon" H.! A.href "data:,"
-      H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-      H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
-    H.body $ do
-      H.div $ do
-        navBar [ NavLink (if days == 0 then "/match" else "/match/found") "back" False ]
-        H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "stats"
-        H.div H.! A.class_ "grid grid-cols-2 gap-4 max-w-xl mx-auto w-full" $ do
-          statsBox "matched on" (formatMatchDate (viewTimestamp view))
-          statsBox "agreement rate" (formatPercent (viewAgreementRate view))
-          statsBox "you answered" (T.pack $ show $ viewYourTotalAnswers view)
-          statsBox "they answered" (T.pack $ show $ viewTargetTotalAnswers view)
+matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.html $ do
+  pageHead "match profile"
+  H.body $ do
+    H.div $ do
+      navBar [ NavLink (if days == 0 then "/match" else "/match/found") "back" False ]
+      H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "stats"
+      H.div H.! A.class_ "grid grid-cols-2 gap-4 max-w-xl mx-auto w-full" $ do
+        statsBox "matched on" (formatMatchDate (viewTimestamp view))
+        statsBox "agreement rate" (formatPercent (viewAgreementRate view))
+        statsBox "you answered" (T.pack $ show $ viewYourTotalAnswers view)
+        statsBox "they answered" (T.pack $ show $ viewTargetTotalAnswers view)
 
-      H.div $ do
-        H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "two and the truth is a majority"
-        case viewTopAgreement view of
-          Just mawa -> matchProfileAgreement mawa
-          Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no agreements found"
+    H.div $ do
+      H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "two and the truth is a majority"
+      case viewTopAgreement view of
+        Just mawa -> matchProfileAgreement mawa
+        Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no agreements found"
 
-      H.div $ do
-        H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "their roman empire"
-        case viewMainAorbs view of
-          Just (_, theirMain) -> spotlightAorbSection mainUserId theirMain
-          Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no main question found"
+    H.div $ do
+      H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "their roman empire"
+      case viewMainAorbs view of
+        Just (_, theirMain) -> spotlightAorbSection mainUserId theirMain
+        Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no main question found"
 
-      H.div $ do
-        H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "plz mend the rift"
-        case viewTopDisagreement view of
-          Just mawa -> matchProfileDisagreement mainUserId mawa
-          Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no disagreements found"
+    H.div $ do
+      H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "plz mend the rift"
+      case viewTopDisagreement view of
+        Just mawa -> matchProfileDisagreement mainUserId mawa
+        Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no disagreements found"
 
-      H.div $ do
-        H.h1 H.! A.class_ "text-2xl font-bold mb-8" $ "head-to-head"
-        renderMessages config days mainUserId messages
+    H.div $ do
+      H.h1 H.! A.class_ "text-2xl font-bold mb-8" $ "head-to-head"
+      renderMessages config days mainUserId messages
 
   where
     statsBox :: T.Text -> T.Text -> H.Html
@@ -967,11 +903,7 @@ renderMessage uid msg = do
 
 loginTemplate :: T.Text -> H.Html
 loginTemplate token = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "login"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+  pageHead "login"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       navBar [ NavLink "/login" "login" True
@@ -994,11 +926,7 @@ loginTemplate token = H.docTypeHtml $ H.html $ do
 
 registerTemplate :: T.Text -> H.Html
 registerTemplate token = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "register"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+  pageHead "register"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       navBar [ NavLink "/login" "login" False
@@ -1020,35 +948,26 @@ registerTemplate token = H.docTypeHtml $ H.html $ do
             "register"
 
 confirmTemplate :: T.Text -> T.Text -> T.Text -> T.Text -> T.Text -> T.Text -> H.Html
-confirmTemplate title warning action token actionText cancelUrl =
-  H.docTypeHtml $ H.html $ do
-    H.head $ do
-      H.title $ H.toHtml title
-      H.link H.! A.rel "icon" H.! A.href "data:,"
-      H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-      H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
-    H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
-      H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-        H.form H.! A.method "POST" H.! A.action (H.textValue action) $ do
-          H.input H.! A.type_ "hidden"
-                H.! A.name "token"
-                H.! A.value (H.textValue token)
-          H.button H.! A.type_ "submit"
-                H.! A.class_ "mb-8 px-8 py-4 bg-error text-error-content rounded-lg hover:bg-error/90" $
-            H.toHtml actionText
-        H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ H.toHtml title
-        H.p H.! A.class_ "mb-8" $ H.toHtml warning
-        H.a H.! A.href (H.textValue cancelUrl)
-            H.! A.class_ "px-8 py-4 border border-base-300 rounded-lg hover:bg-base-200" $
-          "cancel"
+confirmTemplate title warning action token actionText cancelUrl = H.docTypeHtml $ H.html $ do
+  pageHead title
+  H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
+    H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
+      H.form H.! A.method "POST" H.! A.action (H.textValue action) $ do
+        H.input H.! A.type_ "hidden"
+              H.! A.name "token"
+              H.! A.value (H.textValue token)
+        H.button H.! A.type_ "submit"
+              H.! A.class_ "mb-8 px-8 py-4 bg-error text-error-content rounded-lg hover:bg-error/90" $
+          H.toHtml actionText
+      H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ H.toHtml title
+      H.p H.! A.class_ "mb-8" $ H.toHtml warning
+      H.a H.! A.href (H.textValue cancelUrl)
+          H.! A.class_ "px-8 py-4 border border-base-300 rounded-lg hover:bg-base-200" $
+        "cancel"
 
 accountTemplate :: User -> H.Html
 accountTemplate user = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title "account"
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+  pageHead "account"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       navBar [ NavLink "/whoami" "whoami" False
@@ -1077,11 +996,7 @@ accountTemplate user = H.docTypeHtml $ H.html $ do
 
 msgTemplate :: MessageTemplate -> H.Html
 msgTemplate template = H.docTypeHtml $ H.html $ do
-  H.head $ do
-    H.title $ H.toHtml $ messageTitle template
-    H.link H.! A.rel "icon" H.! A.href "data:,"
-    H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
-    H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
+  pageHead $ messageTitle template
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ H.toHtml $ messageHeading template
