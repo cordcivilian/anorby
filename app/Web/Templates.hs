@@ -15,8 +15,6 @@ import qualified Text.Printf as Text
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 import qualified Text.Blaze.Internal as I
-import qualified Text.Blaze.Svg11 as S
-import qualified Text.Blaze.Svg11.Attributes as SA
 
 import Types
 import Web.Types
@@ -39,8 +37,7 @@ navBar maybeSubtitle = do
       Nothing -> do
         H.div $ H.a H.! A.class_ "ds-navbar-center text-3xl" H.! A.href "/" $ anorbyTitle
     H.div H.! A.class_ "ds-navbar-end ds-dropdown ds-dropdown-end ds-dropdown-bottom" $ do
-      H.div H.! A.tabindex "0" H.! A.role "button" H.! A.class_ "ds-btn ds-btn-ghost ds-btn-circle ds-avatar" $
-        userIcon
+      H.div H.! A.tabindex "0" H.! A.role "button" H.! A.class_ "ds-btn hover:text-primary transition-all" $ "you"
       H.ul H.! A.tabindex "0" H.! A.class_ "ds-menu ds-dropdown-content" $ do
         H.li H.! A.class_ "hover:text-primary transition-all" $ H.a H.! A.href "/whoami" $ "whoami"
         H.li H.! A.class_ "hover:text-primary transition-all" $ H.a H.! A.href "/account" $ "account"
@@ -52,14 +49,6 @@ anorbyTitle = do
   H.span H.! A.class_ "border-b-3 border-secondary inline-block leading-[0.85] mx-[3px]" $ "or"
   H.span H.! A.class_ "border-b-3 border-primary inline-block leading-[0.85] mx-[3px]" $ "b"
   H.span H.! A.class_ "border-b-3 border-transparent inline-block" $ "y"
-
-userIcon :: S.Svg
-userIcon = S.svg
-  H.! SA.width "39" H.! SA.height "39" H.! SA.viewbox "0 0 100 100"
-  H.! A.xmlns "http://www.w3.org/2000/svg" $ do
-    S.circle H.! SA.cx "50" H.! SA.cy "30" H.! SA.r "15" H.! SA.fill "#ccc"
-    S.rect H.! SA.x "25" H.! SA.y "55" H.! SA.width "50" H.! SA.height "30" H.! SA.rx "15" H.! SA.fill "#ccc"
-    S.circle H.! SA.cx "50" H.! SA.cy "50" H.! SA.r "48" H.! SA.fill "none" H.! SA.stroke "#ccc" H.! SA.strokeWidth "4"
 
 pageHead :: T.Text -> H.Html
 pageHead title = H.head $ do
@@ -284,8 +273,8 @@ showAorb mode =
         Just mainAorbId -> aorbId (aorbData awa) == mainAorbId
         Nothing -> False
     aorbClass = case (main, clickable) of
-      (True, True) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-error hover:-translate-y-1 hover:bg-base-200 transition-all"
-      (True, False) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-accent"
+      (True, True) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-warning hover:-translate-y-1 hover:bg-base-200 transition-all"
+      (True, False) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-primary"
       (False, True) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl hover:-translate-y-1 hover:bg-base-200 transition-all"
       (False, False) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl"
     context = case mode of

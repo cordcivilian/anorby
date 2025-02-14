@@ -34,7 +34,6 @@ executable anorby
                     , binary
                     , blaze-html
                     , blaze-markup
-                    , blaze-svg
                     , bytestring
                     , containers
                     , cookie

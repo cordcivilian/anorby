@@ -1133,21 +1133,6 @@
       }
     }
   }
-  .ds-avatar {
-    position: relative;
-    display: inline-flex;
-    vertical-align: middle;
-    & > div {
-      display: block;
-      aspect-ratio: 1 / 1;
-      overflow: hidden;
-    }
-    img {
-      height: 100%;
-      width: 100%;
-      object-fit: cover;
-    }
-  }
   .ds-stats {
     position: relative;
     display: inline-grid;
@@ -1364,9 +1349,6 @@
   .block {
     display: block;
   }
-  .contents {
-    display: contents;
-  }
   .flex {
     display: flex;
   }
@@ -1381,12 +1363,6 @@
   }
   .table {
     display: table;
-  }
-  .ds-btn-circle {
-    border-radius: calc(infinity * 1px);
-    padding-inline: calc(0.25rem * 0);
-    width: var(--ds-size);
-    height: var(--ds-size);
   }
   .min-h-\[30vh\] {
     min-height: 30vh;
@@ -1535,9 +1511,6 @@
   .border-b-3 {
     border-bottom-style: var(--tw-border-style);
     border-bottom-width: 3px;
-  }
-  .border-accent {
-    border-color: var(--color-accent);
   }
   .border-base-300 {
     border-color: var(--color-base-300);
@@ -1717,18 +1690,6 @@
   .shadow {
     --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-  }
-  .ds-btn-ghost {
-    &:not(.ds-btn-active, :hover, :active:focus, :focus-visible) {
-      --ds-btn-shadow: "";
-      --ds-btn-bg: #0000;
-      --ds-btn-border: #0000;
-      --ds-btn-noise: none;
-      &:not(:disabled, [disabled], .ds-btn-disabled) {
-        outline-color: currentColor;
-        --ds-btn-fg: currentColor;
-      }
-    }
   }
   .filter {
     filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
