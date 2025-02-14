@@ -26,12 +26,18 @@ import Utils.MatchState
 
 -- | Navigation Components
 
-navBar :: H.Html
-navBar = do
-  H.div H.! A.class_ "ds-navbar" $ do
+navBar :: Maybe T.Text -> H.Html
+navBar maybeSubtitle = do
+  H.div H.! A.class_ "ds-navbar mb-16" $ do
     H.div H.! A.class_ "ds-navbar-start" $ do
       H.a H.! A.href "/match" $ H.div H.! A.class_ "ds-btn hover:text-primary transition-all" $ "clash"
-    H.div $ H.a H.! A.class_ "ds-navbar-center text-3xl" H.! A.href "/" $ anorbyTitle
+    case maybeSubtitle of
+      Just subtitle -> do
+        H.div H.! A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-bottom ds-tooltip-secondary" $ do
+          H.div H.! A.class_ "ds-tooltip-content" $ H.text subtitle
+          H.div $ H.a H.! A.class_ "ds-navbar-center text-3xl" H.! A.href "/" $ anorbyTitle
+      Nothing -> do
+        H.div $ H.a H.! A.class_ "ds-navbar-center text-3xl" H.! A.href "/" $ anorbyTitle
     H.div H.! A.class_ "ds-navbar-end ds-dropdown ds-dropdown-end ds-dropdown-bottom" $ do
       H.div H.! A.tabindex "0" H.! A.role "button" H.! A.class_ "ds-btn ds-btn-ghost ds-btn-circle ds-avatar" $
         userIcon
@@ -69,7 +75,7 @@ adminTemplate aorbs = H.docTypeHtml $ H.html $ do
   pageHead "admin"
   H.body $ do
     H.div $ do
-      navBar
+      navBar Nothing
       H.div H.! A.class_ "p-4 max-w-4xl mx-auto" $ do
         H.h2 H.! A.class_ "text-2xl font-bold mb-4" $ "Add New Question"
         H.form H.! A.method "POST"
@@ -167,7 +173,7 @@ editAorbTemplate aorb = H.docTypeHtml $ H.html $ do
   pageHead "edit question"
   H.body $ do
     H.div $ do
-      navBar
+      navBar Nothing
       H.div H.! A.class_ "p-4 max-w-4xl mx-auto" $ do
         H.h2 H.! A.class_ "text-2xl font-bold mb-4" $
           H.toHtml $ "Edit Question #" <> T.pack (show $ aorbId aorb)
@@ -219,14 +225,14 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers match
   pageHead "anorby"
   H.body $ do
     H.div $ do
-      navBar
+      navBar Nothing
       H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
         rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus
         publicAorbs aorbs
 
 rootStats :: Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> H.Html
 rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus =
-  H.div H.! A.class_ "ds-stats ds-stats-vertical lg:ds-stats-horizontal grid grid-cols-2 lg:grid-cols-4 shadow m-8" $ do
+  H.div H.! A.class_ "ds-stats ds-stats-vertical lg:ds-stats-horizontal grid grid-cols-2 lg:grid-cols-4 shadow" $ do
     H.div H.! A.class_ "ds-stat" $ do
       H.div H.! A.class_ "ds-stat-title" $ "population"
       H.div H.! A.class_ "ds-stat-value" $ H.toHtml $ show activeUsers
@@ -292,24 +298,27 @@ profileTemplate aorbs mAid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
     Just uuid -> "share/" <> uuid
     Nothing -> "whoami"
   H.body $ do
-    navBar
-    H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ case maybeUuid of
-      Just uuid -> H.text $ "#" <> uuid
-      Nothing -> "whoami"
-    H.div H.! A.class_ "ds-tabs ds-tabs-lift" $ do
-      H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "main" H.! A.checked "checked"
-      H.div H.! A.class_ "ds-tab-content" $ do
-        profileMainAorb mAid aorbs maybeUuid
-      H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "commonplace"
-      H.div H.! A.class_ "ds-tab-content" $ do
-        profileCommonplaceAorbs mAid aorbs maybeUuid
-      H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "controversial"
-      H.div H.! A.class_ "ds-tab-content" $ do
-        profileControversialAorbs mAid aorbs maybeUuid
-      H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "all"
-      H.div H.! A.class_ "ds-tab-content" $ do
-        profileAllAnswers mAid aorbs maybeUuid
-    profileSharer maybeUuid shareUrl
+    navBar $ case maybeUuid of
+      Just uuid -> Just $ "#" <> uuid
+      Nothing -> Just "whoami"
+    H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
+      case (maybeUuid, shareUrl) of
+        (Nothing, Just url) -> H.div $ do
+          H.div $ H.text url
+        _ -> mempty
+      H.div H.! A.class_ "ds-tabs ds-tabs-lift" $ do
+        H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "main" H.! A.checked "checked"
+        H.div H.! A.class_ "ds-tab-content" $ do
+          profileMainAorb mAid aorbs maybeUuid
+        H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "commonplace"
+        H.div H.! A.class_ "ds-tab-content" $ do
+          profileCommonplaceAorbs mAid aorbs maybeUuid
+        H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "controversial"
+        H.div H.! A.class_ "ds-tab-content" $ do
+          profileControversialAorbs mAid aorbs maybeUuid
+        H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "all"
+        H.div H.! A.class_ "ds-tab-content" $ do
+          profileAllAnswers mAid aorbs maybeUuid
 
 profileMainAorb :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileMainAorb mAid aorbs maybeUuid =
@@ -392,19 +401,12 @@ profileAorb awa mFavoriteId maybeUuid = do
       Just _ -> "text-warning ml-2"
       Nothing -> "text-primary ml-2"
 
-profileSharer :: Maybe T.Text -> Maybe T.Text -> H.Html
-profileSharer maybeUuid shareUrl = case (maybeUuid, shareUrl) of
-  (Nothing, Just url) -> H.div $ do
-    H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "share"
-    H.div $ H.text url
-  _ -> mempty
-
 ansTemplate :: Aorb -> Bool -> T.Text -> H.Html
 ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
   pageHead "answer"
   H.body $ do
     H.div $ do
-      navBar
+      navBar Nothing
       H.div H.! A.class_ "text-center p-8 text-base-content/60 italic" $
         H.toHtml (aorbCtx aorb)
       H.div H.! A.class_ "grid gap-20 p-4 max-w-4xl mx-auto w-4/5" $
@@ -438,7 +440,7 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token = H.docTypeHtml $ H.
   pageHead "answer (edit)"
   H.body $ do
     H.div $ do
-      navBar
+      navBar Nothing
       H.div H.! A.class_ "text-center p-8 text-base-content/60 italic" $
         H.toHtml (aorbCtx aorb)
       H.div H.! A.class_ "grid gap-20 p-4 max-w-4xl mx-auto w-4/5" $ do
@@ -491,7 +493,7 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
   pageHead "match"
   H.body $ do
     H.div $ do
-      navBar
+      navBar Nothing
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "match"
       H.div H.! A.class_ "flex justify-center gap-4 flex-wrap" $ do
         H.a H.! A.href "/match/found" H.! A.class_ "link hover:text-primary transition-colors" $ "past"
@@ -596,7 +598,7 @@ matchTypeTemplate user = H.docTypeHtml $ H.html $ do
   pageHead "match type"
   H.body $ do
     H.div $ do
-      navBar
+      navBar Nothing
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "match type"
 
       H.div $ do
@@ -661,7 +663,7 @@ matchFoundTemplate currentTimestamp expiryDays matchData = H.docTypeHtml $ H.htm
   pageHead "matches"
   H.body $ do
     H.div $ do
-      navBar
+      navBar Nothing
       H.h1 H.! A.class_ "text-2xl font-bold mb-4 text-center" $ "matches"
       if null matchData
         then do
@@ -724,7 +726,7 @@ matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.
   pageHead "match profile"
   H.body $ do
     H.div $ do
-      navBar
+      navBar Nothing
       H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "stats"
       H.div H.! A.class_ "grid grid-cols-2 gap-4 max-w-xl mx-auto w-full" $ do
         statsBox "matched on" (formatMatchDate (viewTimestamp view))
@@ -904,7 +906,7 @@ accountTemplate user = H.docTypeHtml $ H.html $ do
   pageHead "account"
   H.body $ do
     H.div $ do
-      navBar
+      navBar Nothing
       H.div H.! A.class_ "w-full max-w-xl mx-auto" $ do
         H.h2 H.! A.class_ "text-2xl font-bold mb-4 pb-2 border-b border-base-300" $
           "account information"
