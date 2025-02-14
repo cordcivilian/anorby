@@ -228,7 +228,7 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers match
       navBar Nothing
       H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
         rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus
-        publicAorbs aorbs
+        mapM_ (showAorb . Population) $ aorbs
 
 rootStats :: Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> H.Html
 rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus =
@@ -254,46 +254,87 @@ rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matching
         Completed -> "matched today"
         Failed _ -> "matching failed"
 
-publicAorbs :: [Aorb] -> H.Html
-publicAorbs aorbs = Monad.forM_ aorbs $ \aorb -> showAorb aorb
+data ShowAorbMode = Population Aorb | Individual AorbWithAnswer (Maybe AorbID) (Maybe T.Text)
 
-showAorb :: Aorb -> H.Html
-showAorb aorb =
-  H.div H.! A.class_ "w-9/10 ds-card ds-card-border border-3 rounded-4xl" $ do
-    H.div H.! A.class_ "ds-card-body" $ do
-      H.div H.! A.class_ "ds-card-title italic mb-4" $ H.toHtml context
-      showChoice topChoice topChoicePopularity
-      H.div H.! A.class_ "ds-divider" $ "OR"
-      showChoice bottomChoice bottomChoicePopularity
+showAorb :: ShowAorbMode -> H.Html
+showAorb mode =
+  let
+    content =
+      H.div H.! aorbClass $ do
+        H.div H.! A.class_ "ds-card-body" $ do
+          H.div H.! A.class_ "ds-card-title italic mb-4" $ H.toHtml $ context
+          mkChoice True mode
+          H.div H.! A.class_ "ds-divider" $ "OR"
+          mkChoice False mode
+  in if clickable
+        then H.a H.! A.href (H.toValue $ "/ans/" ++ show aid) $ content
+        else content
   where
-    context = aorbCtx aorb
-    choiceA = aorbA aorb
-    choiceAPopularity = aorbMean aorb
-    choiceB = aorbB aorb
-    choiceBPopularity = 1 - choiceAPopularity
-    showChoice = showPopulationChoice
-    (topChoice, topChoicePopularity, bottomChoice, bottomChoicePopularity) =
-      if choiceAPopularity > choiceBPopularity
-        then (choiceA, choiceAPopularity, choiceB, choiceBPopularity)
-        else (choiceB, choiceBPopularity, choiceA, choiceAPopularity)
+    aid = case mode of
+      Population a -> aorbId a
+      Individual awa _ _ -> aorbId $ aorbData awa
+    clickable = case mode of
+      Population _ -> False
+      Individual _ _ maybeUuid -> case maybeUuid of
+        Just _ -> False
+        Nothing -> True
+    main = case mode of
+      Population _ -> False
+      Individual awa maybeMain _ -> case maybeMain of
+        Just mainAorbId -> aorbId (aorbData awa) == mainAorbId
+        Nothing -> False
+    aorbClass = case (main, clickable) of
+      (True, True) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-error hover:-translate-y-1 hover:bg-base-200 transition-all"
+      (True, False) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-accent"
+      (False, True) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl hover:-translate-y-1 hover:bg-base-200 transition-all"
+      (False, False) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl"
+    context = case mode of
+      Population a -> aorbCtx a
+      Individual awa _ _ -> aorbCtx $ aorbData awa
 
-showPopulationChoice :: T.Text -> Double -> H.Html
-showPopulationChoice choice popularity =
-  H.div H.! (if hasClearWinner then clearChoiceClass else unclearChoiceClass) $ do
+mkChoice :: Bool -> ShowAorbMode -> H.Html
+mkChoice isTop mode =
+  case mode of
+    Population aorb ->
+      let
+        mean = aorbMean aorb
+        isClear = mean > 0.51 || mean < 0.49
+        (choice, popularity) = if isTop == (mean > 0.5)
+          then (aorbA aorb, mean)
+          else (aorbB aorb, 1 - mean)
+        showFn = case (isTop, isClear) of
+          (True, True)   -> showChoice (A.class_ "text-lg") (Just $ A.class_ "ml-2 text-warning")
+          (False, True)  -> showChoice (A.class_ "text-sm") (Nothing)
+          (_, False)     -> showChoice (mempty) (Just $ A.class_ "ml-2")
+      in
+        showFn choice popularity
+    Individual awa _ maybeUuid ->
+      let
+        ans = userAnswer awa
+        isShared = maybeUuid /= Nothing
+        (choice, popularity) = if isTop == (ans == AorbAnswer 0)
+          then (aorbA $ aorbData awa, aorbMean $ aorbData awa)
+          else (aorbB $ aorbData awa, 1 - aorbMean (aorbData awa))
+        showFn = case (isTop, isShared) of
+          (True, False)  -> showChoice (A.class_ "text-lg text-primary") (Just $ A.class_ "ml-2 text-primary")
+          (True, True)   -> showChoice (A.class_ "text-lg text-warning") (Just $ A.class_ "ml-2 text-warning")
+          (False, _)     -> showChoice (A.class_ "text-sm") (Nothing)
+      in
+        showFn choice popularity
+
+showChoice :: H.Attribute -> Maybe H.Attribute -> T.Text -> Double -> H.Html
+showChoice choiceClass popularityClass choice popularity =
+  H.div H.! choiceClass $ do
     H.toHtml choice
-    Monad.when (popularity > 0.5 || not hasClearWinner) $
-      H.span H.! (if hasClearWinner then A.class_ "ml-2 text-warning" else A.class_ "ml-2") $
-        H.toHtml $ formatDelta popularity
-  where
-    hasClearWinner = popularity > 0.51 || popularity < 0.49
-    clearChoiceClass = if popularity > 0.5 then A.class_ "text-lg" else A.class_ "text-sm"
-    unclearChoiceClass = mempty
+    case popularityClass of
+      Just pc -> H.span H.! pc $ H.toHtml $ formatDelta popularity
+      Nothing -> mempty
 
 formatDelta :: Double -> T.Text
 formatDelta d = T.concat ["(", T.pack (Text.printf "%.2f" $ d * 100), "%)"]
 
 profileTemplate :: [AorbWithAnswer] -> Maybe AorbID -> Maybe T.Text -> Maybe T.Text -> H.Html
-profileTemplate aorbs mAid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
+profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
   pageHead $ case maybeUuid of
     Just uuid -> "share/" <> uuid
     Nothing -> "whoami"
@@ -301,105 +342,51 @@ profileTemplate aorbs mAid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
     navBar $ case maybeUuid of
       Just uuid -> Just $ "#" <> uuid
       Nothing -> Just "whoami"
-    H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
+    H.div H.! A.class_ "grid gap-8 place-items-center" $ do
       case (maybeUuid, shareUrl) of
-        (Nothing, Just url) -> H.div $ do
-          H.div $ H.text url
+        (Nothing, Just url) -> H.div $ H.div $ H.text url
         _ -> mempty
-      H.div H.! A.class_ "ds-tabs ds-tabs-lift" $ do
-        H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "main" H.! A.checked "checked"
+      H.div H.! A.class_ "ds-tabs ds-tabs-lift justify-center" $ do
+        H.input H.! A.class_ "ds-tab mb-4" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "main" H.! A.checked "checked"
         H.div H.! A.class_ "ds-tab-content" $ do
-          profileMainAorb mAid aorbs maybeUuid
-        H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "commonplace"
+          H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
+            profileMainAorb maybeMain awas maybeUuid
+        H.input H.! A.class_ "ds-tab mb-4" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "commonplace"
         H.div H.! A.class_ "ds-tab-content" $ do
-          profileCommonplaceAorbs mAid aorbs maybeUuid
-        H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "controversial"
+          H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
+            profileCommonplaceAorbs maybeMain awas maybeUuid
+        H.input H.! A.class_ "ds-tab mb-4" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "controversial"
         H.div H.! A.class_ "ds-tab-content" $ do
-          profileControversialAorbs mAid aorbs maybeUuid
-        H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "all"
+          H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
+            profileControversialAorbs maybeMain awas maybeUuid
+        H.input H.! A.class_ "ds-tab mb-4 " H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "all"
         H.div H.! A.class_ "ds-tab-content" $ do
-          profileAllAnswers mAid aorbs maybeUuid
+          H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
+            profileAllAnswers maybeMain awas maybeUuid
 
 profileMainAorb :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
-profileMainAorb mAid aorbs maybeUuid =
-  case (mAid, maybeUuid) of
+profileMainAorb maybeMain awas maybeUuid =
+  case (maybeMain, maybeUuid) of
     (Just aid, Just _) -> do
-      H.div $ do
-        H.div H.! A.class_ "" $ do
-          mapM_ (\awa -> profileAorb awa mAid maybeUuid) $
-            filter (\awa -> aorbId (aorbData awa) == aid) aorbs
+      mapM_ (showAorb . (flip (flip Individual maybeMain) maybeUuid)) $ filter ((== aid) . aorbId . aorbData) awas
     (Nothing, Just _) -> mempty
     (Just aid, Nothing) -> do
-      H.div $ do
-        H.div H.! A.class_ "" $ do
-          mapM_ (\awa -> profileAorb awa mAid maybeUuid) $
-            filter (\awa -> aorbId (aorbData awa) == aid) aorbs
+      mapM_ (showAorb . (flip (flip Individual maybeMain) maybeUuid)) $ filter ((== aid) . aorbId . aorbData) awas
     (Nothing, Nothing) -> do
-      H.div $ do
-        H.div H.! A.class_ "" $ do
-          H.p "you haven't selected your main question yet"
-          H.p "pick from the answers below"
+      H.p "you haven't selected your main question yet"
+      H.p "pick from the answers below"
 
 profileCommonplaceAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
-profileCommonplaceAorbs mAid aorbs maybeUuid = do
-  H.div $ do
-    H.div H.! A.class_ "" $ do
-      mapM_ (\awa -> profileAorb awa mAid maybeUuid) (take 3 $ reverse aorbs)
+profileCommonplaceAorbs maybeMain awas maybeUuid = do
+  mapM_ (showAorb . (flip (flip Individual maybeMain) maybeUuid)) (take 3 $ reverse awas)
 
 profileControversialAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
-profileControversialAorbs mAid aorbs maybeUuid = do
-  H.div $ do
-    H.div H.! A.class_ "" $ do
-      mapM_ (\awa -> profileAorb awa mAid maybeUuid) (take 3 aorbs)
+profileControversialAorbs maybeMain awas maybeUuid = do
+  mapM_ (showAorb . (flip (flip Individual maybeMain) maybeUuid)) (take 3 awas)
 
 profileAllAnswers :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
-profileAllAnswers mAid aorbs maybeUuid = do
-  H.div $ do
-    H.div $ Monad.forM_ aorbs $ \awa -> profileAorb awa mAid maybeUuid
-
-profileAorb :: AorbWithAnswer -> Maybe AorbID -> Maybe T.Text -> H.Html
-profileAorb awa mFavoriteId maybeUuid = do
-  let aorb = aorbData awa
-      ans = userAnswer awa
-      aid = aorbId aorb
-      isFavorite = maybe False (== aid) mFavoriteId
-      percentage = case ans of
-        AorbAnswer 0 -> 100 * (1 - aorbMean aorb)
-        _ -> 100 * aorbMean aorb
-      wrapperClass = A.class_ $ "w-full hover:-translate-y-1 transition-transform " <>
-        if maybeUuid == Nothing then "cursor-pointer" else "cursor-default"
-      baseWrapper contents = case maybeUuid of
-        Just _ -> H.div H.! wrapperClass $ contents
-        Nothing -> H.a H.! A.href (H.toValue $ "/ans/" ++ show aid) H.! wrapperClass $ contents
-
-  baseWrapper $ do
-    H.div H.! A.class_ ("w-full border border-base-300 rounded-lg p-4 transition-colors hover:bg-base-200" <>
-      if isFavorite then " border-warning" else "") $ do
-      H.div H.! A.class_ "text-base-content/60 italic mb-4" $ H.toHtml $ aorbCtx aorb
-      H.div H.! A.class_ (getChoiceClasses (ans == AorbAnswer 0) maybeUuid) $ do
-        H.toHtml $ aorbA aorb
-        Monad.when (ans == AorbAnswer 0) $
-          H.span H.! A.class_ (getPercentageClasses maybeUuid) $
-            H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
-      H.div H.! A.class_ (getChoiceClasses (ans == AorbAnswer 1) maybeUuid) $ do
-        H.toHtml $ aorbB aorb
-        Monad.when (ans == AorbAnswer 1) $
-          H.span H.! A.class_ (getPercentageClasses maybeUuid) $
-            H.toHtml $ T.pack $ Text.printf " /\\/ %.0f%%" percentage
-
-  where
-    getChoiceClasses :: Bool -> Maybe T.Text -> H.AttributeValue
-    getChoiceClasses isSelected maybeUuid' =
-      if isSelected
-        then case maybeUuid' of
-          Just _ -> "text-lg font-medium my-2 text-warning"
-          Nothing -> "text-lg font-medium my-2 text-primary"
-        else "text-base-content/70 text-sm my-2"
-
-    getPercentageClasses :: Maybe T.Text -> H.AttributeValue
-    getPercentageClasses pct = case pct of
-      Just _ -> "text-warning ml-2"
-      Nothing -> "text-primary ml-2"
+profileAllAnswers maybeMain awas maybeUuid = do
+  mapM_ (showAorb . (flip (flip Individual maybeMain) maybeUuid)) awas
 
 ansTemplate :: Aorb -> Bool -> T.Text -> H.Html
 ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do

@@ -16,6 +16,7 @@
   default: true;
   prefersdark: false;
   --color-primary: #0070ff;
+  --color-accent: #7366bd;
   --color-warning: #ff8800;
 }
 
@@ -24,6 +25,7 @@
   default: false;
   prefersdark: true;
   --color-primary: #78b4fe;
+  --color-accent: #7366bd;
   --color-warning: #ff7700;
 }
 
