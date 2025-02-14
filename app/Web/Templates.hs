@@ -3,6 +3,8 @@
 module Web.Templates where
 
 import qualified Control.Monad as Monad
+import qualified Data.List as List
+import qualified Data.Ord as Ord
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding.Error as TEE
@@ -22,11 +24,9 @@ import Utils.Time
 import Utils.Config
 import Utils.MatchState
 
--- | Navigation Components
-
 navBar :: Maybe T.Text -> H.Html
 navBar maybeSubtitle = do
-  H.div H.! A.class_ "ds-navbar mb-16" $ do
+  H.div H.! A.class_ "ds-navbar mb-12" $ do
     H.div H.! A.class_ "ds-navbar-start" $ do
       H.a H.! A.href "/match" $ H.div H.! A.class_ "ds-btn hover:text-primary transition-all" $ "clash"
     case maybeSubtitle of
@@ -50,18 +50,17 @@ anorbyTitle = do
   H.span H.! A.class_ "border-b-3 border-primary inline-block leading-[0.85] mx-[3px]" $ "b"
   H.span H.! A.class_ "border-b-3 border-transparent inline-block" $ "y"
 
-pageHead :: T.Text -> H.Html
-pageHead title = H.head $ do
+pageHead :: T.Text -> H.Html -> H.Html
+pageHead title more = H.head $ do
   H.title $ H.toHtml title
   H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
   H.link H.! A.rel "icon" H.! A.href "data:,"
   H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
-
--- | Core Templates
+  more
 
 adminTemplate :: [Aorb] -> H.Html
 adminTemplate aorbs = H.docTypeHtml $ H.html $ do
-  pageHead "admin"
+  pageHead "admin" mempty
   H.body $ do
     H.div $ do
       navBar Nothing
@@ -123,7 +122,6 @@ renderAorbAdmin aorb =
             H.toHtml $ "Mean: " <> T.pack (show $ aorbMean aorb)
 
       H.div H.! A.class_ "space-x-2" $ do
-        -- Edit button
         H.form H.! A.method "GET"
                H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/edit")
                H.! A.class_ "inline-block" $ do
@@ -131,14 +129,12 @@ renderAorbAdmin aorb =
                   H.! A.class_ "px-4 py-2 bg-warning text-warning-content rounded-lg"
                   $ "Edit"
 
-        -- Delete button and confirmation dialog
         let dialogId = "delete-dialog-" <> T.pack (show $ aorbId aorb)
         H.button H.! A.type_ "button"
                 H.! A.class_ "px-4 py-2 bg-error text-error-content rounded-lg"
                 H.! A.onclick (H.textValue $ "document.getElementById('" <> dialogId <> "').showModal()")
                 $ "Delete"
 
-        -- Confirmation Dialog
         H.dialog H.! A.id (H.textValue dialogId)
                 H.! A.class_ "p-6 rounded-lg backdrop:bg-black/50" $ do
           H.h3 H.! A.class_ "text-lg font-bold mb-4" $
@@ -159,7 +155,7 @@ renderAorbAdmin aorb =
 
 editAorbTemplate :: Aorb -> H.Html
 editAorbTemplate aorb = H.docTypeHtml $ H.html $ do
-  pageHead "edit question"
+  pageHead "edit question" mempty
   H.body $ do
     H.div $ do
       navBar Nothing
@@ -208,16 +204,52 @@ editAorbTemplate aorb = H.docTypeHtml $ H.html $ do
                 H.! A.class_ "px-4 py-2 border border-base-300 rounded-lg"
                 $ "Cancel"
 
+data ShowAorbMode = Population Aorb [Int]
+                  | Individual AorbWithAnswer [Int] (Maybe AorbID) (Maybe T.Text)
+
+aorbDynamicCSS :: [(String, Int)] -> H.AttributeValue
+aorbDynamicCSS orderPairs =
+  H.preEscapedTextValue $ T.intercalate "; " [ "--order-" <> T.pack name <> ": " <> T.pack (show order) | (name, order) <- orderPairs ]
+
+orderAorbs :: (Eq a) => [a] -> [OrderingFunction a] -> [(a, [Int])]
+orderAorbs as orderingFuncs =
+  let orderedLists = map (\f -> f as) orderingFuncs
+      lookupOrder list a = maybe 0 (+1) $ List.elemIndex a list
+  in [ (a, map (\orderedList -> lookupOrder orderedList a) orderedLists) | a <- as ]
+
 rootTemplate :: Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> [Aorb] -> H.Html
 rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus aorbs =
   H.docTypeHtml $ H.html $ do
   pageHead "anorby"
+    ( H.style $ H.preEscapedText $ T.unlines
+      [ ".aorb { order: var(--order-diced); }"
+      , ":root:has(#diced:target) .aorb { order: var(--order-diced) !important; }"
+      , ":root:has(#sided:target) .aorb { order: var(--order-sided) !important; }"
+      , ":root:has(#split:target) .aorb { order: var(--order-split) !important; }"
+      ]
+    )
   H.body $ do
     H.div $ do
+      H.div H.! A.id "diced" $ mempty
+      H.div H.! A.id "sided" $ mempty
+      H.div H.! A.id "split" $ mempty
       navBar Nothing
       H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
         rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus
-        mapM_ (showAorb . Population) $ aorbs
+        H.fieldset H.! A.class_ "flex flex-col mb-2 items-center gap-4" $ do
+          H.div "sorter:"
+          H.div H.! A.class_ "flex gap-8" $ do
+            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#diced" $ "random"
+            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#sided" $ "one-sided"
+            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#split" $ "polarized"
+        H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
+          mapM_ (showAorb . uncurry Population) (orderAorbs aorbs orderFuncs)
+  where
+    orderFuncs =
+      [ id
+      , List.sortOn (Ord.Down . \a -> abs (aorbMean a - 0.5))
+      , List.sortOn (\a -> abs (aorbMean a - 0.5))
+      ]
 
 rootStats :: Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> H.Html
 rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus =
@@ -243,48 +275,53 @@ rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matching
         Completed -> "matched today"
         Failed _ -> "matching failed"
 
-data ShowAorbMode = Population Aorb | Individual AorbWithAnswer (Maybe AorbID) (Maybe T.Text)
-
 showAorb :: ShowAorbMode -> H.Html
 showAorb mode =
-  let
-    content =
-      H.div H.! aorbClass $ do
+  case clickable of
+    True -> do
+        H.a H.! aorbClass H.! aorbStyle H.! A.href (H.toValue $ "/ans/" ++ show aid) $ do
+          H.div H.! A.class_ "ds-card-body" $ do
+            H.div H.! A.class_ "ds-card-title italic mb-4" $ H.toHtml $ context
+            mkChoice True mode
+            H.div H.! A.class_ "ds-divider" $ "OR"
+            mkChoice False mode
+    False -> do
+      H.div H.! aorbClass H.! aorbStyle $ do
         H.div H.! A.class_ "ds-card-body" $ do
           H.div H.! A.class_ "ds-card-title italic mb-4" $ H.toHtml $ context
           mkChoice True mode
           H.div H.! A.class_ "ds-divider" $ "OR"
           mkChoice False mode
-  in if clickable
-        then H.a H.! A.href (H.toValue $ "/ans/" ++ show aid) $ content
-        else content
   where
     aid = case mode of
-      Population a -> aorbId a
-      Individual awa _ _ -> aorbId $ aorbData awa
+      Population a _ -> aorbId a
+      Individual awa _ _ _ -> aorbId $ aorbData awa
     clickable = case mode of
-      Population _ -> False
-      Individual _ _ maybeUuid -> case maybeUuid of
+      Population _ _ -> False
+      Individual _ _ _ maybeUuid -> case maybeUuid of
         Just _ -> False
         Nothing -> True
     main = case mode of
-      Population _ -> False
-      Individual awa maybeMain _ -> case maybeMain of
+      Population _ _ -> False
+      Individual awa _ maybeMain _ -> case maybeMain of
         Just mainAorbId -> aorbId (aorbData awa) == mainAorbId
         Nothing -> False
     aorbClass = case (main, clickable) of
-      (True, True) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-warning hover:-translate-y-1 hover:bg-base-200 transition-all"
-      (True, False) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-primary"
-      (False, True) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl hover:-translate-y-1 hover:bg-base-200 transition-all"
-      (False, False) -> A.class_ "w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl"
+      (True, True) -> A.class_ "aorb w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-warning hover:-translate-y-1 hover:bg-base-200 transition-all"
+      (True, False) -> A.class_ "aorb w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-primary"
+      (False, True) -> A.class_ "aorb w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl hover:-translate-y-1 hover:bg-base-200 transition-all"
+      (False, False) -> A.class_ "aorb w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl"
+    aorbStyle = case mode of
+      Population _ orders -> A.style (aorbDynamicCSS (zip ["diced", "sided", "split"] orders))
+      Individual _ orders _ _ -> A.style (aorbDynamicCSS (zip ["basic", "flake"] orders))
     context = case mode of
-      Population a -> aorbCtx a
-      Individual awa _ _ -> aorbCtx $ aorbData awa
+      Population a _ -> aorbCtx a
+      Individual awa _ _ _ -> aorbCtx $ aorbData awa
 
 mkChoice :: Bool -> ShowAorbMode -> H.Html
 mkChoice isTop mode =
   case mode of
-    Population aorb ->
+    Population aorb _ ->
       let
         mean = aorbMean aorb
         isClear = mean > 0.51 || mean < 0.49
@@ -297,7 +334,7 @@ mkChoice isTop mode =
           (_, False)     -> showChoice (mempty) (Just $ A.class_ "ml-2")
       in
         showFn choice popularity
-    Individual awa _ maybeUuid ->
+    Individual awa _ _ maybeUuid ->
       let
         ans = userAnswer awa
         isShared = maybeUuid /= Nothing
@@ -316,18 +353,26 @@ showChoice choiceClass popularityClass choice popularity =
   H.div H.! choiceClass $ do
     H.toHtml choice
     case popularityClass of
-      Just pc -> H.span H.! pc $ H.toHtml $ formatDelta popularity
+      Just pc -> H.span H.! pc $ H.toHtml $
+        T.concat ["(", T.pack (Text.printf "%.2f" $ popularity * 100), "%)"]
       Nothing -> mempty
-
-formatDelta :: Double -> T.Text
-formatDelta d = T.concat ["(", T.pack (Text.printf "%.2f" $ d * 100), "%)"]
 
 profileTemplate :: [AorbWithAnswer] -> Maybe AorbID -> Maybe T.Text -> Maybe T.Text -> H.Html
 profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
-  pageHead $ case maybeUuid of
-    Just uuid -> "share/" <> uuid
-    Nothing -> "whoami"
+  pageHead
+    ( case maybeUuid of
+        Just uuid -> "share/" <> uuid
+        Nothing -> "whoami"
+    )
+    ( H.style $ H.preEscapedText $ T.unlines
+      [ ".aorb { order: var(--order-flake); }"
+      , ":root:has(#basic:target) .aorb { order: var(--order-basic) !important; }"
+      , ":root:has(#flake:target) .aorb { order: var(--order-flake) !important; }"
+      ]
+    )
   H.body $ do
+    H.div H.! A.id "flake" $ mempty
+    H.div H.! A.id "basic" $ mempty
     navBar $ case maybeUuid of
       Just uuid -> Just $ "#" <> uuid
       Nothing -> Just "whoami"
@@ -339,47 +384,46 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
         H.input H.! A.class_ "ds-tab mb-4" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "main" H.! A.checked "checked"
         H.div H.! A.class_ "ds-tab-content" $ do
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
-            profileMainAorb maybeMain awas maybeUuid
+            case (maybeMain, maybeUuid) of
+              (Just aid, _) -> do
+                Monad.forM_ (orderAorbs (filter ((== aid) . aorbId . aorbData) awas) orderFuncs) $ \(aorb, orders) ->
+                  let aorbMode = Individual aorb orders maybeMain maybeUuid
+                  in showAorb aorbMode
+              (Nothing, Just _) -> mempty
+              (Nothing, Nothing) -> do
+                H.p "you haven't selected your main question yet"
+                H.p "pick from the answers below"
+
         H.input H.! A.class_ "ds-tab mb-4" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "commonplace"
         H.div H.! A.class_ "ds-tab-content" $ do
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
-            profileCommonplaceAorbs maybeMain awas maybeUuid
+            Monad.forM_ (orderAorbs (take 3 $ reverse awas) orderFuncs) $ \(aorb, orders) ->
+              let aorbMode = Individual aorb orders maybeMain maybeUuid
+              in showAorb aorbMode
+
         H.input H.! A.class_ "ds-tab mb-4" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "controversial"
         H.div H.! A.class_ "ds-tab-content" $ do
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
-            profileControversialAorbs maybeMain awas maybeUuid
+            Monad.forM_ (orderAorbs (take 3 awas) orderFuncs) $ \(aorb, orders) ->
+              let aorbMode = Individual aorb orders maybeMain maybeUuid
+              in showAorb aorbMode
+
         H.input H.! A.class_ "ds-tab mb-4 " H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "all"
         H.div H.! A.class_ "ds-tab-content" $ do
+          H.fieldset H.! A.class_ "flex flex-col mb-8 items-center gap-4" $ do
+            H.div "sorter:"
+            H.div H.! A.class_ "flex gap-8" $ do
+              H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#basic" $ "conformist"
+              H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#flake" $ "contrarian"
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
-            profileAllAnswers maybeMain awas maybeUuid
-
-profileMainAorb :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
-profileMainAorb maybeMain awas maybeUuid =
-  case (maybeMain, maybeUuid) of
-    (Just aid, Just _) -> do
-      mapM_ (showAorb . (flip (flip Individual maybeMain) maybeUuid)) $ filter ((== aid) . aorbId . aorbData) awas
-    (Nothing, Just _) -> mempty
-    (Just aid, Nothing) -> do
-      mapM_ (showAorb . (flip (flip Individual maybeMain) maybeUuid)) $ filter ((== aid) . aorbId . aorbData) awas
-    (Nothing, Nothing) -> do
-      H.p "you haven't selected your main question yet"
-      H.p "pick from the answers below"
-
-profileCommonplaceAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
-profileCommonplaceAorbs maybeMain awas maybeUuid = do
-  mapM_ (showAorb . (flip (flip Individual maybeMain) maybeUuid)) (take 3 $ reverse awas)
-
-profileControversialAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
-profileControversialAorbs maybeMain awas maybeUuid = do
-  mapM_ (showAorb . (flip (flip Individual maybeMain) maybeUuid)) (take 3 awas)
-
-profileAllAnswers :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
-profileAllAnswers maybeMain awas maybeUuid = do
-  mapM_ (showAorb . (flip (flip Individual maybeMain) maybeUuid)) awas
+            Monad.forM_ (orderAorbs awas orderFuncs) $ \(aorb, orders) ->
+              let aorbMode = Individual aorb orders maybeMain maybeUuid
+              in showAorb aorbMode
+  where orderFuncs = [id, reverse]
 
 ansTemplate :: Aorb -> Bool -> T.Text -> H.Html
 ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
-  pageHead "answer"
+  pageHead "answer" mempty
   H.body $ do
     H.div $ do
       navBar Nothing
@@ -413,7 +457,7 @@ ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
 
 existingAnswerTemplate :: Aorb -> Maybe AorbAnswer -> Bool -> T.Text -> H.Html
 existingAnswerTemplate aorb mCurrentAnswer isFavorite token = H.docTypeHtml $ H.html $ do
-  pageHead "answer (edit)"
+  pageHead "answer (edit)" mempty
   H.body $ do
     H.div $ do
       navBar Nothing
@@ -466,7 +510,7 @@ matchTemplate :: Config
               -> MatchStatus
               -> H.Html
 matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus = H.docTypeHtml $ H.html $ do
-  pageHead "match"
+  pageHead "match" mempty
   H.body $ do
     H.div $ do
       navBar Nothing
@@ -571,7 +615,7 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolle
 
 matchTypeTemplate :: User -> H.Html
 matchTypeTemplate user = H.docTypeHtml $ H.html $ do
-  pageHead "match type"
+  pageHead "match type" mempty
   H.body $ do
     H.div $ do
       navBar Nothing
@@ -636,7 +680,7 @@ schemeDetailedDescription scheme =
 
 matchFoundTemplate :: Integer -> Integer -> [((Match, Double), Int)] -> H.Html
 matchFoundTemplate currentTimestamp expiryDays matchData = H.docTypeHtml $ H.html $ do
-  pageHead "matches"
+  pageHead "matches" mempty
   H.body $ do
     H.div $ do
       navBar Nothing
@@ -699,7 +743,7 @@ matchCard currentTimestamp match score unreadCount =
 
 matchProfileTemplate :: Config -> Integer -> UserID -> UserID -> MatchView -> [Message] -> H.Html
 matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.html $ do
-  pageHead "match profile"
+  pageHead "match profile" mempty
   H.body $ do
     H.div $ do
       navBar Nothing
@@ -879,7 +923,7 @@ renderMessage uid msg = do
 
 accountTemplate :: User -> H.Html
 accountTemplate user = H.docTypeHtml $ H.html $ do
-  pageHead "account"
+  pageHead "account" mempty
   H.body $ do
     H.div $ do
       navBar Nothing
@@ -903,7 +947,7 @@ accountTemplate user = H.docTypeHtml $ H.html $ do
 
 loginTemplate :: T.Text -> H.Html
 loginTemplate token = H.docTypeHtml $ H.html $ do
-  pageHead "login"
+  pageHead "login" mempty
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       H.div H.! A.class_ "text-3xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
@@ -924,7 +968,7 @@ loginTemplate token = H.docTypeHtml $ H.html $ do
 
 registerTemplate :: T.Text -> H.Html
 registerTemplate token = H.docTypeHtml $ H.html $ do
-  pageHead "register"
+  pageHead "register" mempty
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       H.div H.! A.class_ "text-3xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
@@ -945,7 +989,7 @@ registerTemplate token = H.docTypeHtml $ H.html $ do
 
 confirmTemplate :: T.Text -> T.Text -> T.Text -> T.Text -> T.Text -> T.Text -> H.Html
 confirmTemplate title warning action token actionText cancelUrl = H.docTypeHtml $ H.html $ do
-  pageHead title
+  pageHead title mempty
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       H.form H.! A.method "POST" H.! A.action (H.textValue action) $ do
@@ -965,7 +1009,7 @@ confirmTemplate title warning action token actionText cancelUrl = H.docTypeHtml 
 
 msgTemplate :: MessageTemplate -> H.Html
 msgTemplate template = H.docTypeHtml $ H.html $ do
-  pageHead $ messageTitle template
+  pageHead (messageTitle template) mempty
   H.body $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       H.div H.! A.class_ "text-3xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
