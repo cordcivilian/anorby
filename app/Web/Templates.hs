@@ -14,7 +14,7 @@ import qualified Text.Printf as Text
 
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
--- import qualified Text.Blaze.Internal as I
+import qualified Text.Blaze.Internal as I
 import qualified Text.Blaze.Svg11 as S
 import qualified Text.Blaze.Svg11.Attributes as SA
 
@@ -292,72 +292,61 @@ profileTemplate aorbs mAid maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
     Just uuid -> "share/" <> uuid
     Nothing -> "whoami"
   H.body $ do
-    profileHeadline maybeUuid $ ""
-    profileFullView mAid aorbs maybeUuid shareUrl
-
-profileHeadline :: Maybe T.Text -> H.Html -> H.Html
-profileHeadline maybeUuid children = do
-  H.div $ do
     navBar
     H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ case maybeUuid of
       Just uuid -> H.text $ "#" <> uuid
       Nothing -> "whoami"
-    children
-
-profileFullView :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> Maybe T.Text -> H.Html
-profileFullView mAid aorbs maybeUuid shareUrl = do
-  profileMainAorb mAid aorbs maybeUuid
-  profileCommonplaceAorbs mAid aorbs maybeUuid
-  profileControversialAorbs mAid aorbs maybeUuid
-  profileAllAnswers mAid aorbs maybeUuid
-  profileSharer maybeUuid shareUrl
+    H.div H.! A.class_ "ds-tabs ds-tabs-lift" $ do
+      H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "main" H.! A.checked "checked"
+      H.div H.! A.class_ "ds-tab-content" $ do
+        profileMainAorb mAid aorbs maybeUuid
+      H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "commonplace"
+      H.div H.! A.class_ "ds-tab-content" $ do
+        profileCommonplaceAorbs mAid aorbs maybeUuid
+      H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "controversial"
+      H.div H.! A.class_ "ds-tab-content" $ do
+        profileControversialAorbs mAid aorbs maybeUuid
+      H.input H.! A.class_ "ds-tab" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "all"
+      H.div H.! A.class_ "ds-tab-content" $ do
+        profileAllAnswers mAid aorbs maybeUuid
+    profileSharer maybeUuid shareUrl
 
 profileMainAorb :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileMainAorb mAid aorbs maybeUuid =
   case (mAid, maybeUuid) of
     (Just aid, Just _) -> do
       H.div $ do
-        H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "main"
-        H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
+        H.div H.! A.class_ "" $ do
           mapM_ (\awa -> profileAorb awa mAid maybeUuid) $
             filter (\awa -> aorbId (aorbData awa) == aid) aorbs
     (Nothing, Just _) -> mempty
     (Just aid, Nothing) -> do
       H.div $ do
-        H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "main"
-        H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
+        H.div H.! A.class_ "" $ do
           mapM_ (\awa -> profileAorb awa mAid maybeUuid) $
             filter (\awa -> aorbId (aorbData awa) == aid) aorbs
     (Nothing, Nothing) -> do
       H.div $ do
-        H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "main"
-        H.div H.! A.class_ "max-w-lg mx-auto text-center" $ do
+        H.div H.! A.class_ "" $ do
           H.p "you haven't selected your main question yet"
           H.p "pick from the answers below"
 
 profileCommonplaceAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileCommonplaceAorbs mAid aorbs maybeUuid = do
   H.div $ do
-    H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "most commonplace"
-    H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
+    H.div H.! A.class_ "" $ do
       mapM_ (\awa -> profileAorb awa mAid maybeUuid) (take 3 $ reverse aorbs)
 
 profileControversialAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileControversialAorbs mAid aorbs maybeUuid = do
   H.div $ do
-    H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "most controversial"
-    H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
+    H.div H.! A.class_ "" $ do
       mapM_ (\awa -> profileAorb awa mAid maybeUuid) (take 3 aorbs)
 
 profileAllAnswers :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
 profileAllAnswers mAid aorbs maybeUuid = do
   H.div $ do
-    H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "all answers"
-    profileOrdinaryAorbs mAid aorbs maybeUuid
-
-profileOrdinaryAorbs :: Maybe AorbID -> [AorbWithAnswer] -> Maybe T.Text -> H.Html
-profileOrdinaryAorbs mAid aorbs maybeUuid = do
-  H.div $ Monad.forM_ aorbs $ \awa -> profileAorb awa mAid maybeUuid
+    H.div $ Monad.forM_ aorbs $ \awa -> profileAorb awa mAid maybeUuid
 
 profileAorb :: AorbWithAnswer -> Maybe AorbID -> Maybe T.Text -> H.Html
 profileAorb awa mFavoriteId maybeUuid = do
@@ -368,11 +357,11 @@ profileAorb awa mFavoriteId maybeUuid = do
       percentage = case ans of
         AorbAnswer 0 -> 100 * (1 - aorbMean aorb)
         _ -> 100 * aorbMean aorb
+      wrapperClass = A.class_ $ "w-full hover:-translate-y-1 transition-transform " <>
+        if maybeUuid == Nothing then "cursor-pointer" else "cursor-default"
       baseWrapper contents = case maybeUuid of
         Just _ -> H.div H.! wrapperClass $ contents
         Nothing -> H.a H.! A.href (H.toValue $ "/ans/" ++ show aid) H.! wrapperClass $ contents
-      wrapperClass = A.class_ $ "w-full hover:-translate-y-1 transition-transform " <>
-        if maybeUuid == Nothing then "cursor-pointer" else "cursor-default"
 
   baseWrapper $ do
     H.div H.! A.class_ ("w-full border border-base-300 rounded-lg p-4 transition-colors hover:bg-base-200" <>
@@ -939,7 +928,7 @@ loginTemplate token = H.docTypeHtml $ H.html $ do
   pageHead "login"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-      navBar
+      H.div H.! A.class_ "text-3xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
       H.div H.! A.class_ "w-full max-w-sm mx-auto" $ do
         H.form H.! A.class_ "flex flex-col gap-4"
           H.! A.method "POST" H.! A.action "/login" $ do
@@ -960,7 +949,7 @@ registerTemplate token = H.docTypeHtml $ H.html $ do
   pageHead "register"
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-      navBar
+      H.div H.! A.class_ "text-3xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
       H.div H.! A.class_ "w-full max-w-sm mx-auto" $ do
         H.form H.! A.class_ "flex flex-col gap-4"
           H.! A.method "POST" H.! A.action "/register" $ do
@@ -1001,7 +990,7 @@ msgTemplate template = H.docTypeHtml $ H.html $ do
   pageHead $ messageTitle template
   H.body $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-      H.div H.! A.class_ "text-2xl mb-4" $ anorbyTitle
+      H.div H.! A.class_ "text-3xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ H.toHtml $ messageHeading template
       H.div $ do
         H.a H.! A.href (H.textValue $ fst $ messageLink template)
