@@ -37,24 +37,40 @@ import Core.RollingShadow
 import Types
 
 -- | Server Runners
-
+--
 runServer :: IO ()
 runServer = do
   config <- getConfig
   state <- initAppState config
   port <- getServerPort
+
+  let settings = Warp.setServerName "anorby"
+                  $ Warp.setPort port
+                  $ Warp.setTimeout 60
+                  $ Warp.setGracefulCloseTimeout1 1000
+                  $ Warp.setGracefulCloseTimeout2 5000
+                  $ Warp.setFdCacheDuration 300
+                  $ Warp.setFileInfoCacheDuration 300
+                  $ Warp.setSlowlorisSize 8192
+                  $ Warp.setMaxTotalHeaderLength (1024*50)
+                  $ Warp.setOnException (\_ e ->
+                      Monad.when (Warp.defaultShouldDisplayException e) $
+                        putStrLn $ "Error: " ++ show e)
+                  $ Warp.setGracefulShutdownTimeout (Just 30)
+                  $ Warp.defaultSettings
+
   putStrLn $ "Server starting on port " ++ show port
   putStrLn $ "  Environment: " ++ show (environment config)
   putStrLn $ "  Database: " ++ dbPath config
-  Warp.run port $ monolith state
+  Warp.runSettings settings $ monolith state
 
 initAppState :: Config -> IO AppState
 initAppState config = do
   pool <- initDatabasePool config
-  rootCache <- initCache (60 * 60)       -- 1 hour for root aorbs
-  statsCache <- initCache (5 * 60)       -- 5 minutes for stats
-  htmlCache <- initCache (2 * 60)        -- 2 minutes for HTML
-  queryCache <- initCache 30             -- 30 seconds for queries
+  rootCache <- initCache (60 * 60)
+  statsCache <- initCache (5 * 60)
+  htmlCache <- initCache (2 * 60)
+  queryCache <- initCache 30
   matchState <- initMatchState
   return AppState
     { appPool = pool

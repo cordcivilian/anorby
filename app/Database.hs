@@ -42,7 +42,8 @@ initConn db = SQL.open db
 
 initPool :: FilePath -> IO (Pool.Pool SQL.Connection)
 initPool db = Pool.newPool $
-  Pool.defaultPoolConfig (initConn db) SQL.close 60 50
+  Pool.setNumStripes (Just 100) $
+    Pool.defaultPoolConfig (initConn db) SQL.close 60 100
 
 -- | SQLite optimization settings
 initSQLitePragmas :: SQL.Connection -> IO ()

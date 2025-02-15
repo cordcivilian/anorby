@@ -23,12 +23,12 @@ data AppState = AppState
   }
 
 data RootStats = RootStats
-  { totalQuestions :: Int
-  , totalAnswers :: Int
-  , todayAnswers :: Int
-  , activeUsers :: Int
-  , newUsers :: Int
-  , enrolledCount :: Int
+  { rootTotalQuestions :: Int
+  , rootTotalAnswers :: Int
+  , rootTodayAnswers :: Int
+  , rootActiveUsers :: Int
+  , rootNewUsers :: Int
+  , rootEnrolledCount :: Int
   } deriving (Show)
 
 data QueryResult = IntResult Int | UserResult [User] | AorbResult [Aorb]

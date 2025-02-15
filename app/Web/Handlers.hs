@@ -106,12 +106,12 @@ getRootStats state conn = do
       let enrolledCount' = length $ filter (/= shadowUserId) enrolled
 
       let stats = RootStats
-            { totalQuestions = totalQuestions'
-            , totalAnswers = totalAnswers'
-            , todayAnswers = todayAnswers'
-            , activeUsers = activeUsers'
-            , newUsers = newUsers'
-            , enrolledCount = enrolledCount'
+            { rootTotalQuestions = totalQuestions'
+            , rootTotalAnswers = totalAnswers'
+            , rootTodayAnswers = todayAnswers'
+            , rootActiveUsers = activeUsers'
+            , rootNewUsers = newUsers'
+            , rootEnrolledCount = enrolledCount'
             }
 
       putInCacheWithTTL "root_stats" stats (5 * 60) (appStatsCache state)
@@ -143,12 +143,12 @@ rootTemplateRoute state conn _ = do
       let
         html =
           R.renderHtml $ rootTemplate
-            (totalQuestions stats)
-            (totalAnswers stats)
-            (todayAnswers stats)
-            (activeUsers stats)
-            (newUsers stats)
-            (enrolledCount stats)
+            (rootTotalQuestions stats)
+            (rootTotalAnswers stats)
+            (rootTodayAnswers stats)
+            (rootActiveUsers stats)
+            (rootNewUsers stats)
+            (rootEnrolledCount stats)
             matchStatus
             aorbs
 
