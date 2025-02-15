@@ -428,16 +428,9 @@ matchTemplateRoute config state conn uid _ = do
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml $ matchNotYetActive (matchThreshold config))
     else do
-      assocResult <- SQL.query conn
-        "SELECT assoc FROM users WHERE id = ?"
-        (SQL.Only uid) :: IO [SQL.Only (Maybe AssociationScheme)]
-      case assocResult of
-        [] -> return notFoundResponse
-        [SQL.Only Nothing] -> return $ Wai.responseLBS
-          HTTP.status303
-          [(Headers.hLocation, "/match/type")]
-          ""
-        [SQL.Only (Just _)] -> do
+      userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
+      case userQ of
+        (user:_) -> do
           now <- POSIXTime.getPOSIXTime
           enrolled <- getUsersWithCompletedAnswers conn
           maybeCutoffTime <- parseMatchTime (matchCutoffTime config)
@@ -489,11 +482,35 @@ matchTemplateRoute config state conn uid _ = do
                 todayMatchScore
                 matchStatus
                 pastMatchesData
+                user
             )
-        _ -> return $ Wai.responseLBS
-          HTTP.status500
-          [(Headers.hContentType, BS.pack "text/html")]
-          (R.renderHtml internalErrorTemplate)
+        [] -> return notFoundResponse
+
+handleMatchTypeUpdate :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+handleMatchTypeUpdate conn uid req = do
+  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  case lookup "assoc" params of
+    Just assocBS -> do
+      let assocText = TE.decodeUtf8 assocBS
+      case parseAssociationScheme assocText of
+        Just scheme -> do
+          SQL.execute conn
+            "UPDATE users SET assoc = ? WHERE id = ?"
+            (scheme, uid)
+          return $ Wai.responseLBS
+            HTTP.status303
+            [ (Headers.hLocation, "/match")
+            , (Headers.hContentType, "text/html")
+            ]
+            ""
+        Nothing -> return invalidSubmissionResponse
+    Nothing -> return invalidSubmissionResponse
+  where
+    parseAssociationScheme :: T.Text -> Maybe AssociationScheme
+    parseAssociationScheme "PPPod" = Just PPPod
+    parseAssociationScheme "Swing" = Just Swing
+    parseAssociationScheme "Bipolar" = Just Bipolar
+    parseAssociationScheme _ = Nothing
 
 calculateMatchScore :: SQL.Connection -> UserID -> Match -> IO (Match, Double)
 calculateMatchScore conn uid match = do
@@ -516,59 +533,6 @@ groupMatchesByDay ms =
     addToDay m acc =
       let dayTimestamp = (div (matchTimestamp m) 86400) * 86400
       in Map.insertWith (++) dayTimestamp [m] acc
-
-matchTypeTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-matchTypeTemplateRoute config conn uid _ = do
-  hasAccess <- hasThresholdAccess conn uid (matchThreshold config)
-  if not hasAccess
-    then return $ Wai.responseLBS
-      HTTP.status200
-      [(Headers.hContentType, BS.pack "text/html")]
-      (R.renderHtml $ matchNotYetActive (matchThreshold config))
-    else do
-      userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
-      case userQ of
-        (user:_) -> return $ Wai.responseLBS
-          HTTP.status200
-          [(Headers.hContentType, BS.pack "text/html")]
-          (R.renderHtml $ matchTypeTemplate user)
-        [] -> return $ Wai.responseLBS
-          HTTP.status404
-          [(Headers.hContentType, BS.pack "text/html")]
-          (R.renderHtml notFoundTemplate)
-
-matchTypeUpdateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-matchTypeUpdateRoute config conn uid req = do
-  hasAccess <- hasThresholdAccess conn uid (matchThreshold config)
-  if not hasAccess
-    then return $ Wai.responseLBS
-      HTTP.status200
-      [(Headers.hContentType, BS.pack "text/html")]
-      (R.renderHtml $ matchNotYetActive (matchThreshold config))
-    else do
-      (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
-      case lookup "assoc" params of
-        Just assocBS -> do
-          let assocText = TE.decodeUtf8 assocBS
-          case parseAssociationScheme assocText of
-            Just scheme -> do
-              SQL.execute conn
-                "UPDATE users SET assoc = ? WHERE id = ?"
-                (scheme, uid)
-              return $ Wai.responseLBS
-                HTTP.status303
-                [ (Headers.hLocation, "/match/type")
-                , (Headers.hContentType, "text/html")
-                ]
-                ""
-            Nothing -> return invalidSubmissionResponse
-        Nothing -> return invalidSubmissionResponse
-  where
-    parseAssociationScheme :: T.Text -> Maybe AssociationScheme
-    parseAssociationScheme "PPPod" = Just PPPod
-    parseAssociationScheme "Swing" = Just Swing
-    parseAssociationScheme "Bipolar" = Just Bipolar
-    parseAssociationScheme _ = Nothing
 
 matchProfileTemplateRoute :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
 matchProfileTemplateRoute config conn uid days _ = do
@@ -650,7 +614,7 @@ postMessageRoute config conn uid days req = do
               return $ Wai.responseLBS
                 HTTP.status303
                 [ (Headers.hLocation,
-                   BS.pack $ "/match/found/t-" ++ show days)
+                   BS.pack $ "/match/t-" ++ show days)
                 ]
                 ""
             else return invalidSubmissionResponse

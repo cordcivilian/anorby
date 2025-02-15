@@ -484,14 +484,18 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token = H.docTypeHtml $ H.
         H.input H.! A.type_ "hidden" H.! A.name "choice" H.! A.value (H.toValue $ show value)
         H.button H.! A.type_ "submit" H.! choiceClass $ H.toHtml choice
 
-matchTemplate :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> [(Match, Double, Int)] -> H.Html
-matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus pastMatches = H.docTypeHtml $ H.html $ do
+matchTemplate :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> [(Match, Double, Int)] -> User -> H.Html
+matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus pastMatches user = H.docTypeHtml $ H.html $ do
   pageHead "clash" mempty
   H.body $ do
     H.div $ do
       navBar $ Just "clash"
-      H.div H.! A.class_ "flex justify-center gap-4 flex-wrap" $ do
-        H.a H.! A.href "/match/type" H.! A.class_ "link hover:text-primary transition-colors" $ "type"
+      
+      H.div H.! A.class_ "mb-12" $ do
+        H.div H.! A.class_ "grid gap-4" $ do
+          schemeCard PPPod (userAssoc user)
+          schemeCard Swing (userAssoc user)
+          schemeCard Bipolar (userAssoc user)
 
       matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus
 
@@ -500,110 +504,6 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
         else do
           H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
             mapM_ (\(m, s, u) -> matchCard (floor now) m s u) pastMatches
-
-matchTodaySection :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> H.Html
-matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus =
-  let otherUsersCount = max 0 (enrolledCount - 1)
-      enrolledText =
-        if otherUsersCount == 1
-        then "1 other user enrolled"
-        else T.pack (show otherUsersCount) <> " other users enrolled"
-      isBeforeCutoff = case maybeCutoffTime of
-        Just ct -> now < ct
-        Nothing -> True
-      isBeforeRelease = case maybeReleaseTime of
-        Just rt -> now < rt
-        Nothing -> True
-      timeUntilCutoff = case maybeCutoffTime of
-        Just ct -> formatTimeUntil now ct
-        Nothing -> "soon"
-      timeUntilRelease = case maybeReleaseTime of
-        Just rt -> formatTimeUntil now rt
-        Nothing -> "soon"
-      currentTimestamp = floor now
-      effectiveMatchStatus = if isBeforeCutoff || not isBeforeRelease
-                                then NotStarted
-                                else matchStatus
-  in H.div $ do
-      case effectiveMatchStatus of
-        InProgress ->
-          H.div H.! A.class_ "p-6 rounded-lg bg-base-200" $
-            H.text "matching in progress..."
-        Failed err ->
-          H.div H.! A.class_ "p-6 rounded-lg bg-base-200" $ do
-            H.text "matching failed: "
-            H.text (T.pack err)
-        Completed ->
-          Monad.when isBeforeRelease $
-            H.div H.! A.class_ "p-6 rounded-lg bg-base-200" $ do
-              H.text "matching completed"
-        NotStarted -> do
-          Monad.when isBeforeRelease $
-            H.div H.! A.class_ "p-6 rounded-lg bg-base-200 text-sm text-base-content/70" $
-              H.text enrolledText
-
-      Monad.when isBeforeRelease $
-        H.div H.! A.class_ (if isEnrolled
-                            then "p-6 rounded-lg bg-primary/10 border-2 border-primary text-primary"
-                            else "p-6 rounded-lg bg-base-200") $ do
-          if isBeforeCutoff
-            then if isEnrolled
-              then H.text "you are enrolled for today's matching"
-              else do
-                H.text "answer more questions to join today's matching pool"
-                H.br
-                H.a H.! A.href "/ans" H.! A.class_ "link text-primary" $ "answer more questions"
-            else if isEnrolled
-              then
-                case matchStatus of
-                  Completed -> H.text "you've been matched"
-                  _ -> H.text "you are enrolled for today's matching"
-              else H.text "you've missed today's matching cutoff"
-
-      Monad.when isBeforeRelease $
-        H.div H.! A.class_ "p-6 rounded-lg bg-base-200 text-sm" $ do
-          let displayTime = if isBeforeCutoff && not isEnrolled
-                            then (timeUntilCutoff, matchCutoffTime config)
-                            else (timeUntilRelease, matchReleaseTime config)
-          case displayTime of
-            (timeLeft, timeStr) -> do
-              if isBeforeCutoff || isEnrolled
-                then do
-                  H.span H.! A.class_ "font-bold" $
-                    if isEnrolled
-                      then H.text $ "reveal in " <> timeLeft
-                      else H.text $ "cutoff in " <> timeLeft
-                  H.span H.! A.class_ "text-base-content/70" $
-                    H.text $ " (" <> timeStr <> " UTC)"
-                else
-                  H.text "answer your questions tomorrow before the cutoff"
-
-      Monad.unless isBeforeRelease $
-        case maybeMatchScore of
-          Just (match, score) -> matchCard currentTimestamp match score 0
-          Nothing -> H.div H.! A.class_ "p-6 rounded-lg bg-base-200" $
-            H.text "no match found for today"
-
-matchTypeTemplate :: User -> H.Html
-matchTypeTemplate user = H.docTypeHtml $ H.html $ do
-  pageHead "match type" mempty
-  H.body $ do
-    H.div $ do
-      navBar Nothing
-      H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "match type"
-
-      H.div $ do
-        schemeCard PPPod (userAssoc user)
-        schemeCard Swing (userAssoc user)
-        schemeCard Bipolar (userAssoc user)
-
-    H.div $ do
-      H.div H.! A.class_ "bg-base-200 p-8 rounded-lg max-w-2xl" $ do
-        H.h2 H.! A.class_ "text-xl font-bold mb-4" $ "how it works"
-        H.p H.! A.class_ "mb-4" $ "each type determines how you'll be matched with other users:"
-        schemeDetailedDescription PPPod
-        schemeDetailedDescription Swing
-        schemeDetailedDescription Bipolar
 
 schemeCard :: AssociationScheme -> Maybe AssociationScheme -> H.Html
 schemeCard scheme currentScheme =
@@ -626,33 +526,94 @@ schemeCard scheme currentScheme =
         H.div H.! A.class_ (H.textValue schemeNameClass) $
           H.toHtml schemeName
 
-schemeDetailedDescription :: AssociationScheme -> H.Html
-schemeDetailedDescription scheme =
-  H.div H.! A.class_ "my-8" $ do
-    H.h3 H.! A.class_ schemeNameClasses $
-      H.toHtml $ schemeName scheme
-    H.p H.! A.class_ "mt-2 text-base-content/70" $
-      H.toHtml $ schemeDetail scheme
-  where
-    schemeNameClasses = case scheme of
-      PPPod -> "font-serif text-xl"
-      Swing -> "font-mono text-xl"
-      Bipolar -> "font-black text-xl"
+matchTodaySection :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> H.Html
+matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus =
+  let otherUsersCount = max 0 (enrolledCount - 1)
+      enrolledText =
+        if otherUsersCount == 1
+          then "1 other user enrolled"
+          else T.pack (show otherUsersCount) <> " other users enrolled"
+      isBeforeCutoff = case maybeCutoffTime of
+        Just ct -> now < ct
+        Nothing -> True
+      isBeforeRelease = case maybeReleaseTime of
+        Just rt -> now < rt
+        Nothing -> True
+      timeUntilCutoff = case maybeCutoffTime of
+        Just ct -> formatTimeUntil now ct
+        Nothing -> "soon"
+      timeUntilRelease = case maybeReleaseTime of
+        Just rt -> formatTimeUntil now rt
+        Nothing -> "soon"
+      currentTimestamp = floor now
+      effectiveMatchStatus =
+        if isBeforeCutoff || not isBeforeRelease
+          then NotStarted
+          else matchStatus
+  in H.div $ do
+      case effectiveMatchStatus of
+        InProgress ->
+          H.div H.! A.class_ "" $
+            H.text "matching in progress..."
+        Failed err ->
+          H.div H.! A.class_ "" $ do
+            H.text "matching failed: "
+            H.text (T.pack err)
+        Completed ->
+          Monad.when isBeforeRelease $
+            H.div H.! A.class_ "" $ do
+              H.text "matching completed"
+        NotStarted -> do
+          Monad.when isBeforeRelease $
+            H.div H.! A.class_ "" $
+              H.text enrolledText
 
-    schemeName :: AssociationScheme -> T.Text
-    schemeName PPPod = "PPPod"
-    schemeName Swing = "Swing"
-    schemeName Bipolar = "Bipolar"
+      Monad.when isBeforeRelease $
+        H.div H.! A.class_ (if isEnrolled
+                            then ""
+                            else "") $ do
+          if isBeforeCutoff
+            then if isEnrolled
+              then H.text "you are enrolled for today's matching"
+              else do
+                H.text "answer more questions to join today's matching pool"
+                H.br
+                H.a H.! A.href "/ans" H.! A.class_ "" $ "answer more questions"
+            else if isEnrolled
+              then
+                case matchStatus of
+                  Completed -> H.text "you've been matched"
+                  _ -> H.text "you are enrolled for today's matching"
+              else H.text "you've missed today's matching cutoff"
 
-    schemeDetail :: AssociationScheme -> T.Text
-    schemeDetail PPPod = "..."
-    schemeDetail Swing = "..."
-    schemeDetail Bipolar = "..."
+      Monad.when isBeforeRelease $
+        H.div H.! A.class_ "" $ do
+          let displayTime = if isBeforeCutoff && not isEnrolled
+                            then (timeUntilCutoff, matchCutoffTime config)
+                            else (timeUntilRelease, matchReleaseTime config)
+          case displayTime of
+            (timeLeft, timeStr) -> do
+              if isBeforeCutoff || isEnrolled
+                then do
+                  H.span H.! A.class_ "" $
+                    if isEnrolled
+                      then H.text $ "reveal in " <> timeLeft
+                      else H.text $ "cutoff in " <> timeLeft
+                  H.span H.! A.class_ "" $
+                    H.text $ " (" <> timeStr <> " UTC)"
+                else
+                  H.text "answer your questions tomorrow before the cutoff"
+
+      Monad.unless isBeforeRelease $
+        case maybeMatchScore of
+          Just (match, score) -> matchCard currentTimestamp match score 0
+          Nothing -> H.div H.! A.class_ "" $
+            H.text "no match found for today"
 
 matchCard :: Integer -> Match -> Double -> Int -> H.Html
 matchCard currentTimestamp match score unreadCount =
   H.a H.! A.class_ "block w-full border border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
-      H.! A.href (H.textValue $ "/match/found/t-" <> formatMatchDelta currentTimestamp (matchTimestamp match)) $ do
+      H.! A.href (H.textValue $ "/match/t-" <> formatMatchDelta currentTimestamp (matchTimestamp match)) $ do
     H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $
       H.toHtml $ formatMatchDate currentTimestamp (matchTimestamp match) unreadCount
     H.div H.! A.class_ "text-primary font-bold" $
@@ -833,7 +794,7 @@ renderMessages config days uid messages = do
         " messages"
       else H.form H.! A.id "message-form"
            H.! A.method "POST"
-           H.! A.action (H.textValue $ "/match/found/t-" <> T.pack (show days) <> "/message")
+           H.! A.action (H.textValue $ "/match/t-" <> T.pack (show days) <> "/message")
            H.! A.class_ "flex flex-col gap-4" $ do
         H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ do
           H.text $ T.pack $ show remainingMessages <> " messages remaining"
