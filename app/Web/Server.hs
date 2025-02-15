@@ -225,7 +225,7 @@ routes =
 
   -- Answer routes (protected)
   , Route "GET" "/ans" $ ProtectedHandler $ \_ _ conn uid req ->
-      ansTemplateRoute conn uid req
+      answerTemplateRoute conn uid req
   , Route "GET" "/ans/:id" $ ProtectedHandler $ \_ _ conn uid req ->
         case extractParam "/ans/:id" (Wai.rawPathInfo req) "id" of
           Just idBS -> case reads (BS.unpack idBS) of

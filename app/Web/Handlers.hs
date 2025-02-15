@@ -276,8 +276,8 @@ sharedProfileTemplateRoute conn uuid _ = do
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml notFoundTemplate)
 
-ansTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-ansTemplateRoute conn uid _ = do
+answerTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+answerTemplateRoute conn uid _ = do
   answerCount <- getDailyAnswerCount conn uid
   if answerCount >= 10
     then do
@@ -301,7 +301,7 @@ ansTemplateRoute conn uid _ = do
           return $ Wai.responseLBS
             HTTP.status200
             [(Headers.hContentType, BS.pack "text/html")]
-            (R.renderHtml $ ansTemplate aorb shouldSwap token)
+            (R.renderHtml $ answerTemplate aorb shouldSwap token)
 
 existingAnswerTemplateRoute :: SQL.Connection -> UserID -> AorbID -> Wai.Request -> IO Wai.Response
 existingAnswerTemplateRoute conn uid aid _ = do

@@ -422,8 +422,8 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
               in showAorb aorbMode
   where orderFuncs = [id, reverse]
 
-ansTemplate :: Aorb -> Bool -> T.Text -> H.Html
-ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
+answerTemplate :: Aorb -> Bool -> T.Text -> H.Html
+answerTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
   pageHead "answer" mempty
   H.body $ do
     H.div H.! A.class_ "flex flex-col h-screen" $ do
