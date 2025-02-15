@@ -490,14 +490,19 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
   H.body $ do
     H.div $ do
       navBar $ Just "clash"
-      
-      H.div H.! A.class_ "mb-12" $ do
-        H.div H.! A.class_ "grid gap-4" $ do
+
+      H.div H.! A.class_ "ds-collapse ds-collapse-arrow grid max-w-xl mx-auto bg-base-100 border border-base-300" $ do
+        H.input H.! A.type_ "checkbox"
+        H.div H.! A.class_ "ds-collapse-title text-center font-black" $ case userAssoc user of
+          Just scheme -> styleScheme scheme False
+          Nothing -> "choose your clashes"
+        H.div H.! A.class_ "ds-collapse-content grid gap-2 w-full" $ do
           schemeCard PPPod (userAssoc user)
           schemeCard Swing (userAssoc user)
           schemeCard Bipolar (userAssoc user)
 
-      matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus
+      H.div H.! A.class_ "grid gap-8 place-items-center m-8" $ do
+        matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus
 
       if null pastMatches
         then H.h3 H.! A.class_ "text-center mb-8 text-base-content/70" $ "no matches found"
@@ -508,23 +513,23 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
 schemeCard :: AssociationScheme -> Maybe AssociationScheme -> H.Html
 schemeCard scheme currentScheme =
   let isSelected = currentScheme == Just scheme
-      baseClasses = "w-full p-8 rounded-lg cursor-pointer transition-all font-inherit text-inherit bg-transparent"
-      selectedClasses = if isSelected
-        then " border-warning text-warning border-2"
-        else " border border-base-300 hover:bg-base-200"
-      schemeName = show scheme
-      schemeNameClass = case scheme of
-        PPPod -> "font-serif text-2xl"
-        Swing -> "font-mono text-2xl"
-        Bipolar -> "font-black text-2xl"
+      schemeClass = if isSelected
+        then A.class_ "ds-btn w-full p-4 rounded-lg cursor-pointer transition-all bg-transparent border-warning text-warning border-2"
+        else A.class_ "ds-btn w-full p-4 rounded-lg cursor-pointer transition-all bg-transparent border border-base-300 hover:bg-base-200"
   in H.form H.! A.method "POST" H.! A.action "/match/type" $ do
-    H.button
-      H.! A.type_ "submit"
-      H.! A.name "assoc"
-      H.! A.value (H.toValue schemeName)
-      H.! A.class_ (H.textValue $ baseClasses <> selectedClasses) $ do
-        H.div H.! A.class_ (H.textValue schemeNameClass) $
-          H.toHtml schemeName
+    H.button H.! A.type_ "submit" H.! A.name "assoc" H.! A.value (H.toValue $ show scheme) H.! schemeClass $ do
+      styleScheme scheme True
+
+styleScheme :: AssociationScheme -> Bool -> H.Html
+styleScheme scheme showDescription =
+  let (schemeNameClass, schemeDesc, schemeDescClass)  = case scheme of
+        PPPod -> (A.class_ "font-sans italic", "i need validation", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
+        Swing -> (A.class_ "font-serif", "lol who cares", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-left")
+        Bipolar -> (A.class_ "font-mono", "they are wrong", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
+  in if showDescription
+        then H.div H.! schemeDescClass H.! H.dataAttribute "tip" schemeDesc $
+          H.div H.! schemeNameClass $ H.toHtml $ show scheme
+        else H.div H.! schemeNameClass $ H.toHtml $ show scheme
 
 matchTodaySection :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> H.Html
 matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus =
@@ -550,7 +555,7 @@ matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolle
         if isBeforeCutoff || not isBeforeRelease
           then NotStarted
           else matchStatus
-  in H.div $ do
+  in H.div H.! A.class_ "ds-card" $ do
       case effectiveMatchStatus of
         InProgress ->
           H.div H.! A.class_ "" $
@@ -837,13 +842,8 @@ accountTemplate user = H.docTypeHtml $ H.html $ do
   pageHead "account" mempty
   H.body $ do
     H.div $ do
-      navBar Nothing
-      H.div H.! A.class_ "w-full max-w-xl mx-auto" $ do
-        H.h2 H.! A.class_ "text-2xl font-bold mb-4 pb-2 border-b border-base-300" $
-          "account information"
-        H.p H.! A.class_ "mb-4" $ do
-          H.text "email: "
-          H.toHtml $ userEmail user
+      navBar (Just $ userEmail user)
+      H.div H.! A.class_ "w-full m-32 max-w-xl mx-auto" $ do
         H.div H.! A.class_ "mt-12 p-4 border-2 border-error rounded-lg" $ do
           H.h3 H.! A.class_ "text-xl font-bold text-error mb-4" $
             "danger zone"
