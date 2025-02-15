@@ -54,6 +54,7 @@ pageHead :: T.Text -> H.Html -> H.Html
 pageHead title more = H.head $ do
   H.title $ H.toHtml title
   H.meta H.! A.name "viewport" H.! A.content "width=device-width, initial-scale=1.0"
+  H.meta H.! A.charset "utf-8"
   H.link H.! A.rel "icon" H.! A.href "data:,"
   H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   more
@@ -425,90 +426,65 @@ ansTemplate :: Aorb -> Bool -> T.Text -> H.Html
 ansTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
   pageHead "answer" mempty
   H.body $ do
-    H.div $ do
+    H.div H.! A.class_ "flex flex-col h-screen" $ do
       navBar Nothing
-      H.div H.! A.class_ "text-center p-8 text-base-content/60 italic" $
-        H.toHtml (aorbCtx aorb)
-      H.div H.! A.class_ "grid gap-20 p-4 max-w-4xl mx-auto w-4/5" $
-        let (firstChoice, firstValue, secondChoice, secondValue) =
-              if shouldSwap
-                then (aorbB aorb, 1, aorbA aorb, 0)
-                else (aorbA aorb, 0, aorbB aorb, 1)
-        in do
-          makeChoice aorb token firstChoice firstValue
-          makeChoice aorb token secondChoice secondValue
+      H.div H.! A.class_ "flex-1 h-auto justify-items-center" $ do
+        H.div H.! A.class_ "ds-card w-screen max-w-4xl" $ do
+          H.div H.! A.class_ "flex-1 ds-card-body" $ do
+            H.div H.! A.class_ "ds-card-title italic mb-8 justify-center" $ H.toHtml (aorbCtx aorb)
+            H.div $ do
+              let (firstChoice, firstValue, secondChoice, secondValue) =
+                    if shouldSwap
+                      then (aorbB aorb, 1, aorbA aorb, 0)
+                      else (aorbA aorb, 0, aorbB aorb, 1)
+              makeChoice aorb token firstChoice firstValue
+              H.div H.! A.class_ "ds-divider" $ "OR"
+              makeChoice aorb token secondChoice secondValue
   where
     makeChoice :: Aorb -> T.Text -> T.Text -> Word.Word8 -> H.Html
     makeChoice a t choice value = do
-      H.form H.! A.method "POST" H.! A.action "/ans/submit" $ do
-        H.input H.! A.type_ "hidden" H.!
-          A.name "aorb_id" H.!
-          A.value (H.toValue $ show $ aorbId a)
-        H.input H.! A.type_ "hidden" H.!
-          A.name "token" H.!
-          A.value (H.textValue t)
-        H.input H.! A.type_ "hidden" H.!
-          A.name "choice" H.!
-          A.value (H.toValue $ show value)
-        H.button H.!
-          A.type_ "submit" H.!
-          A.class_ "w-full min-h-[160px] p-8 text-center border border-base-300 rounded-lg transition-all hover:bg-base-200 hover:border-base-300 cursor-pointer font-inherit" $
-          H.toHtml choice
+      H.form  H.! A.method "POST" H.! A.action "/ans/submit" $ do
+        H.input H.! A.type_ "hidden" H.! A.name "aorb_id" H.! A.value (H.toValue $ show $ aorbId a)
+        H.input H.! A.type_ "hidden" H.! A.name "token" H.! A.value (H.textValue t)
+        H.input H.! A.type_ "hidden" H.! A.name "choice" H.! A.value (H.toValue $ show value)
+        H.button H.! A.type_ "submit" H.! A.class_ "w-full min-h-[160px] p-8 text-center border rounded-lg transition-all cursor-pointer font-inherit border-base-300 hover:bg-base-200 hover:border-base-300" $ H.toHtml choice
 
 existingAnswerTemplate :: Aorb -> Maybe AorbAnswer -> Bool -> T.Text -> H.Html
 existingAnswerTemplate aorb mCurrentAnswer isFavorite token = H.docTypeHtml $ H.html $ do
   pageHead "answer (edit)" mempty
   H.body $ do
-    H.div $ do
+    H.div H.! A.class_ "flex flex-col h-screen" $ do
       navBar Nothing
-      H.div H.! A.class_ "text-center p-8 text-base-content/60 italic" $
-        H.toHtml (aorbCtx aorb)
-      H.div H.! A.class_ "grid gap-20 p-4 max-w-4xl mx-auto w-4/5" $ do
-        makeExistingChoice aorb token (aorbA aorb) 0
-          (mCurrentAnswer == Just (AorbAnswer 0)) isFavorite
-        makeExistingChoice aorb token (aorbB aorb) 1
-          (mCurrentAnswer == Just (AorbAnswer 1)) isFavorite
-      if isFavorite
-        then mempty
-        else
-          H.div H.! A.class_ "mt-12 text-center" $ do
-            H.form H.! A.method "POST"
-                  H.! A.action (H.toValue $ "/aorb/favorite/" ++ show (aorbId aorb)) $ do
-              H.button H.! A.type_ "submit"
-                      H.! A.class_ "px-8 py-4 border-2 border-base-300 bg-transparent cursor-pointer font-inherit text-base transition-all hover:border-warning hover:text-warning rounded-lg" $
-                "set as favorite question"
+      H.div H.! A.class_ "flex-1 h-auto justify-items-center" $ do
+        H.div H.! A.class_ "ds-card w-screen max-w-4xl" $ do
+          H.div H.! A.class_ "flex-1 ds-card-body" $ do
+            H.div H.! A.class_ "ds-card-title italic mb-8 justify-center" $ H.toHtml (aorbCtx aorb)
+            H.div H.! A.class_ "" $ do
+              makeExistingChoice aorb token (aorbA aorb) 0 (mCurrentAnswer == Just (AorbAnswer 0)) isFavorite
+              H.div H.! A.class_ "ds-divider" $ "OR"
+              makeExistingChoice aorb token (aorbB aorb) 1 (mCurrentAnswer == Just (AorbAnswer 1)) isFavorite
+          if isFavorite
+            then mempty
+            else
+              H.div H.! A.class_ "ds-card-actions justify-center" $ do
+                H.form H.! A.method "POST" H.! A.action (H.toValue $ "/aorb/favorite/" ++ show (aorbId aorb)) $ do
+                  H.button H.! A.type_ "submit" H.! A.class_ "px-8 py-4 border-2 border-base-300 bg-transparent cursor-pointer font-inherit text-base transition-all hover:border-warning hover:text-warning rounded-lg" $
+                    "set as favorite question"
   where
     makeExistingChoice :: Aorb -> T.Text -> T.Text -> Word.Word8 -> Bool -> Bool -> H.Html
     makeExistingChoice a t choice value isSelected favorite = do
-      let baseClasses = "w-full min-h-[160px] p-8 text-center border rounded-lg transition-all cursor-pointer font-inherit"
-          selectedClasses = if isSelected
+      let choiceClass= if isSelected
             then if favorite
-              then " border-warning text-warning bg-warning/5 hover:bg-warning/10"
-              else " border-primary text-primary bg-primary/5 hover:bg-primary/10"
-            else " border-base-300 hover:bg-base-200"
+              then A.class_ "w-full min-h-[160px] p-8 text-center border rounded-lg transition-all cursor-pointer font-inherit border-warning text-warning bg-warning/5 hover:bg-warning/10"
+              else A.class_ "w-full min-h-[160px] p-8 text-center border rounded-lg transition-all cursor-pointer font-inherit border-primary text-primary bg-primary/5 hover:bg-primary/10"
+            else A.class_ "w-full min-h-[160px] p-8 text-center border rounded-lg transition-all cursor-pointer font-inherit border-base-300 hover:bg-base-200"
       H.form H.! A.method "POST" H.! A.action "/ans/edit" $ do
-        H.input H.! A.type_ "hidden" H.!
-          A.name "aorb_id" H.!
-          A.value (H.toValue $ show $ aorbId a)
-        H.input H.! A.type_ "hidden" H.!
-          A.name "token" H.!
-          A.value (H.textValue t)
-        H.input H.! A.type_ "hidden" H.!
-          A.name "choice" H.!
-          A.value (H.toValue $ show value)
-        H.button H.! A.type_ "submit"
-                H.! A.class_ (H.textValue $ baseClasses <> selectedClasses) $
-          H.toHtml choice
+        H.input H.! A.type_ "hidden" H.! A.name "aorb_id" H.! A.value (H.toValue $ show $ aorbId a)
+        H.input H.! A.type_ "hidden" H.! A.name "token" H.! A.value (H.textValue t)
+        H.input H.! A.type_ "hidden" H.! A.name "choice" H.! A.value (H.toValue $ show value)
+        H.button H.! A.type_ "submit" H.! choiceClass $ H.toHtml choice
 
-matchTemplate :: Config
-              -> Maybe POSIXTime.POSIXTime
-              -> Maybe POSIXTime.POSIXTime
-              -> POSIXTime.POSIXTime
-              -> Bool
-              -> Int
-              -> Maybe (Match, Double)
-              -> MatchStatus
-              -> H.Html
+matchTemplate :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> H.Html
 matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus = H.docTypeHtml $ H.html $ do
   pageHead "match" mempty
   H.body $ do
@@ -522,15 +498,7 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "today"
       matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus
 
-matchTodaySection :: Config
-                  -> Maybe POSIXTime.POSIXTime
-                  -> Maybe POSIXTime.POSIXTime
-                  -> POSIXTime.POSIXTime
-                  -> Bool
-                  -> Int
-                  -> Maybe (Match, Double)
-                  -> MatchStatus
-                  -> H.Html
+matchTodaySection :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> H.Html
 matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus =
   let otherUsersCount = max 0 (enrolledCount - 1)
       enrolledText =

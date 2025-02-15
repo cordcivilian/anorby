@@ -59,8 +59,7 @@ getMimeType path
   | BS.isSuffixOf ".js" path = "application/javascript"
   | otherwise = "application/octet-stream"
 
-getCachedQuery :: AppState -> SQL.Connection -> String
-                -> SQL.Query -> [SQL.SQLData] -> IO Int
+getCachedQuery :: AppState -> SQL.Connection -> String -> SQL.Query -> [SQL.SQLData] -> IO Int
 getCachedQuery state conn key query params = do
   cached <- getFromCache key (appQueryCache state)
   case cached of
@@ -164,13 +163,15 @@ adminTemplateRoute conn _ _ = do
   aorbs <- SQL.query_ conn "SELECT * FROM aorb ORDER BY id" :: IO [Aorb]
   return $ Wai.responseLBS
     HTTP.status200
-    [(Headers.hContentType, BS.pack "text/html")]
+    [(Headers.hContentType, "text/html; charset=utf-8")]
     (R.renderHtml $ adminTemplate aorbs)
 
 handleAddAorb :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 handleAddAorb _ conn _ req = do
   (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
-  let getParam name = TE.decodeUtf8 <$> lookup name params
+  let getParam name = case lookup name params of
+        Just value -> Just $ TE.decodeUtf8With TEE.lenientDecode value
+        Nothing -> Nothing
   case (getParam "context", getParam "subtext", getParam "option_a", getParam "option_b") of
     (Just ctx, Just stx, Just a, Just b) -> do
       SQL.execute conn
@@ -190,14 +191,16 @@ handleEditAorbForm _ conn _ aid _ = do
   case aorbs of
     [aorb] -> return $ Wai.responseLBS
       HTTP.status200
-      [(Headers.hContentType, "text/html")]
+      [(Headers.hContentType, "text/html; charset=utf-8")]
       (R.renderHtml $ editAorbTemplate aorb)
     _ -> return notFoundResponse
 
 handleEditAorb :: Config -> SQL.Connection -> UserID -> AorbID -> Wai.Request -> IO Wai.Response
 handleEditAorb _ conn _ aid req = do
   (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
-  let getParam name = TE.decodeUtf8 <$> lookup name params
+  let getParam name = case lookup name params of
+        Just value -> Just $ TE.decodeUtf8With TEE.lenientDecode value
+        Nothing -> Nothing
   case (getParam "context", getParam "subtext", getParam "option_a", getParam "option_b") of
     (Just ctx, Just stx, Just a, Just b) -> do
       SQL.execute conn
@@ -230,8 +233,7 @@ handleDeleteAorb _ conn _ aid _ = do
         ]
         ""
 
-profileTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
-                     -> IO Wai.Response
+profileTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 profileTemplateRoute config conn uid _ = do
   hasAccess <- hasThresholdAccess conn uid (profileThreshold config)
   userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
@@ -258,8 +260,7 @@ profileTemplateRoute config conn uid _ = do
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml notFoundTemplate)
 
-sharedProfileTemplateRoute :: SQL.Connection -> T.Text -> Wai.Request
-                           -> IO Wai.Response
+sharedProfileTemplateRoute :: SQL.Connection -> T.Text -> Wai.Request -> IO Wai.Response
 sharedProfileTemplateRoute conn uuid _ = do
   maybeUser <- getUserByUuid conn uuid
   case maybeUser of
@@ -302,8 +303,7 @@ ansTemplateRoute conn uid _ = do
             [(Headers.hContentType, BS.pack "text/html")]
             (R.renderHtml $ ansTemplate aorb shouldSwap token)
 
-existingAnswerTemplateRoute :: SQL.Connection -> UserID -> AorbID
-                            -> Wai.Request -> IO Wai.Response
+existingAnswerTemplateRoute :: SQL.Connection -> UserID -> AorbID -> Wai.Request -> IO Wai.Response
 existingAnswerTemplateRoute conn uid aid _ = do
   aorbResults <- SQL.query conn
     "SELECT * FROM aorb WHERE id = ?" (SQL.Only aid) :: IO [Aorb]
@@ -328,8 +328,7 @@ existingAnswerTemplateRoute conn uid aid _ = do
           existingAnswerTemplate aorb currentAnswer isFavorite token)
     _ -> return $ notFoundTemplateRoute undefined
 
-submitAnswerRoute :: SQL.Connection -> UserID -> AorbID -> AorbAnswer -> T.Text
-                  -> Wai.Request -> IO Wai.Response
+submitAnswerRoute :: SQL.Connection -> UserID -> AorbID -> AorbAnswer -> T.Text -> Wai.Request -> IO Wai.Response
 submitAnswerRoute conn uid aid answer token _ = do
   answerCount <- getDailyAnswerCount conn uid
   if answerCount >= 10
@@ -376,8 +375,7 @@ submitAnswerRoute conn uid aid answer token _ = do
                 ]
                 ""
 
-editAnswerRoute :: SQL.Connection -> UserID -> AorbID -> AorbAnswer -> T.Text
-                -> Wai.Request -> IO Wai.Response
+editAnswerRoute :: SQL.Connection -> UserID -> AorbID -> AorbAnswer -> T.Text -> Wai.Request -> IO Wai.Response
 editAnswerRoute conn uid aid answer token _ = do
   isValid <- validateAnswerToken token uid aid
   if not isValid
@@ -411,8 +409,7 @@ editAnswerRoute conn uid aid answer token _ = do
         ]
         ""
 
-setFavoriteAorbRoute :: SQL.Connection -> UserID -> AorbID -> Wai.Request
-                     -> IO Wai.Response
+setFavoriteAorbRoute :: SQL.Connection -> UserID -> AorbID -> Wai.Request -> IO Wai.Response
 setFavoriteAorbRoute conn uid aid _ = do
   SQL.execute conn "UPDATE users SET aorb_id = ? WHERE id = ?" (aid, uid)
   return $ Wai.responseLBS
@@ -422,12 +419,7 @@ setFavoriteAorbRoute conn uid aid _ = do
     ]
     ""
 
-matchTemplateRoute :: Config
-                   -> AppState
-                   -> SQL.Connection
-                   -> UserID
-                   -> Wai.Request
-                   -> IO Wai.Response
+matchTemplateRoute :: Config -> AppState -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 matchTemplateRoute config state conn uid _ = do
   hasAccess <- hasThresholdAccess conn uid (matchThreshold config)
   if not hasAccess
@@ -506,12 +498,7 @@ matchTemplateRoute config state conn uid _ = do
           [(Headers.hContentType, BS.pack "text/html")]
           (R.renderHtml internalErrorTemplate)
 
-matchProfileTemplateRoute :: Config
-                          -> SQL.Connection
-                          -> UserID
-                          -> Integer
-                          -> Wai.Request
-                          -> IO Wai.Response
+matchProfileTemplateRoute :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
 matchProfileTemplateRoute config conn uid days _ = do
   now <- POSIXTime.getPOSIXTime
   let startOfDay = floor (now / 86400) * 86400
@@ -562,8 +549,7 @@ matchProfileTemplateRoute config conn uid days _ = do
           matchProfileTemplate config days uid targetId matchView messages)
     [] -> return notFoundResponse
 
-matchTypeTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
-                      -> IO Wai.Response
+matchTypeTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 matchTypeTemplateRoute config conn uid _ = do
   hasAccess <- hasThresholdAccess conn uid (matchThreshold config)
   if not hasAccess
@@ -583,8 +569,7 @@ matchTypeTemplateRoute config conn uid _ = do
           [(Headers.hContentType, BS.pack "text/html")]
           (R.renderHtml notFoundTemplate)
 
-matchTypeUpdateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
-                     -> IO Wai.Response
+matchTypeUpdateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 matchTypeUpdateRoute config conn uid req = do
   hasAccess <- hasThresholdAccess conn uid (matchThreshold config)
   if not hasAccess
@@ -617,8 +602,7 @@ matchTypeUpdateRoute config conn uid req = do
     parseAssociationScheme "Bipolar" = Just Bipolar
     parseAssociationScheme _ = Nothing
 
-matchFoundTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request
-                        -> IO Wai.Response
+matchFoundTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 matchFoundTemplateRoute config conn uid _ = do
   now <- POSIXTime.getPOSIXTime
   matches <- getUserMatches conn uid
@@ -657,12 +641,7 @@ matchFoundTemplateRoute config conn uid _ = do
           let dayTimestamp = (matchTimestamp m `div` 86400) * 86400
           in Map.insertWith (++) dayTimestamp [m] acc
 
-postMessageRoute :: Config
-                 -> SQL.Connection
-                 -> UserID
-                 -> Integer
-                 -> Wai.Request
-                 -> IO Wai.Response
+postMessageRoute :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
 postMessageRoute config conn uid days req = do
   (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
   case lookup "new-message" params of
@@ -897,8 +876,7 @@ authHashRoute conn hash _ = do
         ]
         ""
 
-accountTemplateRoute :: SQL.Connection -> UserID -> Wai.Request
-                     -> IO Wai.Response
+accountTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 accountTemplateRoute conn uid _ = do
   userQ <- SQL.query conn "SELECT * FROM users WHERE id = ?" (SQL.Only uid)
   case userQ of
@@ -929,8 +907,7 @@ logoutGetRoute conn uid _ = do
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml notFoundTemplate)
 
-logoutConfirmRoute :: SQL.Connection -> UserID -> Wai.Request
-                   -> IO Wai.Response
+logoutConfirmRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 logoutConfirmRoute _ uid req = do
   let params = HTTP.parseQueryText $ Wai.rawQueryString req
   case Monad.join $ lookup "token" params of
@@ -956,8 +933,7 @@ logoutConfirmRoute _ uid req = do
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml invalidSubmissionTemplate)
 
-logoutConfirmPostRoute :: SQL.Connection -> UserID -> Wai.Request
-                       -> IO Wai.Response
+logoutConfirmPostRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 logoutConfirmPostRoute conn uid req = do
   (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
   case lookup "token" params of
@@ -1003,8 +979,7 @@ deleteGetRoute conn uid _ = do
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml notFoundTemplate)
 
-deleteConfirmRoute :: SQL.Connection -> UserID -> Wai.Request
-                   -> IO Wai.Response
+deleteConfirmRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 deleteConfirmRoute _ uid req = do
   let params = HTTP.parseQueryText $ Wai.rawQueryString req
   case Monad.join $ lookup "token" params of
@@ -1032,8 +1007,7 @@ deleteConfirmRoute _ uid req = do
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml invalidSubmissionTemplate)
 
-deleteConfirmPostRoute :: SQL.Connection -> UserID -> Wai.Request
-                       -> IO Wai.Response
+deleteConfirmPostRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 deleteConfirmPostRoute conn uid req = do
   (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
   case lookup "token" params of

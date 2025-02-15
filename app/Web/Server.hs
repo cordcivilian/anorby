@@ -49,8 +49,8 @@ runServer = do
                   $ Warp.setTimeout 60
                   $ Warp.setGracefulCloseTimeout1 1000
                   $ Warp.setGracefulCloseTimeout2 5000
-                  $ Warp.setFdCacheDuration 300
-                  $ Warp.setFileInfoCacheDuration 300
+                  $ Warp.setFdCacheDuration 600
+                  $ Warp.setFileInfoCacheDuration 600
                   $ Warp.setSlowlorisSize 8192
                   $ Warp.setMaxTotalHeaderLength (1024*50)
                   $ Warp.setOnException (\_ e ->
