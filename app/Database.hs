@@ -42,7 +42,7 @@ initConn db = SQL.open db
 
 initPool :: FilePath -> IO (Pool.Pool SQL.Connection)
 initPool db = Pool.newPool $
-  Pool.defaultPoolConfig (initConn db) SQL.close 30 10
+  Pool.defaultPoolConfig (initConn db) SQL.close 60 50
 
 -- | SQLite optimization settings
 initSQLitePragmas :: SQL.Connection -> IO ()
@@ -53,7 +53,7 @@ initSQLitePragmas conn = do
         , "PRAGMA encoding = 'UTF-8'"
         , "PRAGMA synchronous = NORMAL"
         , "PRAGMA busy_timeout = 5000"
-        , "PRAGMA cache_size = -20000"
+        , "PRAGMA cache_size = -2000000"
         , "PRAGMA foreign_keys = ON"
         , "PRAGMA auto_vacuum = INCREMENTAL"
         , "PRAGMA temp_store = MEMORY"

@@ -19,6 +19,7 @@ import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.RequestLogger as Mid
+import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
 import qualified Text.Read as Read
@@ -50,11 +51,17 @@ runServer = do
 initAppState :: Config -> IO AppState
 initAppState config = do
   pool <- initDatabasePool config
-  rootCache <- initCache (60)
+  rootCache <- initCache (60 * 60)       -- 1 hour for root aorbs
+  statsCache <- initCache (5 * 60)       -- 5 minutes for stats
+  htmlCache <- initCache (2 * 60)        -- 2 minutes for HTML
+  queryCache <- initCache 30             -- 30 seconds for queries
   matchState <- initMatchState
   return AppState
     { appPool = pool
     , appRootCache = rootCache
+    , appStatsCache = statsCache
+    , appHtmlCache = htmlCache
+    , appQueryCache = queryCache
     , appMatchState = matchState
     }
 
@@ -260,7 +267,7 @@ routes =
 -- | Server
 
 monolith :: AppState -> Wai.Application
-monolith state = Mid.logStdout $ application TIO.putStrLn state
+monolith state = Gzip.gzip Gzip.defaultGzipSettings $ Mid.logStdout $ application TIO.putStrLn state
 
 data RouteHandler
   = PublicHandler (AppState -> SQL.Connection -> Wai.Request -> IO Wai.Response)

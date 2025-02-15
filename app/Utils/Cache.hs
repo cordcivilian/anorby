@@ -10,6 +10,7 @@ import qualified Data.Time.Clock.POSIX as POSIXTime
 data CacheEntry a = CacheEntry
   { entryData :: a
   , entryTimestamp :: POSIXTime.POSIXTime
+  , entryTTL :: Time.NominalDiffTime
   }
 
 data Cache a = Cache
@@ -18,9 +19,9 @@ data Cache a = Cache
   }
 
 initCache :: Time.NominalDiffTime -> IO (MVar.MVar (Cache a))
-initCache duration = MVar.newMVar Cache
+initCache defaultTTL = MVar.newMVar Cache
   { cacheData = Map.empty
-  , cacheDuration = duration
+  , cacheDuration = defaultTTL
   }
 
 getFromCache :: String -> MVar.MVar (Cache a) -> IO (Maybe a)
@@ -34,9 +35,9 @@ getFromCache key cacheVar = do
       then Just (entryData entry)
       else Nothing
 
-putInCache :: String -> a -> MVar.MVar (Cache a) -> IO ()
-putInCache key value cacheVar = do
+putInCacheWithTTL :: String -> a -> Time.NominalDiffTime -> MVar.MVar (Cache a) -> IO ()
+putInCacheWithTTL key value ttl cacheVar = do
   now <- POSIXTime.getPOSIXTime
   MVar.modifyMVar_ cacheVar $ \cache -> return $ cache
-    { cacheData = Map.insert key (CacheEntry value now) (cacheData cache)
+    { cacheData = Map.insert key (CacheEntry value now ttl) (cacheData cache)
     }

@@ -240,8 +240,8 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers match
           H.div "sorter:"
           H.div H.! A.class_ "flex gap-8" $ do
             H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#diced" $ "random"
-            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#sided" $ "one-sided"
-            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#split" $ "polarized"
+            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#sided" $ "unanimity"
+            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#split" $ "deadlocks"
         H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
           mapM_ (showAorb . uncurry Population) (orderAorbs aorbs orderFuncs)
   where

@@ -55,62 +55,109 @@ serveStaticFile path = do
 
 getMimeType :: BS.ByteString -> BS.ByteString
 getMimeType path
-  | ".css" `BS.isSuffixOf` path = "text/css"
-  | ".js" `BS.isSuffixOf` path = "application/javascript"
+  | BS.isSuffixOf ".css" path = "text/css"
+  | BS.isSuffixOf ".js" path = "application/javascript"
   | otherwise = "application/octet-stream"
+
+getCachedQuery :: AppState -> SQL.Connection -> String
+                -> SQL.Query -> [SQL.SQLData] -> IO Int
+getCachedQuery state conn key query params = do
+  cached <- getFromCache key (appQueryCache state)
+  case cached of
+    Just (IntResult i) -> return i
+    Just (UserResult _) -> fetchAndCache
+    Just (AorbResult _) -> fetchAndCache
+    Nothing -> fetchAndCache
+  where
+    fetchAndCache = do
+      [SQL.Only result] <- SQL.query conn query params
+      putInCacheWithTTL key (IntResult result) 30 (appQueryCache state)
+      return result
+
+getRootStats :: AppState -> SQL.Connection -> IO RootStats
+getRootStats state conn = do
+  cachedStats <- getFromCache "root_stats" (appStatsCache state)
+  case cachedStats of
+    Just stats -> return stats
+    Nothing -> do
+      now <- POSIXTime.getPOSIXTime
+      let startOfDay = floor now - (floor now `mod` 86400)
+
+      totalQuestions' <- getCachedQuery state conn "total_questions"
+        "SELECT COUNT(*) FROM aorb" []
+
+      totalAnswers' <- getCachedQuery state conn "total_answers"
+        "SELECT COUNT(*) FROM aorb_answers WHERE user_id != -1" []
+
+      todayAnswers' <- getCachedQuery state conn "today_answers"
+        "SELECT COUNT(*) FROM aorb_answers WHERE answered_on >= ?"
+        [SQL.SQLInteger startOfDay]
+
+      activeUsers' <- getCachedQuery state conn "active_users"
+        "SELECT COUNT(DISTINCT user_id) FROM aorb_answers WHERE user_id != -1"
+        []
+
+      let weekAgo = floor now - (7 * 24 * 60 * 60)
+      newUsers' <- getCachedQuery state conn "new_users"
+        "SELECT COUNT(DISTINCT user_id) FROM auth WHERE created_on >= ? AND user_id != -1"
+        [SQL.SQLInteger weekAgo]
+
+      enrolled <- getUsersWithCompletedAnswers conn
+      let enrolledCount' = length $ filter (/= shadowUserId) enrolled
+
+      let stats = RootStats
+            { totalQuestions = totalQuestions'
+            , totalAnswers = totalAnswers'
+            , todayAnswers = todayAnswers'
+            , activeUsers = activeUsers'
+            , newUsers = newUsers'
+            , enrolledCount = enrolledCount'
+            }
+
+      putInCacheWithTTL "root_stats" stats (5 * 60) (appStatsCache state)
+      return stats
 
 rootTemplateRoute :: AppState -> SQL.Connection -> Wai.Request -> IO Wai.Response
 rootTemplateRoute state conn _ = do
-  cachedAorbs <- getFromCache "root_aorbs" (appRootCache state)
-  aorbs <- case cachedAorbs of
-    Just as -> return as
+  cachedHtml <- getFromCache "root_html" (appHtmlCache state)
+  case cachedHtml of
+    Just html -> return $ Wai.responseLBS
+      HTTP.status200
+      [(Headers.hContentType, "text/html")]
+      html
+
     Nothing -> do
-      as <- SQL.query_ conn "SELECT * FROM aorb" :: IO [Aorb]
-      gen <- Random.getStdGen
-      let (shuffledAorbs, _) = fisherYatesShuffle gen as
-      putInCache "root_aorbs" shuffledAorbs (appRootCache state)
-      return shuffledAorbs
+      cachedAorbs <- getFromCache "root_aorbs" (appRootCache state)
+      aorbs <- case cachedAorbs of
+        Just as -> return as
+        Nothing -> do
+          as <- SQL.query_ conn "SELECT * FROM aorb" :: IO [Aorb]
+          gen <- Random.getStdGen
+          let (shuffledAorbs, _) = fisherYatesShuffle gen as
+          putInCacheWithTTL "root_aorbs" shuffledAorbs (60 * 60) (appRootCache state)
+          return shuffledAorbs
 
-  let totalQuestions = length aorbs
-  now <- POSIXTime.getPOSIXTime
-  let startOfDay = (floor (now / 86400) * 86400) :: Integer
-  totalAnswers <- SQL.query_ conn
-    "SELECT COUNT(*) FROM aorb_answers WHERE user_id != -1" :: IO [SQL.Only Int]
-  todayAnswers <- SQL.query conn
-    "SELECT COUNT(*) FROM aorb_answers WHERE answered_on >= ?"
-    (SQL.Only startOfDay) :: IO [SQL.Only Int]
+      stats <- getRootStats state conn
+      matchStatus <- getMatchStatus (appMatchState state)
 
-  activeUsers <- SQL.query_ conn
-    "SELECT COUNT(DISTINCT user_id) FROM aorb_answers WHERE user_id != -1"
-      :: IO [SQL.Only Int]
-  let weekAgo = floor now - (7 * 24 * 60 * 60) :: Integer
-  newUsersThisWeek <- SQL.query conn
-    ( SQL.Query $ T.unwords
-      [ "SELECT COUNT(DISTINCT user_id) FROM auth"
-      , "WHERE created_on >= ? AND user_id != -1"
-      ]
-    ) (SQL.Only weekAgo) :: IO [SQL.Only Int]
+      let
+        html =
+          R.renderHtml $ rootTemplate
+            (totalQuestions stats)
+            (totalAnswers stats)
+            (todayAnswers stats)
+            (activeUsers stats)
+            (newUsers stats)
+            (enrolledCount stats)
+            matchStatus
+            aorbs
 
-  enrolledUsers <- getUsersWithCompletedAnswers conn
-  matchStatus <- getMatchStatus (appMatchState state)
-  let totalAnswerCount = maybe 0 SQL.fromOnly (Maybe.listToMaybe totalAnswers)
-      todayAnswerCount = maybe 0 SQL.fromOnly (Maybe.listToMaybe todayAnswers)
-      activeUserCount = maybe 0 SQL.fromOnly (Maybe.listToMaybe activeUsers)
-      newUserCount = maybe 0 SQL.fromOnly (Maybe.listToMaybe newUsersThisWeek)
-      enrolledCount = length $ filter (/= shadowUserId) enrolledUsers
-  return $ Wai.responseLBS
-    HTTP.status200
-    [(Headers.hContentType, BS.pack "text/html")]
-    (R.renderHtml $ rootTemplate
-      totalQuestions
-      totalAnswerCount
-      todayAnswerCount
-      activeUserCount
-      newUserCount
-      enrolledCount
-      matchStatus
-      aorbs
-    )
+      putInCacheWithTTL "root_html" html (2 * 60) (appHtmlCache state)
+
+      return $ Wai.responseLBS
+        HTTP.status200
+        [(Headers.hContentType, "text/html")]
+        html
 
 adminTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 adminTemplateRoute conn _ _ = do
