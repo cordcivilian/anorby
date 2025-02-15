@@ -250,8 +250,6 @@ routes =
       matchTypeTemplateRoute config conn uid req
   , Route "POST" "/match/type" $ ProtectedHandler $ \config _ conn uid req ->
       matchTypeUpdateRoute config conn uid req
-  , Route "GET" "/match/found" $ ProtectedHandler $ \config _ conn uid req ->
-      matchFoundTemplateRoute config conn uid req
   , Route "GET" "/match/found/t-:days" $ ProtectedHandler $ \config _ conn uid req ->
       case extractParam "/match/found/t-:days" (Wai.rawPathInfo req) "days" of
         Just daysBS -> case reads (BS.unpack daysBS) of

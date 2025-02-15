@@ -432,28 +432,21 @@ matchTemplateRoute config state conn uid _ = do
         "SELECT assoc FROM users WHERE id = ?"
         (SQL.Only uid) :: IO [SQL.Only (Maybe AssociationScheme)]
       case assocResult of
-        [] -> return $ Wai.responseLBS
-          HTTP.status404
-          [(Headers.hContentType, BS.pack "text/html")]
-          (R.renderHtml notFoundTemplate)
+        [] -> return notFoundResponse
         [SQL.Only Nothing] -> return $ Wai.responseLBS
           HTTP.status303
-          [ (Headers.hLocation, "/match/type")
-          , (Headers.hContentType, "text/html")
-          ]
+          [(Headers.hLocation, "/match/type")]
           ""
         [SQL.Only (Just _)] -> do
           now <- POSIXTime.getPOSIXTime
           enrolled <- getUsersWithCompletedAnswers conn
-
           maybeCutoffTime <- parseMatchTime (matchCutoffTime config)
           maybeReleaseTime <- parseMatchTime (matchReleaseTime config)
-
           matchStatus <- getMatchStatus (appMatchState state)
 
           let startOfDay = (floor (now / 86400) * 86400) :: Integer
               endOfDay = startOfDay + 86400
-          matches <- SQL.query conn
+          todayMatches <- SQL.query conn
             (SQL.Query $ T.unwords
               [ "SELECT user_id, target_id, matched_on"
               , "FROM matched"
@@ -463,21 +456,24 @@ matchTemplateRoute config state conn uid _ = do
               ])
             (uid, uid, startOfDay, endOfDay) :: IO [Match]
 
-          maybeMatchScore <- case matches of
+          todayMatchScore <- case todayMatches of
             (match:_) -> do
-              let targetId = if matchUserId match == uid
-                           then matchTargetId match
-                           else matchUserId match
-              (answers1, answers2) <-
-                getLargestIntersectionAnswers conn uid targetId
-              userAorbInfo <- getUserAorbAndAssoc conn uid
-              let weights = case userAorbInfo of
-                    Just (aorb, _) ->
-                      map (\(i,_) -> if i == aorbId aorb then 5 else 1)
-                          (zip [0..] answers1)
-                    Nothing -> replicate (length answers1) 1
-              return $ Just (match, weightedYuleQ answers1 answers2 weights)
+              (_, score) <- calculateMatchScore conn uid match
+              return $ Just (match, score)
             [] -> return Nothing
+
+          matches <- getUserMatches conn uid
+          let expiryAgo = floor now - (matchExpiryDays config * 24 * 60 * 60)
+              groupedMatches = groupMatchesByDay matches
+              uniqueDayMatches =
+                reverse $ Maybe.mapMaybe (Maybe.listToMaybe . snd) groupedMatches
+              pastMatches = filter (\m -> matchTimestamp m < startOfDay &&
+                                        matchTimestamp m >= expiryAgo) uniqueDayMatches
+
+          pastMatchesData <- mapM (\m -> do
+            (_, score) <- calculateMatchScore conn uid m
+            unreadCount <- getUnreadMessageCount conn uid m
+            return (m, score, unreadCount)) pastMatches
 
           return $ Wai.responseLBS
             HTTP.status200
@@ -490,64 +486,36 @@ matchTemplateRoute config state conn uid _ = do
                 now
                 (elem uid enrolled)
                 (length enrolled)
-                maybeMatchScore
+                todayMatchScore
                 matchStatus
+                pastMatchesData
             )
         _ -> return $ Wai.responseLBS
           HTTP.status500
           [(Headers.hContentType, BS.pack "text/html")]
           (R.renderHtml internalErrorTemplate)
 
-matchProfileTemplateRoute :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
-matchProfileTemplateRoute config conn uid days _ = do
-  now <- POSIXTime.getPOSIXTime
-  let startOfDay = floor (now / 86400) * 86400
-      targetDay = startOfDay - (days * 86400)
-      nextDay = targetDay + 86400
-  matches <- SQL.query conn
-    (SQL.Query $ T.unwords
-      [ "SELECT id, user_id, target_id, matched_on"
-      , "FROM matched"
-      , "WHERE (user_id = ? OR target_id = ?)"
-      , "AND matched_on >= ? AND matched_on < ?"
-      , "ORDER BY matched_on DESC LIMIT 1"
-      ])
-    (uid, uid, targetDay, nextDay) :: IO [MatchRecord]
-  case matches of
-    (MatchRecord (matchId, match):_) -> do
-      let targetId = if matchUserId match == uid
-                    then matchTargetId match
-                    else matchUserId match
-      (answers1, answers2) <- getLargestIntersectionAnswers conn uid targetId
-      userAorbInfo <- getUserAorbAndAssoc conn uid
-      let weights = case userAorbInfo of
-            Just (aorb, _) ->
-              map (\(i,_) -> if i == aorbId aorb then 5 else 1)
-                  (zip [0..] answers1)
-            Nothing -> replicate (length answers1) 1
-      let agreementRate = (weightedYuleQ answers1 answers2 weights + 1) * 50
-      yourTotalAnswers <- getUserTotalAnswerCount conn uid
-      targetTotalAnswers <- getUserTotalAnswerCount conn targetId
-      targetMainAorbs <- getMatchesMainAorbs conn uid targetId
-      agreements <- getMatchesTopXUniqueAgreement conn uid targetId 1
-      disagreements <- getMatchesTopXCommonDisagreement conn uid targetId 1
-      messages <- getMessagesForMatch conn matchId
-      markMessagesRead conn matchId uid
-      let matchView = MatchView
-            { viewTimestamp = matchTimestamp match
-            , viewAgreementRate = agreementRate
-            , viewTargetTotalAnswers = targetTotalAnswers
-            , viewYourTotalAnswers = yourTotalAnswers
-            , viewMainAorbs = targetMainAorbs
-            , viewTopAgreement = Maybe.listToMaybe agreements
-            , viewTopDisagreement = Maybe.listToMaybe disagreements
-            }
-      return $ Wai.responseLBS
-        HTTP.status200
-        [ (Headers.hContentType, "text/html; charset=utf-8") ]
-        (R.renderHtml $
-          matchProfileTemplate config days uid targetId matchView messages)
-    [] -> return notFoundResponse
+calculateMatchScore :: SQL.Connection -> UserID -> Match -> IO (Match, Double)
+calculateMatchScore conn uid match = do
+  let targetId = if matchUserId match == uid
+                 then matchTargetId match
+                 else matchUserId match
+  (answers1, answers2) <- getLargestIntersectionAnswers conn uid targetId
+  userAorbInfo <- getUserAorbAndAssoc conn uid
+  let weights = case userAorbInfo of
+        Just (aorb, _) ->
+          map (\(i,_) -> if i == aorbId aorb then 5 else 1)
+              (zip [0..] answers1)
+        Nothing -> replicate (length answers1) 1
+  return (match, weightedYuleQ answers1 answers2 weights)
+
+groupMatchesByDay :: [Match] -> [(Integer, [Match])]
+groupMatchesByDay ms =
+  Map.toList $ foldr addToDay Map.empty ms
+  where
+    addToDay m acc =
+      let dayTimestamp = (div (matchTimestamp m) 86400) * 86400
+      in Map.insertWith (++) dayTimestamp [m] acc
 
 matchTypeTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 matchTypeTemplateRoute config conn uid _ = do
@@ -602,44 +570,56 @@ matchTypeUpdateRoute config conn uid req = do
     parseAssociationScheme "Bipolar" = Just Bipolar
     parseAssociationScheme _ = Nothing
 
-matchFoundTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-matchFoundTemplateRoute config conn uid _ = do
+matchProfileTemplateRoute :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
+matchProfileTemplateRoute config conn uid days _ = do
   now <- POSIXTime.getPOSIXTime
-  matches <- getUserMatches conn uid
-  let groupedMatches = groupMatchesByDay matches
-      uniqueDayMatches =
-        reverse $ Maybe.mapMaybe (Maybe.listToMaybe . snd) groupedMatches
-  matchScores <- mapM (calculateMatchScore conn uid) uniqueDayMatches
-  matchUnreadCounts <- mapM (getUnreadMessageCount conn uid) uniqueDayMatches
-  let matchData = zip matchScores matchUnreadCounts
-  return $ Wai.responseLBS
-    HTTP.status200
-    [(Headers.hContentType, BS.pack "text/html")]
-    (R.renderHtml $
-      matchFoundTemplate (floor now) (matchExpiryDays config) matchData)
-  where
-    calculateMatchScore :: SQL.Connection -> UserID -> Match
-                      -> IO (Match, Double)
-    calculateMatchScore conn' uid' match' = do
-      let targetId = if matchUserId match' == uid'
-                    then matchTargetId match'
-                    else matchUserId match'
-      (answers1, answers2) <- getLargestIntersectionAnswers conn' uid' targetId
-      userAorbInfo <- getUserAorbAndAssoc conn' uid'
+  let startOfDay = floor (now / 86400) * 86400
+      targetDay = startOfDay - (days * 86400)
+      nextDay = targetDay + 86400
+  matches <- SQL.query conn
+    (SQL.Query $ T.unwords
+      [ "SELECT id, user_id, target_id, matched_on"
+      , "FROM matched"
+      , "WHERE (user_id = ? OR target_id = ?)"
+      , "AND matched_on >= ? AND matched_on < ?"
+      , "ORDER BY matched_on DESC LIMIT 1"
+      ])
+    (uid, uid, targetDay, nextDay) :: IO [MatchRecord]
+  case matches of
+    (MatchRecord (matchId, match):_) -> do
+      let targetId = if matchUserId match == uid
+                    then matchTargetId match
+                    else matchUserId match
+      (answers1, answers2) <- getLargestIntersectionAnswers conn uid targetId
+      userAorbInfo <- getUserAorbAndAssoc conn uid
       let weights = case userAorbInfo of
             Just (aorb, _) ->
               map (\(i,_) -> if i == aorbId aorb then 5 else 1)
                   (zip [0..] answers1)
             Nothing -> replicate (length answers1) 1
-      return (match', weightedYuleQ answers1 answers2 weights)
-
-    groupMatchesByDay :: [Match] -> [(Integer, [Match])]
-    groupMatchesByDay ms =
-      Map.toList $ foldr addToDay Map.empty ms
-      where
-        addToDay m acc =
-          let dayTimestamp = (matchTimestamp m `div` 86400) * 86400
-          in Map.insertWith (++) dayTimestamp [m] acc
+      let agreementRate = (weightedYuleQ answers1 answers2 weights + 1) * 50
+      yourTotalAnswers <- getUserTotalAnswerCount conn uid
+      targetTotalAnswers <- getUserTotalAnswerCount conn targetId
+      targetMainAorbs <- getMatchesMainAorbs conn uid targetId
+      agreements <- getMatchesTopXUniqueAgreement conn uid targetId 1
+      disagreements <- getMatchesTopXCommonDisagreement conn uid targetId 1
+      messages <- getMessagesForMatch conn matchId
+      markMessagesRead conn matchId uid
+      let matchView = MatchView
+            { viewTimestamp = matchTimestamp match
+            , viewAgreementRate = agreementRate
+            , viewTargetTotalAnswers = targetTotalAnswers
+            , viewYourTotalAnswers = yourTotalAnswers
+            , viewMainAorbs = targetMainAorbs
+            , viewTopAgreement = Maybe.listToMaybe agreements
+            , viewTopDisagreement = Maybe.listToMaybe disagreements
+            }
+      return $ Wai.responseLBS
+        HTTP.status200
+        [ (Headers.hContentType, "text/html; charset=utf-8") ]
+        (R.renderHtml $
+          matchProfileTemplate config days uid targetId matchView messages)
+    [] -> return notFoundResponse
 
 postMessageRoute :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
 postMessageRoute config conn uid days req = do

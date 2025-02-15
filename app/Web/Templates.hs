@@ -484,19 +484,22 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token = H.docTypeHtml $ H.
         H.input H.! A.type_ "hidden" H.! A.name "choice" H.! A.value (H.toValue $ show value)
         H.button H.! A.type_ "submit" H.! choiceClass $ H.toHtml choice
 
-matchTemplate :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> H.Html
-matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus = H.docTypeHtml $ H.html $ do
-  pageHead "match" mempty
+matchTemplate :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> [(Match, Double, Int)] -> H.Html
+matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus pastMatches = H.docTypeHtml $ H.html $ do
+  pageHead "clash" mempty
   H.body $ do
     H.div $ do
-      navBar Nothing
-      H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "match"
+      navBar $ Just "clash"
       H.div H.! A.class_ "flex justify-center gap-4 flex-wrap" $ do
-        H.a H.! A.href "/match/found" H.! A.class_ "link hover:text-primary transition-colors" $ "past"
-        H.span H.! A.class_ "text-base-content/50" $ "|"
-        H.a H.! A.href "/match/type" H.! A.class_ "link hover:text-primary transition-colors" $ "future"
-      H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ "today"
+        H.a H.! A.href "/match/type" H.! A.class_ "link hover:text-primary transition-colors" $ "type"
+
       matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus
+
+      if null pastMatches
+        then H.h3 H.! A.class_ "text-center mb-8 text-base-content/70" $ "no matches found"
+        else do
+          H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
+            mapM_ (\(m, s, u) -> matchCard (floor now) m s u) pastMatches
 
 matchTodaySection :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> H.Html
 matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus =
@@ -645,27 +648,6 @@ schemeDetailedDescription scheme =
     schemeDetail PPPod = "..."
     schemeDetail Swing = "..."
     schemeDetail Bipolar = "..."
-
-matchFoundTemplate :: Integer -> Integer -> [((Match, Double), Int)] -> H.Html
-matchFoundTemplate currentTimestamp expiryDays matchData = H.docTypeHtml $ H.html $ do
-  pageHead "matches" mempty
-  H.body $ do
-    H.div $ do
-      navBar Nothing
-      H.h1 H.! A.class_ "text-2xl font-bold mb-4 text-center" $ "matches"
-      if null matchData
-        then do
-          H.h3 H.! A.class_ "text-center mb-8 text-base-content/70" $ "no matches found"
-        else do
-          H.h4 H.! A.class_ "text-center mb-8 text-base-content/70" $ "(agreement rate)"
-          H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
-            let startOfToday = (div currentTimestamp 86400) * 86400
-                expiryAgo = currentTimestamp - (expiryDays * 24 * 60 * 60)
-                pastMatches = filter (\((m, _), _) ->
-                  let ts = matchTimestamp m
-                  in ts < startOfToday && ts >= expiryAgo) matchData
-            mapM_ (\((m, s), u) ->
-              matchCard currentTimestamp m s u) pastMatches
 
 matchCard :: Integer -> Match -> Double -> Int -> H.Html
 matchCard currentTimestamp match score unreadCount =
