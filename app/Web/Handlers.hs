@@ -478,7 +478,7 @@ matchTemplateRoute config state conn uid _ = do
                 maybeReleaseTime
                 now
                 (elem uid enrolled)
-                (length enrolled)
+                (length $ filter (/= shadowUserId) enrolled)
                 todayMatchScore
                 matchStatus
                 pastMatchesData

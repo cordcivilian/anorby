@@ -501,14 +501,32 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
           schemeCard Swing (userAssoc user)
           schemeCard Bipolar (userAssoc user)
 
-      H.div H.! A.class_ "max-w-2xl mx-auto p-4" $ do
-        matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus
+      H.div H.! A.class_ "w-full max-w-2xl mx-auto p-4 grid justify-stretch align-center" $ do
+        H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal shadow" $ do
+          renderClashStatus timeState enrolState enrolledCount effectiveStatus
+          renderClashTiming timeState enrolState config timeUntilCutoff timeUntilRelease
 
       if null pastMatches
         then H.h3 H.! A.class_ "text-center mb-8 text-base-content/70" $ "no matches found"
         else do
           H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
+            renderClashResult timeState currentTimestamp maybeMatchScore
             mapM_ (\(m, s, u) -> matchCard (floor now) m s u) pastMatches
+
+  where
+    enrolState = if isEnrolled then Enrolled else NotEnrolled
+    timeUntilCutoff = maybe "soon" (formatTimeUntil now) maybeCutoffTime
+    timeUntilRelease = maybe "soon" (formatTimeUntil now) maybeReleaseTime
+    currentTimestamp = floor now
+    timeState = case (maybeCutoffTime, maybeReleaseTime) of
+      (Just ct, Just rt)
+        | now < ct -> BeforeCutoff
+        | now < rt -> BeforeRelease
+        | otherwise -> AfterRelease
+      _ -> BeforeCutoff
+    effectiveStatus = case timeState of
+      AfterRelease -> matchStatus
+      _ -> NotStarted
 
 schemeCard :: AssociationScheme -> Maybe AssociationScheme -> H.Html
 schemeCard scheme currentScheme =
@@ -535,71 +553,41 @@ data TimeState = BeforeCutoff | BeforeRelease | AfterRelease
 data EnrolState = Enrolled | NotEnrolled
 data MatchPhase = ShowingStatus | ShowingEnrollment | ShowingTiming | ShowingResults
 
-matchTodaySection :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> H.Html
-matchTodaySection config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus = do
-  let enrolState = if isEnrolled then Enrolled else NotEnrolled
-      otherUsersCount = max 0 (enrolledCount - 1)
-      enrolledText =
-        if otherUsersCount == 1
-          then "1 other user enrolled"
-          else T.pack (show otherUsersCount) <> " other users enrolled"
-      timeUntilCutoff = maybe "soon" (formatTimeUntil now) maybeCutoffTime
-      timeUntilRelease = maybe "soon" (formatTimeUntil now) maybeReleaseTime
-      currentTimestamp = floor now
-      timeState = case (maybeCutoffTime, maybeReleaseTime) of
-        (Just ct, Just rt)
-          | now < ct -> BeforeCutoff
-          | now < rt -> BeforeRelease
-          | otherwise -> AfterRelease
-        _ -> BeforeCutoff
-      effectiveStatus = case timeState of
-        AfterRelease -> matchStatus
-        _ -> NotStarted
-  renderStatusSection timeState effectiveStatus enrolledText
-  renderEnrollmentSection timeState enrolState effectiveStatus
-  renderTimingSection timeState enrolState config timeUntilCutoff timeUntilRelease
-  renderResultsSection timeState currentTimestamp maybeMatchScore
+renderClashStatus :: TimeState -> EnrolState -> Int -> MatchStatus -> H.Html
+renderClashStatus timeState enrolState enrolledCount status =
+  case timeState of
+    AfterRelease -> mempty
+    _ -> do
+      H.div H.! A.class_ "ds-stat" $ do
+        H.div H.! A.class_ "ds-stat-title" $ "today's clash pool"
+        H.div H.! A.class_ "ds-stat-value" $ H.text $ T.pack $ show enrolledCount
+        H.div H.! A.class_ "ds-stat-actions" $ do
+          case (timeState, enrolState, status) of
+            (BeforeRelease, Enrolled, Completed) -> H.div H.! A.class_ "ds-badge ds-badge-success" $ H.text "status: matched"
+            (_, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-info" $ H.text "status: enrolled"
+            (BeforeCutoff, NotEnrolled, _) -> H.a H.! A.class_ "ds-badge ds-badge-warning" H.! A.href "/ans" $ "join"
+            (BeforeRelease, NotEnrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-error" $ H.text "status: missed"
 
-renderStatusSection :: TimeState -> MatchStatus -> T.Text -> H.Html
-renderStatusSection timeState status enrolledText =
-  case (timeState, status) of
-    (AfterRelease, Completed) -> mempty
-    (AfterRelease, InProgress) -> H.div H.! A.class_ "" $ H.text "matching in progress..."
-    (AfterRelease, NotStarted) -> H.div H.! A.class_ "" $ H.text enrolledText
-    (BeforeRelease, _) -> H.div H.! A.class_ "" $ H.text enrolledText
-    (BeforeCutoff, _) -> H.div H.! A.class_ "" $ H.text enrolledText
-    (AfterRelease, Failed err) -> H.div H.! A.class_ "" $ H.text "matching failed: " >> H.text (T.pack err)
-
-renderEnrollmentSection :: TimeState -> EnrolState -> MatchStatus -> H.Html
-renderEnrollmentSection timeState enrolState status =
-  case (timeState, enrolState, status) of
-    (BeforeCutoff, Enrolled, _) -> H.div H.! A.class_ "" $ H.text "you are enrolled for today's matching"
-    (BeforeCutoff, NotEnrolled, _) -> H.div H.! A.class_ "" $ do H.a H.! A.href "/ans" H.! A.class_ "" $ "answer more questions to join matching pool"
-    (BeforeRelease, Enrolled, Completed) -> H.div H.! A.class_ "" $ H.text "you've been matched"
-    (BeforeRelease, Enrolled, _) -> H.div H.! A.class_ "" $ H.text "you are enrolled for today's matching"
-    (BeforeRelease, NotEnrolled, _) -> H.div H.! A.class_ "" $ H.text "you've missed today's matching cutoff"
-    (AfterRelease, _, _) -> mempty
-
-renderTimingSection :: TimeState -> EnrolState -> Config -> T.Text -> T.Text -> H.Html
-renderTimingSection timeState enrolState config timeUntilCutoff timeUntilRelease =
+renderClashTiming :: TimeState -> EnrolState -> Config -> T.Text -> T.Text -> H.Html
+renderClashTiming timeState enrolState config timeUntilCutoff timeUntilRelease =
   case (timeState, enrolState) of
-    (BeforeCutoff, Enrolled) -> renderTimeDisplay "cutoff" timeUntilCutoff (matchCutoffTime config)
-    (BeforeCutoff, NotEnrolled) -> renderTimeDisplay "cutoff" timeUntilCutoff (matchCutoffTime config)
-    (BeforeRelease, Enrolled) -> renderTimeDisplay "reveal" timeUntilRelease (matchReleaseTime config)
-    (BeforeRelease, NotEnrolled) -> H.div H.! A.class_ "" $ H.text "answer your questions tomorrow before the cutoff"
     (AfterRelease, _) -> mempty
+    (BeforeRelease, NotEnrolled) -> mempty
+    (BeforeCutoff, NotEnrolled) -> renderTimeDisplay "cutoff in ..." timeUntilCutoff (matchCutoffTime config)
+    (_, Enrolled) -> renderTimeDisplay "reveal in ..." timeUntilRelease (matchReleaseTime config)
 
 renderTimeDisplay :: T.Text -> T.Text -> T.Text -> H.Html
 renderTimeDisplay label timeLeft timeStr =
-  H.div H.! A.class_ "" $ do
-    H.span H.! A.class_ "" $ H.text $ label <> " in " <> timeLeft
-    H.span H.! A.class_ "" $ H.text $ " (" <> timeStr <> " UTC)"
+  H.div H.! A.class_ "ds-stat" $ do
+    H.div H.! A.class_ "ds-stat-title" $ H.text label
+    H.span H.! A.class_ "ds-stat-value" $ H.text $ timeLeft
+    H.span H.! A.class_ "ds-stat-actions ds-badge ds-badge-secondary" $ H.text $ timeStr <> " UTC"
 
-renderResultsSection :: TimeState -> Integer -> Maybe (Match, Double) -> H.Html
-renderResultsSection timeState timestamp maybeMatch =
+renderClashResult :: TimeState -> Integer -> Maybe (Match, Double) -> H.Html
+renderClashResult timeState timestamp maybeMatch =
   case (timeState, maybeMatch) of
-    (AfterRelease, Just (match, score)) -> matchCard timestamp match score 0
     (AfterRelease, Nothing) -> H.div H.! A.class_ "" $ H.text "no match found for today"
+    (AfterRelease, Just (match, score)) -> matchCard timestamp match score 0
     _ -> mempty
 
 matchCard :: Integer -> Match -> Double -> Int -> H.Html

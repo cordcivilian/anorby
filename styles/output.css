@@ -1666,6 +1666,10 @@
     grid-row-start: 1;
     min-width: calc(0.25rem * 0);
   }
+  .ds-stat-actions {
+    grid-column-start: 1;
+    white-space: nowrap;
+  }
   .ds-divider {
     display: flex;
     height: calc(0.25rem * 4);
@@ -2095,6 +2099,9 @@
   .justify-end {
     justify-content: flex-end;
   }
+  .justify-stretch {
+    justify-content: stretch;
+  }
   .justify-items-center {
     justify-items: center;
   }
@@ -2230,6 +2237,9 @@
   .bg-warning\/10 {
     background-color: color-mix(in oklab, var(--color-warning) 10%, transparent);
   }
+  .p-1 {
+    padding: calc(var(--spacing) * 1);
+  }
   .p-2 {
     padding: calc(var(--spacing) * 2);
   }
@@ -2337,6 +2347,30 @@
   }
   .text-wrap {
     text-wrap: wrap;
+  }
+  .ds-badge-error {
+    --ds-badge-color: var(--color-error);
+    color: var(--color-error-content);
+  }
+  .ds-badge-info {
+    --ds-badge-color: var(--color-info);
+    color: var(--color-info-content);
+  }
+  .ds-badge-neutral {
+    --ds-badge-color: var(--color-neutral);
+    color: var(--color-neutral-content);
+  }
+  .ds-badge-secondary {
+    --ds-badge-color: var(--color-secondary);
+    color: var(--color-secondary-content);
+  }
+  .ds-badge-success {
+    --ds-badge-color: var(--color-success);
+    color: var(--color-success-content);
+  }
+  .ds-badge-warning {
+    --ds-badge-color: var(--color-warning);
+    color: var(--color-warning-content);
   }
   .ds-tooltip-secondary {
     --ds-tt-bg: var(--color-secondary);
@@ -2483,6 +2517,10 @@
     --ds-btn-color: var(--color-success);
     --ds-btn-fg: var(--color-success-content);
   }
+  .ds-btn-warning {
+    --ds-btn-color: var(--color-warning);
+    --ds-btn-fg: var(--color-warning-content);
+  }
   .backdrop\:bg-black\/50 {
     &::backdrop {
       background-color: color-mix(in oklab, var(--color-black) 50%, transparent);
@@ -2591,6 +2629,26 @@
     &:hover {
       @media (hover: hover) {
         opacity: 80%;
+      }
+    }
+  }
+  .sm\:ds-stats-vertical {
+    @media (width >= 40rem) {
+      grid-auto-flow: row;
+      overflow-y: auto;
+      .ds-stat:not(:last-child) {
+        border-inline-end: none;
+        border-block-end: var(--border) dashed color-mix(in oklab, currentColor 10%, #0000);
+      }
+    }
+  }
+  .md\:ds-stats-horizontal {
+    @media (width >= 48rem) {
+      grid-auto-flow: column;
+      overflow-x: auto;
+      .ds-stat:not(:last-child) {
+        border-inline-end: var(--border) dashed color-mix(in oklab, currentColor 10%, #0000);
+        border-block-end: none;
       }
     }
   }
