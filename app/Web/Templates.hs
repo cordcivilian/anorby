@@ -748,21 +748,15 @@ renderMessage uid msg = do
 accountTemplate :: User -> H.Html
 accountTemplate user = H.docTypeHtml $ H.html $ do
   pageHead "account" mempty
-  H.body $ do
-    H.div $ do
-      navBar (Just $ userEmail user)
-      H.div H.! A.class_ "w-full m-32 max-w-xl mx-auto" $ do
-        H.div H.! A.class_ "mt-12 p-4 border-2 border-error rounded-lg" $ do
-          H.h3 H.! A.class_ "text-xl font-bold text-error mb-4" $
-            "danger zone"
-          H.p H.! A.class_ "mb-2" $ do
-            H.text "logout from all devices: "
-            H.a H.! A.href "/logout" H.! A.class_ "link text-error hover:opacity-80" $
-              "confirm via email"
-          H.p H.! A.class_ "mb-2" $ do
-            H.text "delete account and all data: "
-            H.a H.! A.href "/delete" H.! A.class_ "link text-error hover:opacity-80" $
-              "confirm via email"
+  H.body $ H.div $ do
+    navBar (Just $ userEmail user)
+    H.div H.! A.class_ "w-full m-32 max-w-xl mx-auto" $ do
+      H.div H.! A.class_ "ds-collapse ds-collapse-arrow bg-base-100 border border-base-300 mt-12 p-4 border-2 rounded-lg" $ do
+        H.input H.! A.type_ "checkbox"
+        H.h3 H.! A.class_ "ds-collapse-title text-xl font-bold text-base-300" $ "danger zone"
+        H.div H.! A.class_ "ds-collapse-content" $ do
+          H.a H.! A.href "/logout" H.! A.class_ "ds-btn ds-btn-block mt-4 mb-4 ds-btn-warning" $ "logout from all devices"
+          H.a H.! A.href "/delete" H.! A.class_ "ds-btn ds-btn-block ds-btn-error" $ "delete account and all data"
 
 loginTemplate :: T.Text -> H.Html
 loginTemplate token = H.docTypeHtml $ H.html $ do

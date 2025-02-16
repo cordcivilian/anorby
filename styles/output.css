@@ -2481,6 +2481,12 @@
     --ds-badge-color: var(--color-warning);
     color: var(--color-warning-content);
   }
+  .ds-link-error {
+    color: var(--color-error);
+    &:hover {
+      color: color-mix(in oklab, var(--color-error) 80%, #000);
+    }
+  }
   .ds-link-primary {
     color: var(--color-primary);
     &:hover {
@@ -2492,6 +2498,9 @@
      > .ds-tooltip-content, &[data-tip]:before {
       color: var(--color-secondary-content);
     }
+  }
+  .text-base-300 {
+    color: var(--color-base-300);
   }
   .text-base-content {
     color: var(--color-base-content);
