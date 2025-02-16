@@ -429,6 +429,17 @@ data MatchPhase = ShowingStatus | ShowingEnrollment | ShowingTiming | ShowingRes
 
 matchTemplate :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> [(Match, Double, Int)] -> User -> H.Html
 matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus pastMatches user = H.docTypeHtml $ H.html $ do
+  let
+    timeState = case (maybeCutoffTime, maybeReleaseTime) of
+      (Just ct, Just rt) | now < ct -> BeforeCutoff | now < rt -> BeforeRelease | otherwise -> AfterRelease
+      _ -> BeforeCutoff
+    enrolState = if isEnrolled then Enrolled else NotEnrolled
+    timeUntilCutoff = maybe "soon" (formatTimeUntil now) maybeCutoffTime
+    timeUntilRelease = maybe "soon" (formatTimeUntil now) maybeReleaseTime
+    effectiveStatus =
+      case timeState of
+        AfterRelease -> matchStatus
+        _ -> NotStarted
   pageHead "clash" mempty
   H.body $
     H.div $ do
@@ -444,51 +455,47 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
           schemeCard Swing (userAssoc user)
           schemeCard Bipolar (userAssoc user)
 
-      let
-        enrolState = if isEnrolled then Enrolled else NotEnrolled
-        timeUntilCutoff = maybe "soon" (formatTimeUntil now) maybeCutoffTime
-        timeUntilRelease = maybe "soon" (formatTimeUntil now) maybeReleaseTime
-        effectiveStatus =
+      H.div H.! A.class_ "w-full max-w-2xl mx-auto p-4 grid justify-stretch align-center" $ do
+        H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal shadow" $ do
           case timeState of
-            AfterRelease -> matchStatus
-            _ -> NotStarted
-       in
-        H.div H.! A.class_ "w-full max-w-2xl mx-auto p-4 grid justify-stretch align-center" $ do
-          H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal shadow" $ do
-            case timeState of
-              AfterRelease -> mempty
-              _ -> do
-                H.div H.! A.class_ "ds-stat" $ do
-                  H.div H.! A.class_ "ds-stat-title" $ "today's clash pool"
-                  H.div H.! A.class_ "ds-stat-value" $ H.text $ T.pack $ show enrolledCount
-                  H.div H.! A.class_ "ds-stat-actions" $ do
-                    case (timeState, enrolState, effectiveStatus) of
-                      (BeforeRelease, Enrolled, Completed) -> H.div H.! A.class_ "ds-badge ds-badge-success" $ H.text "status: matched"
-                      (_, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-info" $ H.text "status: enrolled"
-                      (BeforeCutoff, NotEnrolled, _) -> H.a H.! A.class_ "ds-badge ds-badge-warning" H.! A.href "/ans" $ "join"
-                      (BeforeRelease, NotEnrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-error" $ H.text "status: missed"
-                case (timeState, enrolState) of
-                  (BeforeRelease, NotEnrolled) -> mempty
-                  (BeforeCutoff, NotEnrolled) -> renderTimeDisplay "cutoff in ..." timeUntilCutoff (matchCutoffTime config)
-                  (_, Enrolled) -> renderTimeDisplay "reveal in ..." timeUntilRelease (matchReleaseTime config)
+            AfterRelease -> mempty
+            _ -> do
+              H.div H.! A.class_ "ds-stat" $ do
+                H.div H.! A.class_ "ds-stat-title" $ "today's clash pool"
+                H.div H.! A.class_ "ds-stat-value" $ H.text $ T.pack $ show enrolledCount
+                H.div H.! A.class_ "ds-stat-actions" $ do
+                  case (timeState, enrolState, effectiveStatus) of
+                    (BeforeRelease, Enrolled, Completed) -> H.div H.! A.class_ "ds-badge ds-badge-success" $ H.text "status: matched"
+                    (_, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-info" $ H.text "status: enrolled"
+                    (BeforeCutoff, NotEnrolled, _) -> H.a H.! A.class_ "ds-badge ds-badge-warning" H.! A.href "/ans" $ "join"
+                    (BeforeRelease, NotEnrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-error" $ H.text "status: missed"
+              case (timeState, enrolState) of
+                (BeforeRelease, NotEnrolled) -> mempty
+                (BeforeCutoff, NotEnrolled) -> renderTimeDisplay "cutoff in ..." timeUntilCutoff (matchCutoffTime config)
+                (_, Enrolled) -> renderTimeDisplay "reveal in ..." timeUntilRelease (matchReleaseTime config)
 
-      if null pastMatches
-        then H.h3 H.! A.class_ "text-center mb-8 text-base-content/70" $ "no matches found"
-        else do
-          H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
+      H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
+        if null pastMatches
+          then H.h3 H.! A.class_ "w-full border border-base-300 p-6 rounded-lg" $ do
+            H.div "1. join the clash pool before the daily cutoff"
+            H.div "2. check in on your clash-of-the-day at the daily reveal"
+            H.div "3. repeat"
+          else do
             case (timeState, maybeMatchScore) of
               (AfterRelease, Nothing) -> H.div H.! A.class_ "" $ H.text "no match found for today"
               (AfterRelease, Just (match, score)) -> matchCard (floor now) match score 0
               _ -> mempty
             mapM_ (\(m, s, u) -> matchCard (floor now) m s u) pastMatches
-  where
-    timeState =
-      case (maybeCutoffTime, maybeReleaseTime) of
-        (Just ct, Just rt)
-          | now < ct -> BeforeCutoff
-          | now < rt -> BeforeRelease
-          | otherwise -> AfterRelease
-        _ -> BeforeCutoff
+
+matchCard :: Integer -> Match -> Double -> Int -> H.Html
+matchCard currentTimestamp match score unreadCount =
+  H.a H.! A.class_ "block w-full border border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
+    H.! A.href (H.textValue $ "/match/t-" <> formatRelativeMatchDate currentTimestamp (matchTimestamp match)) $ do
+    H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml $ formatSemiAbsoluteMatchDate currentTimestamp (matchTimestamp match) unreadCount
+    H.div H.! A.class_ "text-info font-bold" $ H.toHtml $ formatSimilarityScore score
+
+formatSimilarityScore :: Double -> T.Text
+formatSimilarityScore s = T.pack $ Text.printf "🤝 %.0f%%" ((s + 1) * 50)
 
 schemeCard :: AssociationScheme -> Maybe AssociationScheme -> H.Html
 schemeCard scheme currentScheme =
@@ -518,46 +525,6 @@ renderTimeDisplay label timeLeft timeStr =
     H.span H.! A.class_ "ds-stat-value" $ H.text $ timeLeft
     H.span H.! A.class_ "ds-stat-actions ds-badge ds-badge-secondary" $ H.text $ timeStr <> " UTC"
 
-matchCard :: Integer -> Match -> Double -> Int -> H.Html
-matchCard currentTimestamp match score unreadCount =
-  H.a H.! A.class_ "block w-full border border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
-    H.! A.href (H.textValue $ "/match/t-" <> formatMatchDelta currentTimestamp (matchTimestamp match)) $ do
-    H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml $ formatMatchDate currentTimestamp (matchTimestamp match) unreadCount
-    H.div H.! A.class_ "text-primary font-bold" $ H.toHtml $ formatSimilarityScore score
-  where
-    formatSimilarityScore :: Double -> T.Text
-    formatSimilarityScore s =
-      T.pack $ Text.printf "%.0f%%" ((s + 1) * 50)
-
-    formatMatchDate :: Integer -> Integer -> Int -> T.Text
-    formatMatchDate currentTimestamp' matchTimestamp' unread =
-      let dayDelta = getDayDelta currentTimestamp' matchTimestamp'
-          baseText = case dayDelta of
-            0 -> "today"
-            1 -> "yesterday"
-            _ -> T.pack $
-              DateTimeFormat.formatTime
-              DateTimeFormat.defaultTimeLocale
-              "%A, %Y-%m-%d"
-              (POSIXTime.posixSecondsToUTCTime $ fromIntegral matchTimestamp')
-      in if unread > 0 then "[" <> T.pack (show unread) <> "] " <> baseText
-                       else baseText
-
-    formatMatchDelta :: Integer -> Integer -> T.Text
-    formatMatchDelta currentTimestamp' matchTimestamp' =
-      T.pack $ show $ getDayDelta currentTimestamp' matchTimestamp'
-
-    getDayDelta :: Integer -> Integer -> Integer
-    getDayDelta currentTimestamp' matchTimestamp' =
-      let secondsPerDay = 86400 :: Double
-          currentDay = floor (( fromIntegral currentTimestamp' :: Double)
-                              / secondsPerDay
-                             ) :: Integer
-          matchDay = floor (( fromIntegral matchTimestamp' :: Double)
-                            / secondsPerDay
-                           ) :: Integer
-      in currentDay - matchDay
-
 matchProfileTemplate :: Config -> Integer -> UserID -> UserID -> MatchView -> [Message] -> H.Html
 matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.html $ do
   pageHead "match profile" mempty
@@ -566,8 +533,8 @@ matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.
       navBar Nothing
       H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "stats"
       H.div H.! A.class_ "grid grid-cols-2 gap-4 max-w-xl mx-auto w-full" $ do
-        statsBox "matched on" (formatMatchDate (viewTimestamp view))
-        statsBox "agreement rate" (formatPercent (viewAgreementRate view))
+        statsBox "matched on" (formatAbsoluteMatchDate (viewTimestamp view))
+        statsBox "agreement rate" (T.pack $ Text.printf "%.0f%%" (viewAgreementRate view))
         statsBox "you answered" (T.pack $ show $ viewYourTotalAnswers view)
         statsBox "they answered" (T.pack $ show $ viewTargetTotalAnswers view)
 
@@ -600,13 +567,33 @@ matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.
         H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml label
         H.div H.! A.class_ "text-lg font-bold" $ H.toHtml value
 
-    formatMatchDate :: Integer -> T.Text
-    formatMatchDate timestamp =
-      T.pack $ DateTimeFormat.formatTime DateTimeFormat.defaultTimeLocale "%Y-%m-%d"
-        (POSIXTime.posixSecondsToUTCTime $ fromIntegral timestamp)
+getRelativeMatchDate :: Integer -> Integer -> Integer
+getRelativeMatchDate currentTimestamp' matchTimestamp' =
+  let secondsPerDay = 86400 :: Double
+      currentDay = floor ((fromIntegral currentTimestamp' :: Double) / secondsPerDay) :: Integer
+      matchDay = floor ((fromIntegral matchTimestamp' :: Double) / secondsPerDay) :: Integer
+  in currentDay - matchDay
 
-    formatPercent :: Double -> T.Text
-    formatPercent n = T.pack $ Text.printf "%.0f%%" n
+formatRelativeMatchDate :: Integer -> Integer -> T.Text
+formatRelativeMatchDate currentTimestamp' matchTimestamp' =
+  T.pack $ show $ getRelativeMatchDate currentTimestamp' matchTimestamp'
+
+formatAbsoluteMatchDate :: Integer -> T.Text
+formatAbsoluteMatchDate timestamp =
+  T.pack $ DateTimeFormat.formatTime DateTimeFormat.defaultTimeLocale "%Y-%m-%d"
+    (POSIXTime.posixSecondsToUTCTime $ fromIntegral timestamp)
+
+formatSemiAbsoluteMatchDate :: Integer -> Integer -> Int -> T.Text
+formatSemiAbsoluteMatchDate currentTimestamp' matchTimestamp' unread =
+  let dayDelta = getRelativeMatchDate currentTimestamp' matchTimestamp'
+      baseText = case dayDelta of
+        0 -> "today"
+        1 -> "yesterday"
+        _ -> T.toLower . T.pack $ DateTimeFormat.formatTime DateTimeFormat.defaultTimeLocale "%A, %Y-%m-%d"
+          (POSIXTime.posixSecondsToUTCTime $ fromIntegral matchTimestamp')
+  in if unread > 0
+        then "[" <> T.pack (show unread) <> "] " <> baseText
+        else baseText
 
 spotlightAorbSection :: UserID -> MatchingAorbWithAnswer -> H.Html
 spotlightAorbSection _ mawa = do
@@ -617,25 +604,19 @@ spotlightAorbSection _ mawa = do
       theirChoice = if theirAns == AorbAnswer 0 then aorbA aorb else aorbB aorb
       myChoice = if myAns == AorbAnswer 0 then aorbA aorb else aorbB aorb
       otherChoice = if theirAns == AorbAnswer 0 then aorbB aorb else aorbA aorb
-
   H.div H.! A.class_ "rounded-2xl p-8 min-h-[30vh] w-[60vw] max-w-2xl bg-primary/10 border-2 border-primary" $ do
-    H.div H.! A.class_ "text-base-content/60 italic mb-8 leading-relaxed" $
-      H.toHtml $ aorbCtx aorb
+    H.div H.! A.class_ "text-base-content/60 italic mb-8 leading-relaxed" $ H.toHtml $ aorbCtx aorb
     H.div H.! A.class_ "grid gap-6" $
       if agreement
         then do
-          H.div H.! A.class_ "text-primary text-2xl font-bold" $
-            H.toHtml theirChoice
+          H.div H.! A.class_ "text-primary text-2xl font-bold" $ H.toHtml theirChoice
           H.div H.! A.class_ "text-base-content/70 text-sm" $ do
-            H.div H.! A.class_ "text-base-content/60 mb-2" $
-              "every other idiot"
+            H.div H.! A.class_ "text-base-content/60 mb-2" $ "every other idiot"
             H.toHtml otherChoice
         else do
-          H.div H.! A.class_ "text-primary text-2xl font-bold" $
-            H.toHtml theirChoice
+          H.div H.! A.class_ "text-primary text-2xl font-bold" $ H.toHtml theirChoice
           H.div H.! A.class_ "text-base-content/70 text-sm" $ do
-            H.div H.! A.class_ "text-base-content/60 mb-2" $
-              "you (proceed cautiously)"
+            H.div H.! A.class_ "text-base-content/60 mb-2" $ "you (proceed cautiously)"
             H.toHtml myChoice
 
 matchProfileAgreement :: MatchingAorbWithAnswer -> H.Html
@@ -647,17 +628,12 @@ matchProfileAgreement mawa = do
         AorbAnswer 0 -> (aorbA aorb, aorbB aorb, 100 * (1 - mean))
         _ -> (aorbB aorb, aorbA aorb, 100 * mean)
       otherPct = 100 - agreePct
-
   H.div H.! A.class_ "rounded-2xl p-8 min-h-[30vh] w-[60vw] max-w-2xl bg-success/10 border-2 border-success" $ do
-    H.div H.! A.class_ "text-base-content/60 italic mb-8 leading-relaxed" $
-      H.toHtml $ aorbCtx aorb
+    H.div H.! A.class_ "text-base-content/60 italic mb-8 leading-relaxed" $ H.toHtml $ aorbCtx aorb
     H.div H.! A.class_ "grid gap-6" $ do
-      H.div H.! A.class_ "text-success text-2xl font-bold" $ do
-        H.toHtml sharedChoice
-      H.div H.! A.class_ "text-base-content/70" $ do
-        H.toHtml $ T.pack $ Text.printf "against %.0f%% of the world" otherPct
-      H.div H.! A.class_ "text-base-content/70 text-sm" $
-        H.toHtml otherChoice
+      H.div H.! A.class_ "text-success text-2xl font-bold" $ H.toHtml sharedChoice
+      H.div H.! A.class_ "text-base-content/70" $ H.toHtml $ T.pack $ Text.printf "against %.0f%% of the world" otherPct
+      H.div H.! A.class_ "text-base-content/70 text-sm" $ H.toHtml otherChoice
 
 matchProfileDisagreement :: UserID -> MatchingAorbWithAnswer -> H.Html
 matchProfileDisagreement _ mawa = do
@@ -672,16 +648,13 @@ matchProfileDisagreement _ mawa = do
                                 then (aorbA aorb, 100 * (1 - mean))
                                 else (aorbB aorb, 100 * mean)
   H.div H.! A.class_ "rounded-2xl p-8 min-h-[30vh] w-[60vw] max-w-2xl bg-warning/10 border-2 border-warning" $ do
-    H.div H.! A.class_ "text-base-content/60 italic mb-8 leading-relaxed" $
-      H.toHtml $ aorbCtx aorb
+    H.div H.! A.class_ "text-base-content/60 italic mb-8 leading-relaxed" $ H.toHtml $ aorbCtx aorb
     H.div H.! A.class_ "grid gap-6" $ do
       H.div H.! A.class_ "text-warning" $ do
-        H.div H.! A.class_ "text-base-content/60 mb-2" $
-          H.toHtml $ T.pack $ Text.printf "you and your righteous %.0f%%" myPct
+        H.div H.! A.class_ "text-base-content/60 mb-2" $ H.toHtml $ T.pack $ Text.printf "you and your righteous %.0f%%" myPct
         H.div H.! A.class_ "text-xl" $ H.toHtml myChoice
       H.div H.! A.class_ "text-warning" $ do
-        H.div H.! A.class_ "text-base-content/60 mb-2" $
-          H.toHtml $ T.pack $ Text.printf "them and their precious %.0f%%" theirPct
+        H.div H.! A.class_ "text-base-content/60 mb-2" $ H.toHtml $ T.pack $ Text.printf "them and their precious %.0f%%" theirPct
         H.div H.! A.class_ "text-xl" $ H.toHtml theirChoice
 
 renderMessages :: Config -> Integer -> UserID -> [Message] -> H.Html

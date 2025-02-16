@@ -1495,6 +1495,56 @@
       }
     }
   }
+  .ds-list {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.875rem;
+    :where(.ds-list-row) {
+      --ds-list-grid-cols: minmax(0, auto) 1fr;
+      position: relative;
+      display: grid;
+      grid-auto-flow: column;
+      gap: calc(0.25rem * 4);
+      border-radius: var(--radius-box);
+      padding: calc(0.25rem * 4);
+      word-break: break-word;
+      grid-template-columns: var(--ds-list-grid-cols);
+      &:has(.ds-list-col-grow:nth-child(1)) {
+        --ds-list-grid-cols: 1fr;
+      }
+      &:has(.ds-list-col-grow:nth-child(2)) {
+        --ds-list-grid-cols: minmax(0, auto) 1fr;
+      }
+      &:has(.ds-list-col-grow:nth-child(3)) {
+        --ds-list-grid-cols: minmax(0, auto) minmax(0, auto) 1fr;
+      }
+      &:has(.ds-list-col-grow:nth-child(4)) {
+        --ds-list-grid-cols: minmax(0, auto) minmax(0, auto) minmax(0, auto) 1fr;
+      }
+      &:has(.ds-list-col-grow:nth-child(5)) {
+        --ds-list-grid-cols: minmax(0, auto) minmax(0, auto) minmax(0, auto) minmax(0, auto) 1fr;
+      }
+      &:has(.ds-list-col-grow:nth-child(6)) {
+        --ds-list-grid-cols: minmax(0, auto) minmax(0, auto) minmax(0, auto) minmax(0, auto)
+        minmax(0, auto) 1fr;
+      }
+      :not(.ds-list-col-wrap) {
+        grid-row-start: 1;
+      }
+    }
+    & > :not(:last-child) {
+      &.ds-list-row, .list-row {
+        &:after {
+          content: "";
+          border-bottom: var(--border) solid;
+          inset-inline: var(--radius-box);
+          position: absolute;
+          bottom: calc(0.25rem * 0);
+          border-color: color-mix(in oklab, var(--color-base-content) 5%, transparent);
+        }
+      }
+    }
+  }
   .ds-toast {
     position: fixed;
     inset-inline-start: auto;
@@ -1717,6 +1767,9 @@
   .ds-stat-actions {
     grid-column-start: 1;
     white-space: nowrap;
+  }
+  .ds-list-col-wrap {
+    grid-row-start: 2;
   }
   .ds-divider {
     display: flex;
@@ -2508,6 +2561,9 @@
       color: var(--color-secondary-content);
     }
   }
+  .text-accent {
+    color: var(--color-accent);
+  }
   .text-base-300 {
     color: var(--color-base-300);
   }
@@ -2529,6 +2585,9 @@
   .text-error-content {
     color: var(--color-error-content);
   }
+  .text-info {
+    color: var(--color-info);
+  }
   .text-inherit {
     color: inherit;
   }
@@ -2537,6 +2596,9 @@
   }
   .text-primary-content {
     color: var(--color-primary-content);
+  }
+  .text-secondary {
+    color: var(--color-secondary);
   }
   .text-success {
     color: var(--color-success);
