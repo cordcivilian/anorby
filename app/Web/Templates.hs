@@ -801,12 +801,12 @@ msgTemplate :: MessageTemplate -> H.Html
 msgTemplate template = H.docTypeHtml $ H.html $ do
   pageHead (messageTitle template) mempty
   H.body $ do
-    H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-      H.div H.! A.class_ "text-3xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
-      H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ H.toHtml $ messageHeading template
-      H.div $ do
+    H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center" $ do
+      H.div H.! A.class_ "text-3xl" $ H.a H.! A.href "/" $ anorbyTitle
+      H.h1 H.! A.class_ "text-2xl font-bold mt-4 mb-4" $ H.toHtml $ messageHeading template
+      H.div H.! A.class_ "mb-32" $ do
         H.a H.! A.href (H.textValue $ fst $ messageLink template)
-            H.! A.class_ "link hover:text-primary transition-colors" $
+            H.! A.class_ "ds-link ds-link-primary ds-link-hover" $
           H.toHtml $ snd $ messageLink template
 
 emailSentTemplate :: H.Html
