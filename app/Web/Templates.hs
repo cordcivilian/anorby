@@ -186,7 +186,7 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers match
             H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#split" $ "deadlocks"
         H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
           H.div H.! A.class_ "ds-toast ds-toast-end" $ do
-            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "back to top"
+            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "reset"
           mapM_ (showAorb . uncurry Population) (orderAorbs aorbs orderFuncs)
   where
     orderFuncs =
@@ -356,7 +356,7 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
         H.input H.! A.class_ "ds-tab mb-4 " H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "all"
         H.div H.! A.class_ "ds-tab-content" $ do
           H.div H.! A.class_ "ds-toast ds-toast-end" $ do
-            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "back to top"
+            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "reset"
           H.fieldset H.! A.class_ "flex flex-col mb-8 items-center gap-4" $ do
             H.div "sorter:"
             H.div H.! A.class_ "flex gap-8" $ do
