@@ -2135,6 +2135,21 @@
   .transform {
     transform: var(--tw-rotate-x) var(--tw-rotate-y) var(--tw-rotate-z) var(--tw-skew-x) var(--tw-skew-y);
   }
+  .ds-link {
+    cursor: pointer;
+    text-decoration-line: underline;
+    &:focus {
+      outline-style: none;
+      @media (forced-colors: active) {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+      }
+    }
+    &:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+    }
+  }
   .cursor-pointer {
     cursor: pointer;
   }
@@ -2466,6 +2481,12 @@
     --ds-badge-color: var(--color-warning);
     color: var(--color-warning-content);
   }
+  .ds-link-primary {
+    color: var(--color-primary);
+    &:hover {
+      color: color-mix(in oklab, var(--color-primary) 80%, #000);
+    }
+  }
   .ds-tooltip-secondary {
     --ds-tt-bg: var(--color-secondary);
      > .ds-tooltip-content, &[data-tip]:before {
@@ -2523,6 +2544,14 @@
       text-decoration-line: underline;
       --ds-btn-border: #0000;
       --ds-btn-bg: #0000;
+    }
+  }
+  .ds-link-hover {
+    text-decoration-line: none;
+    &:hover {
+      @media (hover: hover) {
+        text-decoration-line: underline;
+      }
     }
   }
   .underline {

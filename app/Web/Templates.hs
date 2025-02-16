@@ -186,7 +186,7 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers match
             H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#split" $ "deadlocks"
         H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
           H.div H.! A.class_ "ds-toast ds-toast-end" $ do
-            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "reset"
+            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "back to top"
           mapM_ (showAorb . uncurry Population) (orderAorbs aorbs orderFuncs)
   where
     orderFuncs =
@@ -356,7 +356,7 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
         H.input H.! A.class_ "ds-tab mb-4 " H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "all"
         H.div H.! A.class_ "ds-tab-content" $ do
           H.div H.! A.class_ "ds-toast ds-toast-end" $ do
-            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "reset"
+            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "back to top"
           H.fieldset H.! A.class_ "flex flex-col mb-8 items-center gap-4" $ do
             H.div "sorter:"
             H.div H.! A.class_ "flex gap-8" $ do
@@ -770,20 +770,12 @@ loginTemplate token = H.docTypeHtml $ H.html $ do
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       H.div H.! A.class_ "text-3xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
-      H.div H.! A.class_ "w-full max-w-sm mx-auto" $ do
-        H.form H.! A.class_ "flex flex-col gap-4"
-          H.! A.method "POST" H.! A.action "/login" $ do
-          H.input H.! A.type_ "email"
-                H.! A.name "email"
-                H.! A.placeholder "email"
-                H.! A.class_ "p-2 font-inherit text-inherit rounded-lg border border-base-300"
-                H.! A.required "required"
-          H.input H.! A.type_ "hidden"
-                H.! A.name "token"
-                H.! A.value (H.textValue token)
-          H.button H.! A.type_ "submit"
-                H.! A.class_ "w-full p-2 mt-4 font-inherit bg-primary text-primary-content rounded-lg cursor-pointer hover:bg-primary/90" $
-            "login"
+      H.div H.! A.class_ "w-full max-w-sm mx-auto mb-8" $ do
+        H.form H.! A.class_ "flex flex-col gap-2" H.! A.method "POST" H.! A.action "/login" $ do
+          H.input H.! A.type_ "email" H.! A.name "email" H.! A.placeholder "email" H.! A.class_ "p-2 font-inherit text-inherit rounded-lg border border-base-300" H.! A.required "required"
+          H.input H.! A.type_ "hidden" H.! A.name "token" H.! A.value (H.textValue token)
+          H.button H.! A.type_ "submit" H.! A.class_ "w-full p-2 mt-4 font-inherit bg-primary text-primary-content rounded-lg cursor-pointer hover:bg-primary/90" $ "login"
+      H.a H.! A.class_ "ds-link ds-link-primary ds-link-hover" H.! A.href "/register" $ "register"
 
 registerTemplate :: T.Text -> H.Html
 registerTemplate token = H.docTypeHtml $ H.html $ do
@@ -791,20 +783,12 @@ registerTemplate token = H.docTypeHtml $ H.html $ do
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       H.div H.! A.class_ "text-3xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
-      H.div H.! A.class_ "w-full max-w-sm mx-auto" $ do
-        H.form H.! A.class_ "flex flex-col gap-4"
-          H.! A.method "POST" H.! A.action "/register" $ do
-          H.input H.! A.type_ "email"
-                H.! A.name "email"
-                H.! A.placeholder "email"
-                H.! A.class_ "p-2 font-inherit text-inherit rounded-lg border border-base-300"
-                H.! A.required "required"
-          H.input H.! A.type_ "hidden"
-                H.! A.name "token"
-                H.! A.value (H.textValue token)
-          H.button H.! A.type_ "submit"
-                H.! A.class_ "w-full p-2 mt-4 font-inherit bg-primary text-primary-content rounded-lg cursor-pointer hover:bg-primary/90" $
-            "register"
+      H.div H.! A.class_ "w-full max-w-sm mx-auto mb-8" $ do
+        H.form H.! A.class_ "flex flex-col gap-2" H.! A.method "POST" H.! A.action "/register" $ do
+          H.input H.! A.type_ "email" H.! A.name "email" H.! A.placeholder "email" H.! A.class_ "p-2 font-inherit text-inherit rounded-lg border border-base-300" H.! A.required "required"
+          H.input H.! A.type_ "hidden" H.! A.name "token" H.! A.value (H.textValue token)
+          H.button H.! A.type_ "submit" H.! A.class_ "w-full p-2 mt-4 font-inherit bg-primary text-primary-content rounded-lg cursor-pointer hover:bg-primary/90" $ "register"
+      H.a H.! A.class_ "ds-link ds-link-primary ds-link-hover" H.! A.href "/login" $ "login"
 
 confirmTemplate :: T.Text -> T.Text -> T.Text -> T.Text -> T.Text -> T.Text -> H.Html
 confirmTemplate title warning action token actionText cancelUrl = H.docTypeHtml $ H.html $ do
@@ -867,6 +851,7 @@ profileNotYetActive threshold = msgTemplate MessageTemplate
       ++ show threshold ++ " questions"
   , messageLink = ("/ans", "answer more questions")
   }
+
 matchNotYetActive :: Int -> H.Html
 matchNotYetActive threshold = msgTemplate MessageTemplate
   { messageTitle = "match not yet active"
