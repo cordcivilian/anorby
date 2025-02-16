@@ -28,7 +28,7 @@ navBar :: Maybe T.Text -> H.Html
 navBar maybeSubtitle = do
   H.div H.! A.class_ "ds-navbar mb-12" $ do
     H.div H.! A.class_ "ds-navbar-start" $ do
-      H.a H.! A.href "/match" $ H.div H.! A.class_ "ds-btn hover:text-primary transition-all" $ "clash"
+      H.a H.! A.href "/match" $ H.div H.! A.class_ "ds-btn" $ "clash"
     case maybeSubtitle of
       Just subtitle -> do
         H.div H.! A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-bottom ds-tooltip-secondary" $ do
@@ -37,7 +37,7 @@ navBar maybeSubtitle = do
       Nothing -> do
         H.div $ H.a H.! A.class_ "ds-navbar-center text-3xl" H.! A.href "/" $ anorbyTitle
     H.div H.! A.class_ "ds-navbar-end ds-dropdown ds-dropdown-end ds-dropdown-bottom" $ do
-      H.div H.! A.tabindex "0" H.! A.role "button" H.! A.class_ "ds-btn hover:text-primary transition-all" $ "you"
+      H.div H.! A.tabindex "0" H.! A.role "button" H.! A.class_ "ds-btn transition-all" $ "you"
       H.ul H.! A.tabindex "0" H.! A.class_ "ds-menu ds-dropdown-content" $ do
         H.li H.! A.class_ "hover:text-primary transition-all" $ H.a H.! A.href "/whoami" $ "whoami"
         H.li H.! A.class_ "hover:text-primary transition-all" $ H.a H.! A.href "/account" $ "account"
@@ -177,9 +177,9 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers match
         H.fieldset H.! A.class_ "flex flex-col mb-2 items-center gap-4" $ do
           H.div "sorter:"
           H.div H.! A.class_ "flex gap-8" $ do
-            H.input H.! A.id "remember-diced" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.checked "checked" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! I.customAttribute "aria-label" "random"
-            H.input H.! A.id "remember-sided" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! I.customAttribute "aria-label" "unanimity"
-            H.input H.! A.id "remember-split" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! I.customAttribute "aria-label" "deadlocks"
+            H.input H.! A.id "remember-diced" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.checked "checked" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "random"
+            H.input H.! A.id "remember-sided" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "unanimity"
+            H.input H.! A.id "remember-split" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "deadlocks"
         H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
           H.div H.! A.class_ "ds-toast ds-toast-end" H.! A.style "z-index: 10000" $ do
             H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "back to top"
@@ -353,8 +353,8 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
           H.fieldset H.! A.class_ "flex flex-col mb-8 items-center gap-4" $ do
             H.div "sorter:"
             H.div H.! A.class_ "flex gap-8" $ do
-              H.input H.! A.id "remember-flake" H.! A.name "whoami-sort" H.! A.type_ "radio" H.! A.checked "checked" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! I.customAttribute "aria-label" "contrarian"
-              H.input H.! A.id "remember-basic" H.! A.name "whoami-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! I.customAttribute "aria-label" "conformist"
+              H.input H.! A.id "remember-flake" H.! A.name "whoami-sort" H.! A.type_ "radio" H.! A.checked "checked" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "contrarian"
+              H.input H.! A.id "remember-basic" H.! A.name "whoami-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "conformist"
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
             Monad.forM_ (orderAorbs awas orderFuncs) $ \(aorb, orders) ->
               let aorbMode = Individual aorb orders maybeMain maybeUuid
@@ -482,7 +482,7 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
             H.div "3. repeat"
           else do
             case (timeState, maybeMatchScore) of
-              (AfterRelease, Nothing) -> H.div H.! A.class_ "" $ H.text "no match found for today"
+              (AfterRelease, Nothing) -> H.div H.! A.class_ "w-full border border-base-300 p-6 rounded-lg text-center" $ H.text "you were not in the clash pool today"
               (AfterRelease, Just (match, score)) -> matchCard (floor now) match score 0
               _ -> mempty
             mapM_ (\(m, s, u) -> matchCard (floor now) m s u) pastMatches

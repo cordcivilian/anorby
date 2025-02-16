@@ -24,7 +24,7 @@
   name: "business";
   default: false;
   prefersdark: true;
-  --color-primary: #78b4fe;
+  --color-primary: #4169E1;
   --color-accent: #7366bd;
   --color-warning: #ff7700;
 }
