@@ -484,6 +484,10 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token = H.docTypeHtml $ H.
         H.input H.! A.type_ "hidden" H.! A.name "choice" H.! A.value (H.toValue $ show value)
         H.button H.! A.type_ "submit" H.! choiceClass $ H.toHtml choice
 
+data TimeState = BeforeCutoff | BeforeRelease | AfterRelease
+data EnrolState = Enrolled | NotEnrolled
+data MatchPhase = ShowingStatus | ShowingEnrollment | ShowingTiming | ShowingResults
+
 matchTemplate :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> [(Match, Double, Int)] -> User -> H.Html
 matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus pastMatches user = H.docTypeHtml $ H.html $ do
   pageHead "clash" mempty
@@ -501,32 +505,51 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
           schemeCard Swing (userAssoc user)
           schemeCard Bipolar (userAssoc user)
 
-      H.div H.! A.class_ "w-full max-w-2xl mx-auto p-4 grid justify-stretch align-center" $ do
-        H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal shadow" $ do
-          renderClashStatus timeState enrolState enrolledCount effectiveStatus
-          renderClashTiming timeState enrolState config timeUntilCutoff timeUntilRelease
+      let
+        enrolState = if isEnrolled then Enrolled else NotEnrolled
+        timeUntilCutoff = maybe "soon" (formatTimeUntil now) maybeCutoffTime
+        timeUntilRelease = maybe "soon" (formatTimeUntil now) maybeReleaseTime
+        effectiveStatus =
+          case timeState of
+            AfterRelease -> matchStatus
+            _ -> NotStarted
+       in
+        H.div H.! A.class_ "w-full max-w-2xl mx-auto p-4 grid justify-stretch align-center" $ do
+          H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal shadow" $ do
+            case timeState of
+              AfterRelease -> mempty
+              _ -> do
+                H.div H.! A.class_ "ds-stat" $ do
+                  H.div H.! A.class_ "ds-stat-title" $ "today's clash pool"
+                  H.div H.! A.class_ "ds-stat-value" $ H.text $ T.pack $ show enrolledCount
+                  H.div H.! A.class_ "ds-stat-actions" $ do
+                    case (timeState, enrolState, effectiveStatus) of
+                      (BeforeRelease, Enrolled, Completed) -> H.div H.! A.class_ "ds-badge ds-badge-success" $ H.text "status: matched"
+                      (_, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-info" $ H.text "status: enrolled"
+                      (BeforeCutoff, NotEnrolled, _) -> H.a H.! A.class_ "ds-badge ds-badge-warning" H.! A.href "/ans" $ "join"
+                      (BeforeRelease, NotEnrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-error" $ H.text "status: missed"
+                case (timeState, enrolState) of
+                  (BeforeRelease, NotEnrolled) -> mempty
+                  (BeforeCutoff, NotEnrolled) -> renderTimeDisplay "cutoff in ..." timeUntilCutoff (matchCutoffTime config)
+                  (_, Enrolled) -> renderTimeDisplay "reveal in ..." timeUntilRelease (matchReleaseTime config)
 
       if null pastMatches
         then H.h3 H.! A.class_ "text-center mb-8 text-base-content/70" $ "no matches found"
         else do
           H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
-            renderClashResult timeState currentTimestamp maybeMatchScore
+            case (timeState, maybeMatchScore) of
+              (AfterRelease, Nothing) -> H.div H.! A.class_ "" $ H.text "no match found for today"
+              (AfterRelease, Just (match, score)) -> matchCard (floor now) match score 0
+              _ -> mempty
             mapM_ (\(m, s, u) -> matchCard (floor now) m s u) pastMatches
-
   where
-    enrolState = if isEnrolled then Enrolled else NotEnrolled
-    timeUntilCutoff = maybe "soon" (formatTimeUntil now) maybeCutoffTime
-    timeUntilRelease = maybe "soon" (formatTimeUntil now) maybeReleaseTime
-    currentTimestamp = floor now
-    timeState = case (maybeCutoffTime, maybeReleaseTime) of
-      (Just ct, Just rt)
-        | now < ct -> BeforeCutoff
-        | now < rt -> BeforeRelease
-        | otherwise -> AfterRelease
-      _ -> BeforeCutoff
-    effectiveStatus = case timeState of
-      AfterRelease -> matchStatus
-      _ -> NotStarted
+    timeState =
+      case (maybeCutoffTime, maybeReleaseTime) of
+        (Just ct, Just rt)
+          | now < ct -> BeforeCutoff
+          | now < rt -> BeforeRelease
+          | otherwise -> AfterRelease
+        _ -> BeforeCutoff
 
 schemeCard :: AssociationScheme -> Maybe AssociationScheme -> H.Html
 schemeCard scheme currentScheme =
@@ -549,33 +572,6 @@ styleScheme scheme showDescription =
           H.div H.! schemeNameClass $ H.toHtml $ show scheme
         else H.div H.! schemeNameClass $ H.toHtml $ show scheme
 
-data TimeState = BeforeCutoff | BeforeRelease | AfterRelease
-data EnrolState = Enrolled | NotEnrolled
-data MatchPhase = ShowingStatus | ShowingEnrollment | ShowingTiming | ShowingResults
-
-renderClashStatus :: TimeState -> EnrolState -> Int -> MatchStatus -> H.Html
-renderClashStatus timeState enrolState enrolledCount status =
-  case timeState of
-    AfterRelease -> mempty
-    _ -> do
-      H.div H.! A.class_ "ds-stat" $ do
-        H.div H.! A.class_ "ds-stat-title" $ "today's clash pool"
-        H.div H.! A.class_ "ds-stat-value" $ H.text $ T.pack $ show enrolledCount
-        H.div H.! A.class_ "ds-stat-actions" $ do
-          case (timeState, enrolState, status) of
-            (BeforeRelease, Enrolled, Completed) -> H.div H.! A.class_ "ds-badge ds-badge-success" $ H.text "status: matched"
-            (_, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-info" $ H.text "status: enrolled"
-            (BeforeCutoff, NotEnrolled, _) -> H.a H.! A.class_ "ds-badge ds-badge-warning" H.! A.href "/ans" $ "join"
-            (BeforeRelease, NotEnrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-error" $ H.text "status: missed"
-
-renderClashTiming :: TimeState -> EnrolState -> Config -> T.Text -> T.Text -> H.Html
-renderClashTiming timeState enrolState config timeUntilCutoff timeUntilRelease =
-  case (timeState, enrolState) of
-    (AfterRelease, _) -> mempty
-    (BeforeRelease, NotEnrolled) -> mempty
-    (BeforeCutoff, NotEnrolled) -> renderTimeDisplay "cutoff in ..." timeUntilCutoff (matchCutoffTime config)
-    (_, Enrolled) -> renderTimeDisplay "reveal in ..." timeUntilRelease (matchReleaseTime config)
-
 renderTimeDisplay :: T.Text -> T.Text -> T.Text -> H.Html
 renderTimeDisplay label timeLeft timeStr =
   H.div H.! A.class_ "ds-stat" $ do
@@ -583,21 +579,12 @@ renderTimeDisplay label timeLeft timeStr =
     H.span H.! A.class_ "ds-stat-value" $ H.text $ timeLeft
     H.span H.! A.class_ "ds-stat-actions ds-badge ds-badge-secondary" $ H.text $ timeStr <> " UTC"
 
-renderClashResult :: TimeState -> Integer -> Maybe (Match, Double) -> H.Html
-renderClashResult timeState timestamp maybeMatch =
-  case (timeState, maybeMatch) of
-    (AfterRelease, Nothing) -> H.div H.! A.class_ "" $ H.text "no match found for today"
-    (AfterRelease, Just (match, score)) -> matchCard timestamp match score 0
-    _ -> mempty
-
 matchCard :: Integer -> Match -> Double -> Int -> H.Html
 matchCard currentTimestamp match score unreadCount =
   H.a H.! A.class_ "block w-full border border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
-      H.! A.href (H.textValue $ "/match/t-" <> formatMatchDelta currentTimestamp (matchTimestamp match)) $ do
-    H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $
-      H.toHtml $ formatMatchDate currentTimestamp (matchTimestamp match) unreadCount
-    H.div H.! A.class_ "text-primary font-bold" $
-      H.toHtml $ formatSimilarityScore score
+    H.! A.href (H.textValue $ "/match/t-" <> formatMatchDelta currentTimestamp (matchTimestamp match)) $ do
+    H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml $ formatMatchDate currentTimestamp (matchTimestamp match) unreadCount
+    H.div H.! A.class_ "text-primary font-bold" $ H.toHtml $ formatSimilarityScore score
   where
     formatSimilarityScore :: Double -> T.Text
     formatSimilarityScore s =
