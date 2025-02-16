@@ -163,29 +163,25 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers match
   H.docTypeHtml $ H.html $ do
   pageHead "anorby"
     ( H.style $ H.preEscapedText $ T.unlines
-      [ ".aorb { order: var(--order-diced); }"
-      , ":root:has(#diced:target) .aorb { order: var(--order-diced) !important; }"
-      , ":root:has(#sided:target) .aorb { order: var(--order-sided) !important; }"
-      , ":root:has(#split:target) .aorb { order: var(--order-split) !important; }"
+      [ ":root:has(#remember-diced:checked) .aorb { order: var(--order-diced) !important; }"
+      , ":root:has(#remember-sided:checked) .aorb { order: var(--order-sided) !important; }"
+      , ":root:has(#remember-split:checked) .aorb { order: var(--order-split) !important; }"
       ]
     )
   H.body $ do
     H.div $ do
       H.div H.! A.id "top" $ mempty
-      H.div H.! A.id "diced" $ mempty
-      H.div H.! A.id "sided" $ mempty
-      H.div H.! A.id "split" $ mempty
       navBar Nothing
       H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
         rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus
         H.fieldset H.! A.class_ "flex flex-col mb-2 items-center gap-4" $ do
           H.div "sorter:"
           H.div H.! A.class_ "flex gap-8" $ do
-            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#diced" $ "random"
-            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#sided" $ "unanimity"
-            H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#split" $ "deadlocks"
+            H.input H.! A.id "remember-diced" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.checked "checked" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! I.customAttribute "aria-label" "random"
+            H.input H.! A.id "remember-sided" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! I.customAttribute "aria-label" "unanimity"
+            H.input H.! A.id "remember-split" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! I.customAttribute "aria-label" "deadlocks"
         H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
-          H.div H.! A.class_ "ds-toast ds-toast-end" $ do
+          H.div H.! A.class_ "ds-toast ds-toast-end" H.! A.style "z-index: 10000" $ do
             H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "back to top"
           mapM_ (showAorb . uncurry Population) (orderAorbs aorbs orderFuncs)
   where
@@ -309,15 +305,12 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
         Nothing -> "whoami"
     )
     ( H.style $ H.preEscapedText $ T.unlines
-      [ ".aorb { order: var(--order-flake); }"
-      , ":root:has(#basic:target) .aorb { order: var(--order-basic) !important; }"
-      , ":root:has(#flake:target) .aorb { order: var(--order-flake) !important; }"
+      [ ":root:has(#remember-flake:checked) .aorb { order: var(--order-flake) !important; }"
+      , ":root:has(#remember-basic:checked) .aorb { order: var(--order-basic) !important; }"
       ]
     )
   H.body $ do
     H.div H.! A.id "top" $ mempty
-    H.div H.! A.id "flake" $ mempty
-    H.div H.! A.id "basic" $ mempty
     navBar $ case maybeUuid of
       Just uuid -> Just $ "#" <> uuid
       Nothing -> Just "whoami"
@@ -355,13 +348,13 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
 
         H.input H.! A.class_ "ds-tab mb-4 " H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "all"
         H.div H.! A.class_ "ds-tab-content" $ do
-          H.div H.! A.class_ "ds-toast ds-toast-end" $ do
+          H.div H.! A.class_ "ds-toast ds-toast-end" H.! A.style "z-index: 10000" $ do
             H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "back to top"
           H.fieldset H.! A.class_ "flex flex-col mb-8 items-center gap-4" $ do
             H.div "sorter:"
             H.div H.! A.class_ "flex gap-8" $ do
-              H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#basic" $ "conformist"
-              H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! A.href "#flake" $ "contrarian"
+              H.input H.! A.id "remember-flake" H.! A.name "whoami-sort" H.! A.type_ "radio" H.! A.checked "checked" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! I.customAttribute "aria-label" "contrarian"
+              H.input H.! A.id "remember-basic" H.! A.name "whoami-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-soft ds-btn-neutral" H.! I.customAttribute "aria-label" "conformist"
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
             Monad.forM_ (orderAorbs awas orderFuncs) $ \(aorb, orders) ->
               let aorbMode = Individual aorb orders maybeMain maybeUuid
