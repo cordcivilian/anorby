@@ -436,10 +436,6 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
     enrolState = if isEnrolled then Enrolled else NotEnrolled
     timeUntilCutoff = maybe "soon" (formatTimeUntil now) maybeCutoffTime
     timeUntilRelease = maybe "soon" (formatTimeUntil now) maybeReleaseTime
-    effectiveStatus =
-      case timeState of
-        AfterRelease -> matchStatus
-        _ -> NotStarted
   pageHead "clash" mempty
   H.body $
     H.div $ do
@@ -455,18 +451,19 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
           schemeCard Swing (userAssoc user)
           schemeCard Bipolar (userAssoc user)
 
-      H.div H.! A.class_ "w-full max-w-2xl mx-auto p-4 grid justify-stretch align-center" $ do
-        H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal shadow" $ do
-          case timeState of
-            AfterRelease -> mempty
-            _ -> do
+      case timeState of
+        AfterRelease -> mempty
+        _ -> do
+          H.div H.! A.class_ "w-full max-w-2xl mx-auto p-4 grid justify-stretch align-center" $ do
+            H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal shadow" $ do
               H.div H.! A.class_ "ds-stat" $ do
                 H.div H.! A.class_ "ds-stat-title" $ "today's clash pool"
                 H.div H.! A.class_ "ds-stat-value" $ H.text $ T.pack $ show enrolledCount
                 H.div H.! A.class_ "ds-stat-actions" $ do
-                  case (timeState, enrolState, effectiveStatus) of
+                  case (timeState, enrolState, matchStatus) of
                     (BeforeRelease, Enrolled, Completed) -> H.div H.! A.class_ "ds-badge ds-badge-success" $ H.text "status: matched"
-                    (_, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-info" $ H.text "status: enrolled"
+                    (BeforeRelease, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-success" $ H.text "status: enrolled"
+                    (BeforeCutoff, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-info" $ H.text "status: enrolled"
                     (BeforeCutoff, NotEnrolled, _) -> H.a H.! A.class_ "ds-badge ds-badge-warning" H.! A.href "/ans" $ "join"
                     (BeforeRelease, NotEnrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-error" $ H.text "status: missed"
               case (timeState, enrolState) of
@@ -486,16 +483,6 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
               (AfterRelease, Just (match, score)) -> matchCard (floor now) match score 0
               _ -> mempty
             mapM_ (\(m, s, u) -> matchCard (floor now) m s u) pastMatches
-
-matchCard :: Integer -> Match -> Double -> Int -> H.Html
-matchCard currentTimestamp match score unreadCount =
-  H.a H.! A.class_ "block w-full border border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
-    H.! A.href (H.textValue $ "/match/t-" <> formatRelativeMatchDate currentTimestamp (matchTimestamp match)) $ do
-    H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml $ formatSemiAbsoluteMatchDate currentTimestamp (matchTimestamp match) unreadCount
-    H.div H.! A.class_ "text-info font-bold" $ H.toHtml $ formatSimilarityScore score
-
-formatSimilarityScore :: Double -> T.Text
-formatSimilarityScore s = T.pack $ Text.printf "🤝 %.0f%%" ((s + 1) * 50)
 
 schemeCard :: AssociationScheme -> Maybe AssociationScheme -> H.Html
 schemeCard scheme currentScheme =
@@ -525,47 +512,15 @@ renderTimeDisplay label timeLeft timeStr =
     H.span H.! A.class_ "ds-stat-value" $ H.text $ timeLeft
     H.span H.! A.class_ "ds-stat-actions ds-badge ds-badge-secondary" $ H.text $ timeStr <> " UTC"
 
-matchProfileTemplate :: Config -> Integer -> UserID -> UserID -> MatchView -> [Message] -> H.Html
-matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.html $ do
-  pageHead "match profile" mempty
-  H.body $ do
-    H.div $ do
-      navBar Nothing
-      H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "stats"
-      H.div H.! A.class_ "grid grid-cols-2 gap-4 max-w-xl mx-auto w-full" $ do
-        statsBox "matched on" (formatAbsoluteMatchDate (viewTimestamp view))
-        statsBox "agreement rate" (T.pack $ Text.printf "%.0f%%" (viewAgreementRate view))
-        statsBox "you answered" (T.pack $ show $ viewYourTotalAnswers view)
-        statsBox "they answered" (T.pack $ show $ viewTargetTotalAnswers view)
+matchCard :: Integer -> Match -> Double -> Int -> H.Html
+matchCard currentTimestamp match score unreadCount =
+  H.a H.! A.class_ "w-full border border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
+    H.! A.href (H.textValue $ "/match/t-" <> formatRelativeMatchDate currentTimestamp (matchTimestamp match)) $ do
+    H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml $ formatSemiAbsoluteMatchDate currentTimestamp (matchTimestamp match) unreadCount
+    H.div H.! A.class_ "text-info font-bold" $ H.toHtml $ formatSimilarityScore score
 
-    H.div $ do
-      H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "two and the truth is a majority"
-      case viewTopAgreement view of
-        Just mawa -> matchProfileAgreement mawa
-        Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no agreements found"
-
-    H.div $ do
-      H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "their roman empire"
-      case viewMainAorbs view of
-        Just (_, theirMain) -> spotlightAorbSection mainUserId theirMain
-        Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no main question found"
-
-    H.div $ do
-      H.h2 H.! A.class_ "text-2xl font-bold mb-8" $ "plz mend the rift"
-      case viewTopDisagreement view of
-        Just mawa -> matchProfileDisagreement mainUserId mawa
-        Nothing -> H.div H.! A.class_ "text-base-content/60 italic p-8" $ "no disagreements found"
-
-    H.div $ do
-      H.h1 H.! A.class_ "text-2xl font-bold mb-8" $ "head-to-head"
-      renderMessages config days mainUserId messages
-
-  where
-    statsBox :: T.Text -> T.Text -> H.Html
-    statsBox label value =
-      H.div H.! A.class_ "text-center p-6 bg-base-200 rounded-lg" $ do
-        H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml label
-        H.div H.! A.class_ "text-lg font-bold" $ H.toHtml value
+formatSimilarityScore :: Double -> T.Text
+formatSimilarityScore s = T.pack $ Text.printf "🤝 %.0f%%" ((s + 1) * 50)
 
 getRelativeMatchDate :: Integer -> Integer -> Integer
 getRelativeMatchDate currentTimestamp' matchTimestamp' =
@@ -595,29 +550,42 @@ formatSemiAbsoluteMatchDate currentTimestamp' matchTimestamp' unread =
         then "[" <> T.pack (show unread) <> "] " <> baseText
         else baseText
 
-spotlightAorbSection :: UserID -> MatchingAorbWithAnswer -> H.Html
-spotlightAorbSection _ mawa = do
-  let aorb = matchingAorbData mawa
-      myAns = mainUserAnswer mawa
-      theirAns = otherUserAnswer mawa
-      agreement = myAns == theirAns
-      theirChoice = if theirAns == AorbAnswer 0 then aorbA aorb else aorbB aorb
-      myChoice = if myAns == AorbAnswer 0 then aorbA aorb else aorbB aorb
-      otherChoice = if theirAns == AorbAnswer 0 then aorbB aorb else aorbA aorb
-  H.div H.! A.class_ "rounded-2xl p-8 min-h-[30vh] w-[60vw] max-w-2xl bg-primary/10 border-2 border-primary" $ do
-    H.div H.! A.class_ "text-base-content/60 italic mb-8 leading-relaxed" $ H.toHtml $ aorbCtx aorb
-    H.div H.! A.class_ "grid gap-6" $
-      if agreement
-        then do
-          H.div H.! A.class_ "text-primary text-2xl font-bold" $ H.toHtml theirChoice
-          H.div H.! A.class_ "text-base-content/70 text-sm" $ do
-            H.div H.! A.class_ "text-base-content/60 mb-2" $ "every other idiot"
-            H.toHtml otherChoice
-        else do
-          H.div H.! A.class_ "text-primary text-2xl font-bold" $ H.toHtml theirChoice
-          H.div H.! A.class_ "text-base-content/70 text-sm" $ do
-            H.div H.! A.class_ "text-base-content/60 mb-2" $ "you (proceed cautiously)"
-            H.toHtml myChoice
+matchProfileTemplate :: Config -> Integer -> UserID -> UserID -> MatchView -> [Message] -> H.Html
+matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.html $ do
+  pageHead (T.pack $ "clash #" ++ show days) mempty
+  H.body $ do
+    H.div $ do
+      navBar (Just (formatAbsoluteMatchDate (viewTimestamp view)))
+
+      H.div H.! A.class_ "w-full max-w-2xl mx-auto p-4 grid justify-stretch align-center" $ do
+        H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal shadow" $ do
+          H.div H.! A.class_ "ds-stat" $ do
+            H.div H.! A.class_ "ds-stat-title" $ "they answered"
+            H.div H.! A.class_ "ds-stat-value text-warning" $ H.toHtml $ show (viewTargetTotalAnswers view)
+          H.div H.! A.class_ "ds-stat" $ do
+            H.div H.! A.class_ "ds-stat-title" $ "common ground"
+            H.div H.! A.class_ "ds-stat-value" $ H.toHtml $ T.pack $ Text.printf "%.0f%%" (viewAgreementRate view)
+          H.div H.! A.class_ "ds-stat" $ do
+            H.div H.! A.class_ "ds-stat-title" $ "you answered"
+            H.div H.! A.class_ "ds-stat-value text-primary" $ H.toHtml $ show (viewYourTotalAnswers view)
+
+    H.div H.! A.class_ "w-full max-w-2xl mx-auto grid" $ do
+      case viewTopAgreement view of
+        Just mawa -> matchProfileAgreement mawa
+        Nothing -> H.div H.! A.class_ "" $ "no agreements found"
+
+    H.div H.! A.class_ "w-full max-w-2xl mx-auto grid" $ do
+      case viewMainAorbs view of
+        Just (_, theirMain) -> spotlightAorbSection mainUserId theirMain
+        Nothing -> H.div H.! A.class_ "" $ "no main question found"
+
+    H.div H.! A.class_ "w-full max-w-2xl mx-auto grid" $ do
+      case viewTopDisagreement view of
+        Just mawa -> matchProfileDisagreement mainUserId mawa
+        Nothing -> H.div H.! A.class_ "" $ "no disagreements found"
+
+    H.div $ do
+      renderMessages config days mainUserId messages
 
 matchProfileAgreement :: MatchingAorbWithAnswer -> H.Html
 matchProfileAgreement mawa = do
@@ -628,12 +596,36 @@ matchProfileAgreement mawa = do
         AorbAnswer 0 -> (aorbA aorb, aorbB aorb, 100 * (1 - mean))
         _ -> (aorbB aorb, aorbA aorb, 100 * mean)
       otherPct = 100 - agreePct
-  H.div H.! A.class_ "rounded-2xl p-8 min-h-[30vh] w-[60vw] max-w-2xl bg-success/10 border-2 border-success" $ do
-    H.div H.! A.class_ "text-base-content/60 italic mb-8 leading-relaxed" $ H.toHtml $ aorbCtx aorb
-    H.div H.! A.class_ "grid gap-6" $ do
-      H.div H.! A.class_ "text-success text-2xl font-bold" $ H.toHtml sharedChoice
-      H.div H.! A.class_ "text-base-content/70" $ H.toHtml $ T.pack $ Text.printf "against %.0f%% of the world" otherPct
-      H.div H.! A.class_ "text-base-content/70 text-sm" $ H.toHtml otherChoice
+  H.div H.! A.class_ "" $ do
+    H.div H.! A.class_ "" $ H.toHtml $ aorbCtx aorb
+    H.div H.! A.class_ "" $ do
+      H.div H.! A.class_ "" $ H.toHtml sharedChoice
+      H.div H.! A.class_ "" $ H.toHtml $ T.pack $ Text.printf "against %.0f%% of the world" otherPct
+      H.div H.! A.class_ "" $ H.toHtml otherChoice
+
+spotlightAorbSection :: UserID -> MatchingAorbWithAnswer -> H.Html
+spotlightAorbSection _ mawa = do
+  let aorb = matchingAorbData mawa
+      myAns = mainUserAnswer mawa
+      theirAns = otherUserAnswer mawa
+      agreement = myAns == theirAns
+      theirChoice = if theirAns == AorbAnswer 0 then aorbA aorb else aorbB aorb
+      myChoice = if myAns == AorbAnswer 0 then aorbA aorb else aorbB aorb
+      otherChoice = if theirAns == AorbAnswer 0 then aorbB aorb else aorbA aorb
+  H.div H.! A.class_ "" $ do
+    H.div H.! A.class_ "" $ H.toHtml $ aorbCtx aorb
+    H.div H.! A.class_ "" $
+      if agreement
+        then do
+          H.div H.! A.class_ "" $ H.toHtml theirChoice
+          H.div H.! A.class_ "" $ do
+            H.div H.! A.class_ "" $ "every other idiot"
+            H.toHtml otherChoice
+        else do
+          H.div H.! A.class_ "" $ H.toHtml theirChoice
+          H.div H.! A.class_ "" $ do
+            H.div H.! A.class_ "" $ "you (proceed cautiously)"
+            H.toHtml myChoice
 
 matchProfileDisagreement :: UserID -> MatchingAorbWithAnswer -> H.Html
 matchProfileDisagreement _ mawa = do
@@ -647,15 +639,15 @@ matchProfileDisagreement _ mawa = do
       (theirChoice, theirPct) = if theirAns == AorbAnswer 0
                                 then (aorbA aorb, 100 * (1 - mean))
                                 else (aorbB aorb, 100 * mean)
-  H.div H.! A.class_ "rounded-2xl p-8 min-h-[30vh] w-[60vw] max-w-2xl bg-warning/10 border-2 border-warning" $ do
-    H.div H.! A.class_ "text-base-content/60 italic mb-8 leading-relaxed" $ H.toHtml $ aorbCtx aorb
-    H.div H.! A.class_ "grid gap-6" $ do
-      H.div H.! A.class_ "text-warning" $ do
-        H.div H.! A.class_ "text-base-content/60 mb-2" $ H.toHtml $ T.pack $ Text.printf "you and your righteous %.0f%%" myPct
-        H.div H.! A.class_ "text-xl" $ H.toHtml myChoice
-      H.div H.! A.class_ "text-warning" $ do
-        H.div H.! A.class_ "text-base-content/60 mb-2" $ H.toHtml $ T.pack $ Text.printf "them and their precious %.0f%%" theirPct
-        H.div H.! A.class_ "text-xl" $ H.toHtml theirChoice
+  H.div H.! A.class_ "" $ do
+    H.div H.! A.class_ "" $ H.toHtml $ aorbCtx aorb
+    H.div H.! A.class_ "" $ do
+      H.div H.! A.class_ "" $ do
+        H.div H.! A.class_ "" $ H.toHtml $ T.pack $ Text.printf "you and your righteous %.0f%%" myPct
+        H.div H.! A.class_ "" $ H.toHtml myChoice
+      H.div H.! A.class_ "" $ do
+        H.div H.! A.class_ "" $ H.toHtml $ T.pack $ Text.printf "them and their precious %.0f%%" theirPct
+        H.div H.! A.class_ "" $ H.toHtml theirChoice
 
 renderMessages :: Config -> Integer -> UserID -> [Message] -> H.Html
 renderMessages config days uid messages = do
@@ -663,51 +655,33 @@ renderMessages config days uid messages = do
       remainingMessages = matchMessageLimit config - userMessageCount
       hasReachedLimit = userMessageCount >= matchMessageLimit config
 
-  H.div H.! A.class_ "w-full max-w-2xl mx-auto space-y-4" $ do
+  H.div H.! A.class_ "w-full max-w-2xl mx-auto mt-4 mb-4" $ do
     mapM_ (renderMessage uid) messages
 
+  H.div H.! A.class_ "w-full max-w-2xl mx-auto" $ do
     if hasReachedLimit
-      then H.div H.! A.class_ "p-4 text-center rounded-lg bg-base-200" $ do
-        "You have reached the limit of "
-        H.toHtml $ show $ matchMessageLimit config
-        " messages"
-      else H.form H.! A.id "message-form"
-           H.! A.method "POST"
-           H.! A.action (H.textValue $ "/match/t-" <> T.pack (show days) <> "/message")
-           H.! A.class_ "flex flex-col gap-4" $ do
-        H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ do
-          H.text $ T.pack $ show remainingMessages <> " messages remaining"
-
-        H.textarea H.! A.class_ "w-full p-4 border border-base-300 rounded-lg resize-none font-inherit"
-          H.! A.form "message-form"
-          H.! A.type_ "text"
-          H.! A.id "new-message"
-          H.! A.name "new-message"
-          H.! A.placeholder
-            ( "message (max " <>
-              (H.toValue $ show $ matchMessageMaxLength config) <>
-              " characters)"
-            )
+      then
+        H.div H.! A.class_ "p-4 text-center rounded-lg bg-base-200" $ H.toHtml ("you have reached the limit of " ++ (show $ matchMessageLimit config) ++ " messages")
+      else
+        H.form H.! A.id "message-form" H.! A.class_ "flex flex-col" H.! A.method "POST" H.! A.action (H.textValue $ "/match/t-" <> T.pack (show days) <> "/message") $ do
+        H.div H.! A.class_ "text-sm text-base-content/70 mb-1" $ H.text $ T.pack $ show remainingMessages <> " messages remaining"
+        H.textarea H.! A.class_ "w-full pt-4 pb-4 border border-base-300 resize-none field-sizing-content mb-4 target:border-primary"
+          H.! A.form "message-form" H.! A.type_ "text" H.! A.id "new-message" H.! A.name "new-message"
+          H.! A.placeholder ( "message (max " <> (H.toValue $ show $ matchMessageMaxLength config) <> " characters)")
           H.! A.required "required"
           H.! A.autocomplete "off"
           H.! A.maxlength (H.toValue $ show $ matchMessageMaxLength config)
           $ ""
-
-        H.input H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg cursor-pointer font-inherit hover:bg-primary/90"
-          H.! A.type_ "submit"
-          H.! A.value "send"
+        H.input H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg cursor-pointer font-inherit hover:bg-primary/90" H.! A.type_ "submit" H.! A.value "send"
 
 renderMessage :: UserID -> Message -> H.Html
 renderMessage uid msg = do
-  let baseClasses = "p-4 rounded-lg w-fit max-w-[50%] "
-      messageClasses = if messageSenderId msg == uid
-        then baseClasses <> "ml-auto border-2 border-primary"
-        else baseClasses <> "mr-auto border-2 border-warning"
-      decodedContent = H.preEscapedToHtml $ XSS.sanitize $
-        TE.decodeUtf8With TEE.lenientDecode $ TE.encodeUtf8 $
-          messageContent msg
-  H.div H.! A.class_ messageClasses $ do
-    H.div H.! A.class_ "message-content" $ decodedContent
+  let (messageContainerClass, messageBubbleClass) =
+        if messageSenderId msg == uid
+          then (A.class_ "ds-chat ds-chat-end", A.class_ "ds-chat-bubble ds-chat-bubble-primary")
+          else (A.class_ "ds-chat ds-chat-start", A.class_ "ds-chat-bubble ds-chat-bubble-warning")
+      decodedContent = H.preEscapedToHtml $ XSS.sanitize $ TE.decodeUtf8With TEE.lenientDecode $ TE.encodeUtf8 $ messageContent msg
+  H.div H.! messageContainerClass $ H.div H.! messageBubbleClass $ decodedContent
 
 -- | Auth Templates
 
