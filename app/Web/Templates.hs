@@ -793,31 +793,27 @@ dailyLimitTemplate :: T.Text -> H.Html
 dailyLimitTemplate timeLeft = msgTemplate MessageTemplate
   { messageTitle = "daily limit"
   , messageHeading = "daily answer limit reached, come back in " <> timeLeft
-  , messageLink = ("/whoami", "back to profile")
+  , messageLink = ("/match", "clash")
   }
 
 noMoreQuestionsTemplate :: H.Html
 noMoreQuestionsTemplate = msgTemplate MessageTemplate
   { messageTitle = "no more questions"
   , messageHeading = "no more questions"
-  , messageLink = ("/whoami", "back to profile")
+  , messageLink = ("/match", "clash")
   }
 
 profileNotYetActive :: Int -> H.Html
 profileNotYetActive threshold = msgTemplate MessageTemplate
   { messageTitle = "profile not yet active"
-  , messageHeading = T.pack $
-      "your profile will be activated after answering "
-      ++ show threshold ++ " questions"
+  , messageHeading = T.pack $ "whoami will be activated after answering " ++ show threshold ++ " questions"
   , messageLink = ("/ans", "answer more questions")
   }
 
 matchNotYetActive :: Int -> H.Html
 matchNotYetActive threshold = msgTemplate MessageTemplate
   { messageTitle = "match not yet active"
-  , messageHeading = T.pack $
-      "matching will be activated after answering "
-      ++ show threshold ++ " questions"
+  , messageHeading = T.pack $ "clash will be activated after answering " ++ show threshold ++ " questions"
   , messageLink = ("/ans", "answer more questions")
   }
 
@@ -829,28 +825,22 @@ errorTemplateWithLink code message link = msgTemplate MessageTemplate
   }
 
 errorTemplate :: Int -> T.Text -> H.Html
-errorTemplate code message =
-  errorTemplateWithLink code message ("/", "go home")
+errorTemplate code message = errorTemplateWithLink code message ("/", "home")
 
 alreadyAnsweredTemplate :: H.Html
-alreadyAnsweredTemplate = errorTemplateWithLink
-  403 "question already answered" ("/ans", "next question")
+alreadyAnsweredTemplate = errorTemplateWithLink 403 "question already answered" ("/ans", "next question")
 
 invalidTokenTemplate :: H.Html
-invalidTokenTemplate = errorTemplateWithLink
-  403 "invalid or expired token" ("/ans", "try again")
+invalidTokenTemplate = errorTemplateWithLink 403 "invalid or expired token" ("/ans", "try again")
 
 invalidSubmissionTemplate :: H.Html
-invalidSubmissionTemplate = errorTemplateWithLink
-  400 "invalid submission format" ("/ans", "try again")
+invalidSubmissionTemplate = errorTemplateWithLink 400 "invalid submission format" ("/ans", "try again")
 
 userNotFoundTemplate :: H.Html
-userNotFoundTemplate =
-  errorTemplateWithLink 404 "user not found" ("/register", "register")
+userNotFoundTemplate = errorTemplateWithLink 404 "user not found" ("/register", "register")
 
 emailExistsTemplate :: H.Html
-emailExistsTemplate =
-  errorTemplateWithLink 409 "email already registered" ("/login", "login")
+emailExistsTemplate = errorTemplateWithLink 409 "email already registered" ("/login", "login")
 
 notFoundTemplate :: H.Html
 notFoundTemplate = errorTemplate 404 "not found"
