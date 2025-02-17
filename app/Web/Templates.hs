@@ -381,13 +381,13 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token = H.docTypeHtml $ H.
               makeExistingChoice aorb token (aorbA aorb) 0 (mCurrentAnswer == Just (AorbAnswer 0)) isFavorite
               H.div H.! A.class_ "ds-divider" $ "OR"
               makeExistingChoice aorb token (aorbB aorb) 1 (mCurrentAnswer == Just (AorbAnswer 1)) isFavorite
-          if isFavorite
-            then mempty
-            else
-              H.div H.! A.class_ "ds-card-actions justify-center" $ do
+          H.div H.! A.class_ "ds-card-actions justify-center grid gap-6" $ do
+            if isFavorite
+              then mempty
+              else
                 H.form H.! A.method "POST" H.! A.action (H.toValue $ "/aorb/favorite/" ++ show (aorbId aorb)) $ do
-                  H.button H.! A.type_ "submit" H.! A.class_ "px-8 py-4 border-2 border-base-300 bg-transparent cursor-pointer font-inherit text-base transition-all hover:border-warning hover:text-warning rounded-lg" $
-                    "set as favorite question"
+                  H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-warning ds-btn-soft" $ "set as favorite question"
+            H.a H.! A.href "/whoami" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft" $ "back"
   where
     makeExistingChoice :: Aorb -> T.Text -> T.Text -> Word.Word8 -> Bool -> Bool -> H.Html
     makeExistingChoice a t choice value isSelected favorite = do
