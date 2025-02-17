@@ -427,8 +427,16 @@ data TimeState = BeforeCutoff | BeforeRelease | AfterRelease
 data EnrolState = Enrolled | NotEnrolled
 data MatchPhase = ShowingStatus | ShowingEnrollment | ShowingTiming | ShowingResults
 
-matchTemplate :: Config -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Bool -> Int -> Maybe (Match, Double) -> MatchStatus -> [(Match, Double, Int)] -> User -> H.Html
-matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCount maybeMatchScore matchStatus pastMatches user = H.docTypeHtml $ H.html $ do
+matchTemplate ::
+  Config -> User -> Bool -> Int
+  -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime
+  -> Maybe (Match, Double) -> MatchStatus -> [(Match, Double, Int)]
+  -> H.Html
+matchTemplate
+  config user isEnrolled enrolledCount
+  maybeCutoffTime maybeReleaseTime now
+  maybeMatchScore matchStatus pastMatches
+  =
   let
     timeState = case (maybeCutoffTime, maybeReleaseTime) of
       (Just ct, Just rt) | now < ct -> BeforeCutoff | now < rt -> BeforeRelease | otherwise -> AfterRelease
@@ -436,53 +444,54 @@ matchTemplate config maybeCutoffTime maybeReleaseTime now isEnrolled enrolledCou
     enrolState = if isEnrolled then Enrolled else NotEnrolled
     timeUntilCutoff = maybe "soon" (formatTimeUntil now) maybeCutoffTime
     timeUntilRelease = maybe "soon" (formatTimeUntil now) maybeReleaseTime
-  pageHead "clash" mempty
-  H.body $
-    H.div $ do
-      navBar $ Just "clash"
+  in H.docTypeHtml $ H.html $ do
+    pageHead "clash" mempty
+    H.body $
+      H.div $ do
+        navBar $ Just "clash"
 
-      H.div H.! A.class_ "ds-collapse ds-collapse-arrow mb-4 grid max-w-xl mx-auto bg-base-100 border border-base-300" $ do
-        H.input H.! A.type_ "checkbox"
-        H.div H.! A.class_ "ds-collapse-title text-center font-black" $ case userAssoc user of
-          Just scheme -> styleScheme scheme False
-          Nothing -> "choose your clashes"
-        H.div H.! A.class_ "ds-collapse-content grid gap-2 w-full" $ do
-          schemeCard PPPod (userAssoc user)
-          schemeCard Swing (userAssoc user)
-          schemeCard Bipolar (userAssoc user)
+        H.div H.! A.class_ "ds-collapse ds-collapse-arrow mb-4 grid max-w-xl mx-auto bg-base-100 border border-base-300" $ do
+          H.input H.! A.type_ "checkbox"
+          H.div H.! A.class_ "ds-collapse-title text-center font-black" $ case userAssoc user of
+            Just scheme -> styleScheme scheme False
+            Nothing -> "choose your clashes"
+          H.div H.! A.class_ "ds-collapse-content grid gap-2 w-full" $ do
+            schemeCard PPPod (userAssoc user)
+            schemeCard Swing (userAssoc user)
+            schemeCard Bipolar (userAssoc user)
 
-      case timeState of
-        AfterRelease -> mempty
-        _ -> do
-          H.div H.! A.class_ "w-full max-w-2xl mx-auto p-4 grid justify-stretch align-center" $ do
-            H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal shadow" $ do
-              H.div H.! A.class_ "ds-stat" $ do
-                H.div H.! A.class_ "ds-stat-title" $ "today's clash pool"
-                H.div H.! A.class_ "ds-stat-value" $ H.text $ T.pack $ show enrolledCount
-                H.div H.! A.class_ "ds-stat-actions" $ do
-                  case (timeState, enrolState, matchStatus) of
-                    (BeforeRelease, Enrolled, Completed) -> H.div H.! A.class_ "ds-badge ds-badge-success" $ H.text "status: matched"
-                    (BeforeRelease, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-success" $ H.text "status: enrolled"
-                    (BeforeCutoff, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-info" $ H.text "status: enrolled"
-                    (BeforeCutoff, NotEnrolled, _) -> H.a H.! A.class_ "ds-badge ds-badge-warning" H.! A.href "/ans" $ "join"
-                    (BeforeRelease, NotEnrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-error" $ H.text "status: missed"
-              case (timeState, enrolState) of
-                (BeforeRelease, NotEnrolled) -> mempty
-                (BeforeCutoff, NotEnrolled) -> renderTimeDisplay "cutoff in ..." timeUntilCutoff (matchCutoffTime config)
-                (_, Enrolled) -> renderTimeDisplay "reveal in ..." timeUntilRelease (matchReleaseTime config)
+        case timeState of
+          AfterRelease -> mempty
+          _ -> do
+            H.div H.! A.class_ "w-full max-w-2xl mx-auto p-4 grid justify-stretch align-center" $ do
+              H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal shadow" $ do
+                H.div H.! A.class_ "ds-stat" $ do
+                  H.div H.! A.class_ "ds-stat-title" $ "today's clash pool"
+                  H.div H.! A.class_ "ds-stat-value" $ H.text $ T.pack $ show enrolledCount
+                  H.div H.! A.class_ "ds-stat-actions" $ do
+                    case (timeState, enrolState, matchStatus) of
+                      (BeforeRelease, Enrolled, Completed) -> H.div H.! A.class_ "ds-badge ds-badge-success" $ H.text "status: matched"
+                      (BeforeRelease, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-success" $ H.text "status: enrolled"
+                      (BeforeCutoff, Enrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-info" $ H.text "status: enrolled"
+                      (BeforeCutoff, NotEnrolled, _) -> H.a H.! A.class_ "ds-badge ds-badge-warning" H.! A.href "/ans" $ "join"
+                      (BeforeRelease, NotEnrolled, _) -> H.div H.! A.class_ "ds-badge ds-badge-error" $ H.text "status: missed"
+                case (timeState, enrolState) of
+                  (BeforeRelease, NotEnrolled) -> mempty
+                  (BeforeCutoff, NotEnrolled) -> renderTimeDisplay "cutoff in ..." timeUntilCutoff (matchCutoffTime config)
+                  (_, Enrolled) -> renderTimeDisplay "reveal in ..." timeUntilRelease (matchReleaseTime config)
 
-      H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
-        if null pastMatches
-          then H.h3 H.! A.class_ "w-full border border-base-300 p-6 rounded-lg" $ do
-            H.div "1. join the clash pool before the daily cutoff"
-            H.div "2. check in on your clash-of-the-day at the daily reveal"
-            H.div "3. repeat"
-          else do
-            case (timeState, maybeMatchScore) of
-              (AfterRelease, Nothing) -> H.div H.! A.class_ "w-full border border-base-300 p-6 rounded-lg text-center" $ H.text "you were not in the clash pool today"
-              (AfterRelease, Just (match, score)) -> matchCard (floor now) match score 0
-              _ -> mempty
-            mapM_ (\(m, s, u) -> matchCard (floor now) m s u) pastMatches
+        H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
+          if null pastMatches
+            then H.h3 H.! A.class_ "w-full border border-base-300 p-6 rounded-lg" $ do
+              H.div "1. join the clash pool before the daily cutoff"
+              H.div "2. check in on your clash-of-the-day at the daily reveal"
+              H.div "3. repeat"
+            else do
+              case (timeState, maybeMatchScore) of
+                (AfterRelease, Nothing) -> H.div H.! A.class_ "w-full border border-base-300 p-6 rounded-lg text-center" $ H.text "you were not in the clash pool today"
+                (AfterRelease, Just (match, score)) -> matchCard (floor now) match score 0
+                _ -> mempty
+              mapM_ (\(m, s, u) -> matchCard (floor now) m s u) pastMatches
 
 schemeCard :: AssociationScheme -> Maybe AssociationScheme -> H.Html
 schemeCard scheme currentScheme =

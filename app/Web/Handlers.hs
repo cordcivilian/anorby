@@ -473,16 +473,9 @@ matchTemplateRoute config state conn uid _ = do
             [(Headers.hContentType, BS.pack "text/html")]
             (R.renderHtml $
               matchTemplate
-                config
-                maybeCutoffTime
-                maybeReleaseTime
-                now
-                (elem uid enrolled)
-                (length $ filter (/= shadowUserId) enrolled)
-                todayMatchScore
-                matchStatus
-                pastMatchesData
-                user
+                config user (elem uid enrolled) (length $ filter (/= shadowUserId) enrolled)
+                maybeCutoffTime maybeReleaseTime now
+                todayMatchScore matchStatus pastMatchesData
             )
         [] -> return notFoundResponse
 
