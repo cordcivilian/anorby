@@ -28,6 +28,7 @@ data RootStats = RootStats
   , rootTodayAnswers :: Int
   , rootActiveUsers :: Int
   , rootNewUsers :: Int
+  , rootNewQuestions :: Int
   , rootEnrolledCount :: Int
   } deriving (Show)
 

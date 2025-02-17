@@ -45,7 +45,7 @@ type Marriages = Map.Map UserID (Maybe UserID)
 type OrderingFunction a = [a] -> [a]
 
 -- | Database Types
-
+--
 data User = User
   { userId :: UserID
   , userName :: T.Text
@@ -53,6 +53,7 @@ data User = User
   , userUuid :: T.Text
   , userAorbId :: Maybe AorbID
   , userAssoc :: Maybe AssociationScheme
+  , userCreatedOn :: Integer
   } deriving (Show)
 
 data Aorb = Aorb
@@ -62,6 +63,7 @@ data Aorb = Aorb
   , aorbA :: T.Text
   , aorbB :: T.Text
   , aorbMean :: Double
+  , aorbCreatedOn :: Integer
   } deriving (Show)
 
 data AorbAnswers = AorbAnswers
@@ -176,6 +178,7 @@ instance SQL.FromRow User where
     <*> SQL.field
     <*> SQL.field
     <*> SQL.field
+    <*> SQL.field
 
 instance SQL.ToRow User where
   toRow user =
@@ -190,6 +193,7 @@ instance SQL.ToRow User where
 instance SQL.FromRow Aorb where
   fromRow = Aorb
     <$> SQL.field
+    <*> SQL.field
     <*> SQL.field
     <*> SQL.field
     <*> SQL.field
@@ -238,6 +242,7 @@ instance SQL.FromRow AorbWithAnswer where
           <*> SQL.field
           <*> SQL.field
           <*> SQL.field
+          <*> SQL.field
           <*> SQL.field)
     <*> SQL.field
 
@@ -245,6 +250,7 @@ instance SQL.FromRow MatchingAorbWithAnswer where
   fromRow = MatchingAorbWithAnswer
     <$> (Aorb
           <$> SQL.field
+          <*> SQL.field
           <*> SQL.field
           <*> SQL.field
           <*> SQL.field
@@ -285,6 +291,7 @@ instance JSON.FromJSON Aorb where
     <*> v JSON..: "a"
     <*> v JSON..: "b"
     <*> pure 0.500000000000000
+    <*> pure 0
 
 instance JSON.FromJSON SubmitAnswer where
   parseJSON = JSON.withObject "SubmitAnswer" $ \v -> SubmitAnswer

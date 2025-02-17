@@ -167,6 +167,7 @@ mockUsers conn n = do
               , userUuid = T.pack mockUuid
               , userAorbId = Nothing
               , userAssoc = Nothing
+              , userCreatedOn = 0
               }
         Monad.when (rem i 100 == 0) $
           putStrLn $ "Generated " ++ show i ++ " users..."

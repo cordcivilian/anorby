@@ -158,8 +158,8 @@ orderAorbs as orderingFuncs =
       lookupOrder list a = maybe 0 (+1) $ List.elemIndex a list
   in [ (a, map (\orderedList -> lookupOrder orderedList a) orderedLists) | a <- as ]
 
-rootTemplate :: Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> [Aorb] -> H.Html
-rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus aorbs =
+rootTemplate :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> [Aorb] -> H.Html
+rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers newQuestions matchingEnrolled matchStatus aorbs =
   H.docTypeHtml $ H.html $ do
   pageHead "anorby"
     ( H.style $ H.preEscapedText $ T.unlines
@@ -173,7 +173,7 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers match
       H.div H.! A.id "top" $ mempty
       navBar Nothing
       H.div H.! A.class_ "w-full max-w-4xl mx-auto grid gap-8 place-items-center" $ do
-        rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus
+        rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers newQuestions matchingEnrolled matchStatus
         H.fieldset H.! A.class_ "flex flex-col mb-2 items-center gap-4" $ do
           H.div "sorter:"
           H.div H.! A.class_ "flex gap-8" $ do
@@ -191,8 +191,8 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers match
       , List.sortOn (\a -> abs (aorbMean a - 0.5))
       ]
 
-rootStats :: Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> H.Html
-rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matchingEnrolled matchStatus =
+rootStats :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> H.Html
+rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers newQuestions matchingEnrolled matchStatus =
   H.div H.! A.class_ "ds-stats ds-stats-vertical lg:ds-stats-horizontal grid grid-cols-2 lg:grid-cols-4 shadow" $ do
     H.div H.! A.class_ "ds-stat" $ do
       H.div H.! A.class_ "ds-stat-title" $ "population"
@@ -201,7 +201,7 @@ rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers matching
     H.div H.! A.class_ "ds-stat" $ do
       H.div H.! A.class_ "ds-stat-title" $ "questions"
       H.div H.! A.class_ "ds-stat-value" $ H.toHtml $ show totalQuestions
-      H.div H.! A.class_ "ds-stat-desc" $ "(more to come)"
+      H.div H.! A.class_ "ds-stat-desc" $ H.toHtml $ ("+" <> show newQuestions <> " this week")
     H.div H.! A.class_ "ds-stat" $ do
       H.div H.! A.class_ "ds-stat-title" $ "answers"
       H.div H.! A.class_ "ds-stat-value" $ H.toHtml $ show totalAnswers

@@ -81,6 +81,7 @@ getRootStats state conn = do
     Nothing -> do
       now <- POSIXTime.getPOSIXTime
       let startOfDay = floor now - (floor now `mod` 86400)
+          weekAgo = floor now - (7 * 24 * 60 * 60)
 
       totalQuestions' <- getCachedQuery state conn "total_questions"
         "SELECT COUNT(*) FROM aorb" []
@@ -96,9 +97,12 @@ getRootStats state conn = do
         "SELECT COUNT(DISTINCT user_id) FROM aorb_answers WHERE user_id != -1"
         []
 
-      let weekAgo = floor now - (7 * 24 * 60 * 60)
       newUsers' <- getCachedQuery state conn "new_users"
-        "SELECT COUNT(DISTINCT user_id) FROM auth WHERE created_on >= ? AND user_id != -1"
+        "SELECT COUNT(*) FROM users WHERE created_on >= ? AND id != -1"
+        [SQL.SQLInteger weekAgo]
+
+      newQuestions' <- getCachedQuery state conn "new_questions"
+        "SELECT COUNT(*) FROM aorb WHERE created_on >= ?"
         [SQL.SQLInteger weekAgo]
 
       enrolled <- getUsersWithCompletedAnswers conn
@@ -110,6 +114,7 @@ getRootStats state conn = do
             , rootTodayAnswers = todayAnswers'
             , rootActiveUsers = activeUsers'
             , rootNewUsers = newUsers'
+            , rootNewQuestions = newQuestions'
             , rootEnrolledCount = enrolledCount'
             }
 
@@ -147,6 +152,7 @@ rootTemplateRoute state conn _ = do
             (rootTodayAnswers stats)
             (rootActiveUsers stats)
             (rootNewUsers stats)
+            (rootNewQuestions stats)
             (rootEnrolledCount stats)
             matchStatus
             aorbs
@@ -246,9 +252,10 @@ profileTemplateRoute config conn uid _ = do
           (R.renderHtml $ profileNotYetActive (profileThreshold config))
         else do
           myAorbs <- getUserAorbsFromControversialToCommonPlace conn uid
-          let shareBaseUrl = if environment config == Production
-                                then "https://anorby.cordcivilian.com/share/"
-                                else "http://localhost:5001/share/"
+          let shareBaseUrl =
+                if environment config == Production
+                  then "https://anorby.cordcivilian.com/share/"
+                  else "http://localhost:5001/share/"
               shareUrl = Just $ shareBaseUrl <> userUuid user
           return $ Wai.responseLBS
             HTTP.status200
@@ -757,6 +764,7 @@ registerPostRoute conn req = do
                     , userUuid = T.pack uuid
                     , userAorbId = Nothing
                     , userAssoc = Nothing
+                    , userCreatedOn = 0
                     }
               SQL.execute conn
                 "INSERT INTO users (name, email, uuid) VALUES (?, ?, ?)"

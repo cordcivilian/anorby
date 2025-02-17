@@ -119,24 +119,18 @@ initIndexes conn = do
     "CREATE INDEX IF NOT EXISTS idx_users_uuid ON users(uuid)"
 
   -- high write volume
-  SQL.execute_ conn $ SQL.Query $ T.unwords
-    [ "CREATE INDEX IF NOT EXISTS idx_answers_user_recent"
-    , "ON aorb_answers(user_id, answered_on DESC)"
-    ]
+  SQL.execute_ conn $ SQL.Query
+    "CREATE INDEX IF NOT EXISTS idx_answers_user_recent ON aorb_answers(user_id, answered_on DESC)"
 
   -- medium write volume during matching events
   SQL.execute_ conn $ SQL.Query
     "CREATE INDEX IF NOT EXISTS idx_matched_user ON matched(user_id)"
-  SQL.execute_ conn $ SQL.Query $ T.unwords
-    [ "CREATE INDEX IF NOT EXISTS idx_matched_user_time"
-    , "ON matched(user_id, matched_on DESC)"
-    ]
+  SQL.execute_ conn $ SQL.Query
+    "CREATE INDEX IF NOT EXISTS idx_matched_user_time ON matched(user_id, matched_on DESC)"
 
   -- low write volume
-  SQL.execute_ conn $ SQL.Query $ T.unwords
-    [ "CREATE INDEX IF NOT EXISTS idx_unmatched_since"
-    , "ON unmatched_users(unmatched_since)"
-    ]
+  SQL.execute_ conn $ SQL.Query
+    "CREATE INDEX IF NOT EXISTS idx_unmatched_since ON unmatched_users(unmatched_since)"
 
   SQL.execute_ conn $ SQL.Query
     "CREATE INDEX IF NOT EXISTS idx_messages_match ON messages(match_id)"
@@ -166,6 +160,7 @@ initUserTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
  , "uuid TEXT NOT NULL,"
  , "aorb_id INTEGER,"
  , "assoc INTEGER,"
+ , "created_on INTEGER NOT NULL DEFAULT (unixepoch('now')),"
  , "UNIQUE(email),"
  , "UNIQUE(uuid))"
  ]
@@ -178,7 +173,8 @@ initAorbTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
  , "subtext TEXT NOT NULL,"
  , "a TEXT NOT NULL,"
  , "b TEXT NOT NULL,"
- , "mean REAL NOT NULL DEFAULT 0.500000000000000)"
+ , "mean REAL NOT NULL DEFAULT 0.500000000000000,"
+ , "created_on INTEGER NOT NULL DEFAULT (unixepoch('now')))"
  ]
 
 initAorbAnswersTable :: SQL.Connection -> IO()
@@ -306,11 +302,7 @@ getUserUuidById conn uid = do
 
 getUserTotalAnswerCount :: SQL.Connection -> UserID -> IO Int
 getUserTotalAnswerCount conn uid = do
-  let query = SQL.Query $ T.unwords
-        [ "SELECT COUNT(*)"
-        , "FROM aorb_answers"
-        , "WHERE user_id = ?"
-        ]
+  let query = SQL.Query "SELECT COUNT(*) FROM aorb_answers WHERE user_id = ?"
   counts <- SQL.query conn query [uid] :: IO [SQL.Only Int]
   case counts of
     (count:_) -> return $ SQL.fromOnly count
@@ -323,12 +315,7 @@ hasThresholdAccess conn uid threshold = do
 
 getUserFromAuthHash :: SQL.Connection -> T.Text -> IO (Maybe User)
 getUserFromAuthHash conn hash = do
-  let query = SQL.Query $ T.unwords
-        [ "SELECT users.*"
-        , "FROM users"
-        , "JOIN auth ON users.id = auth.user_id"
-        , "WHERE auth.hash = ?"
-        ]
+  let query = SQL.Query "SELECT users.* FROM users JOIN auth ON users.id = auth.user_id WHERE auth.hash = ?"
   now <- POSIXTime.getPOSIXTime
   results <- SQL.query conn query (SQL.Only hash) :: IO [User]
   case results of
@@ -384,8 +371,7 @@ getUsersWithAnswers conn aorbIds = do
   users <- SQL.query conn query params :: IO [SQL.Only UserID]
   return $ map SQL.fromOnly users
 
-getUsersAnswers :: SQL.Connection -> [UserID] -> [AorbID]
-                -> IO (Map.Map UserID [AorbAnswers])
+getUsersAnswers :: SQL.Connection -> [UserID] -> [AorbID] -> IO (Map.Map UserID [AorbAnswers])
 getUsersAnswers conn users aorbIds = do
   existingAnswers <- if null users || null aorbIds
     then return []
@@ -417,8 +403,7 @@ getUsersAnswers conn users aorbIds = do
       ]
     placeholders n = T.intercalate "," (replicate n "?")
 
-getUsersAorbIdAndAssoc :: SQL.Connection -> [UserID]
-                       -> IO (Map.Map UserID (AorbID, AssociationScheme))
+getUsersAorbIdAndAssoc :: SQL.Connection -> [UserID] -> IO (Map.Map UserID (AorbID, AssociationScheme))
 getUsersAorbIdAndAssoc conn users = do
   let placeholders = replicate (length users) "?"
       inClause = T.intercalate "," placeholders
@@ -576,15 +561,14 @@ getDailyAnswerCount conn uid = do
     (count:_) -> return $ SQL.fromOnly count
     [] -> return 0
 
-getUserAorbAndAssoc :: SQL.Connection -> UserID
-                    -> IO (Maybe (Aorb, AssociationScheme))
+getUserAorbAndAssoc :: SQL.Connection -> UserID -> IO (Maybe (Aorb, AssociationScheme))
 getUserAorbAndAssoc conn uid = do
   let query = "SELECT aorb_id, assoc FROM users WHERE id = ?"
   aorbIdAssoc <- SQL.query conn query [uid] :: IO [(AorbID, AssociationScheme)]
   case aorbIdAssoc of
     [(aid, assoc)] -> do
       let aorbQuery = SQL.Query $ T.unwords
-                    [ "SELECT id, context, subtext, a, b, mean"
+                    [ "SELECT id, context, subtext, a, b, mean, created_on"
                     , "FROM aorb"
                     , "WHERE id = ?"
                     ]
@@ -595,11 +579,10 @@ getUserAorbAndAssoc conn uid = do
     [] -> return Nothing
     _ -> return Nothing
 
-getUserTopXMostCommonplace :: SQL.Connection -> UserID -> Int
-                           -> IO [AorbWithAnswer]
+getUserTopXMostCommonplace :: SQL.Connection -> UserID -> Int -> IO [AorbWithAnswer]
 getUserTopXMostCommonplace conn uid x = do
   let query = SQL.Query $ T.unwords
-        [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, ans.answer"
+        [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, a.created_on, ans.answer"
         , "FROM aorb a"
         , "JOIN aorb_answers ans ON a.id = ans.aorb_id"
         , "WHERE ans.user_id = ?"
@@ -608,11 +591,10 @@ getUserTopXMostCommonplace conn uid x = do
         ]
   SQL.query conn query (uid, x)
 
-getUserTopXMostControversial :: SQL.Connection -> UserID -> Int
-                             -> IO [AorbWithAnswer]
+getUserTopXMostControversial :: SQL.Connection -> UserID -> Int -> IO [AorbWithAnswer]
 getUserTopXMostControversial conn uid x = do
   let query = SQL.Query $ T.unwords
-        [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, ans.answer"
+        [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, a.created_on, ans.answer"
         , "FROM aorb a"
         , "JOIN aorb_answers ans ON a.id = ans.aorb_id"
         , "WHERE ans.user_id = ?"
@@ -621,11 +603,10 @@ getUserTopXMostControversial conn uid x = do
         ]
   SQL.query conn query (uid, x)
 
-getUserAorbsFromControversialToCommonPlace :: SQL.Connection -> UserID
-                                           -> IO [AorbWithAnswer]
+getUserAorbsFromControversialToCommonPlace :: SQL.Connection -> UserID -> IO [AorbWithAnswer]
 getUserAorbsFromControversialToCommonPlace conn uid = do
   let query = SQL.Query $ T.unwords
-        [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, ans.answer"
+        [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, a.created_on, ans.answer"
         , "FROM aorb a"
         , "JOIN aorb_answers ans ON a.id = ans.aorb_id"
         , "WHERE ans.user_id = ?"
@@ -633,16 +614,14 @@ getUserAorbsFromControversialToCommonPlace conn uid = do
         ]
   SQL.query conn query [uid]
 
-getMatchesMainAorbs ::
-  SQL.Connection -> UserID -> UserID
-  -> IO (Maybe (MatchingAorbWithAnswer, MatchingAorbWithAnswer))
+getMatchesMainAorbs :: SQL.Connection -> UserID -> UserID -> IO (Maybe (MatchingAorbWithAnswer, MatchingAorbWithAnswer))
 getMatchesMainAorbs conn uid1 uid2 = do
   let userQuery = SQL.Query "SELECT aorb_id FROM users WHERE id IN (?, ?)"
   aorbIds <- SQL.query conn userQuery (uid1, uid2) :: IO [SQL.Only Int]
   case aorbIds of
     [SQL.Only aid1, SQL.Only aid2] -> do
       let aorbQuery = SQL.Query $ T.unwords
-            [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean,"
+            [ "SELECT a.id, a.context, a.subtext, a.a, a.b, a.mean, a.created_on,"
             , "ans1.answer as user1_answer,"
             , "ans2.answer as user2_answer"
             , "FROM aorb a"
@@ -661,12 +640,11 @@ getMatchesMainAorbs conn uid1 uid2 = do
         _ -> return Nothing
     _ -> return Nothing
 
-getMatchesTopXCommonDisagreement :: SQL.Connection -> UserID -> UserID -> Int
-                                 -> IO [MatchingAorbWithAnswer]
+getMatchesTopXCommonDisagreement :: SQL.Connection -> UserID -> UserID -> Int -> IO [MatchingAorbWithAnswer]
 getMatchesTopXCommonDisagreement conn uid1 uid2 x = do
   let query = SQL.Query $ T.unwords
         [ "WITH disagreements AS ("
-        , "  SELECT b.id, b.context, b.subtext, b.a, b.b, b.mean,"
+        , "  SELECT b.id, b.context, b.subtext, b.a, b.b, b.mean, b.created_on,"
         , "         a1.answer as main_answer, a2.answer as other_answer,"
         , "         mean * (1 - mean) as variance"
         , "  FROM aorb_answers a1"
@@ -676,19 +654,18 @@ getMatchesTopXCommonDisagreement conn uid1 uid2 x = do
         , "  AND a2.user_id = ?"
         , "  AND a1.answer != a2.answer"
         , ")"
-        , "SELECT id, context, subtext, a, b, mean, main_answer, other_answer"
+        , "SELECT id, context, subtext, a, b, mean, created_on, main_answer, other_answer"
         , "FROM disagreements"
         , "ORDER BY variance DESC"
         , "LIMIT ?"
         ]
   SQL.query conn query (uid1, uid2, x)
 
-getMatchesTopXUniqueAgreement :: SQL.Connection -> UserID -> UserID -> Int
-                              -> IO [MatchingAorbWithAnswer]
+getMatchesTopXUniqueAgreement :: SQL.Connection -> UserID -> UserID -> Int -> IO [MatchingAorbWithAnswer]
 getMatchesTopXUniqueAgreement conn uid1 uid2 x = do
   let query = SQL.Query $ T.unwords
         [ "WITH matching_answers AS ("
-        , "  SELECT b.id, b.context, b.subtext, b.a, b.b, b.mean,"
+        , "  SELECT b.id, b.context, b.subtext, b.a, b.b, b.mean, b.created_on,"
         , "         a1.answer as main_answer, a2.answer as other_answer,"
         , "         ABS(a1.answer - b.mean) as difference"
         , "  FROM aorb_answers a1"
@@ -698,7 +675,7 @@ getMatchesTopXUniqueAgreement conn uid1 uid2 x = do
         , "  AND a2.user_id = ?"
         , "  AND a1.answer = a2.answer"
         , ")"
-        , "SELECT id, context, subtext, a, b, mean, main_answer, other_answer"
+        , "SELECT id, context, subtext, a, b, mean, created_on, main_answer, other_answer"
         , "FROM matching_answers"
         , "ORDER BY difference"
         , "LIMIT ?"
@@ -719,8 +696,7 @@ getLargestIntersection conn uid1 uid2 = do
   rows <- SQL.query conn query (uid1, uid2) :: IO [SQL.Only AorbID]
   return $ map SQL.fromOnly rows
 
-getLargestIntersectionAnswers :: SQL.Connection -> UserID -> UserID
-                              -> IO ([AorbAnswer], [AorbAnswer])
+getLargestIntersectionAnswers :: SQL.Connection -> UserID -> UserID -> IO ([AorbAnswer], [AorbAnswer])
 getLargestIntersectionAnswers conn uid1 uid2 = do
   intersection <- getLargestIntersection conn uid1 uid2
   if null intersection
@@ -765,11 +741,8 @@ validateNewMessage config conn matchId senderId content = do
       then return False
       else do
         match <- SQL.query conn
-          ( SQL.Query $ T.unwords
-            [ "SELECT 1 FROM matched"
-            , "WHERE id = ? AND (user_id = ? OR target_id = ?)"
-            ]
-          ) (matchId, senderId, senderId) :: IO [SQL.Only Int]
+          "SELECT 1 FROM matched WHERE id = ? AND (user_id = ? OR target_id = ?)"
+          (matchId, senderId, senderId) :: IO [SQL.Only Int]
         return $ not $ null match
 
 insertMessage :: SQL.Connection -> Int -> UserID -> T.Text -> IO ()
@@ -786,11 +759,7 @@ insertMessage conn matchId senderId content = do
 getMessagesForMatch :: SQL.Connection -> Int -> IO [Message]
 getMessagesForMatch conn matchId =
   SQL.query conn
-    ( SQL.Query $ T.unwords
-      [ "SELECT * FROM messages"
-      , "WHERE match_id = ? ORDER BY sent_on ASC"
-      ]
-    ) [matchId]
+    "SELECT * FROM messages WHERE match_id = ? ORDER BY sent_on ASC" [matchId]
 
 getUnreadMessageCount :: SQL.Connection -> UserID -> Match -> IO Int
 getUnreadMessageCount conn uid match = do
