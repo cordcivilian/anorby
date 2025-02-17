@@ -64,89 +64,68 @@ adminTemplate aorbs = H.docTypeHtml $ H.html $ do
   pageHead "admin" mempty
   H.body $ do
     H.div $ do
-      navBar Nothing
-      H.div H.! A.class_ "p-4 max-w-4xl mx-auto" $ do
-        H.h2 H.! A.class_ "text-2xl font-bold mb-4" $ "Add New Question"
-        H.form H.! A.method "POST" H.! A.action "/admin/aorb/add" H.! A.class_ "space-y-4" $ do
-          H.div $ do
-            H.label H.! A.for "context" $ "Context"
-            H.textarea H.! A.id "context" H.! A.name "context" H.! A.class_ "w-full p-2 border border-base-300 rounded-lg" H.! A.required "required" $ ""
-          H.div $ do
-            H.label H.! A.for "subtext" $ "Subtext"
-            H.textarea H.! A.id "subtext" H.! A.name "subtext" H.! A.class_ "w-full p-2 border border-base-300 rounded-lg" $ ""
-          H.div $ do
-            H.label H.! A.for "option_a" $ "Option A"
-            H.input H.! A.type_ "text" H.! A.id "option_a" H.! A.name "option_a" H.! A.class_ "w-full p-2 border border-base-300 rounded-lg" H.! A.required "required"
-          H.div $ do
-            H.label H.! A.for "option_b" $ "Option B"
-            H.input H.! A.type_ "text" H.! A.id "option_b" H.! A.name "option_b" H.! A.class_ "w-full p-2 border border-base-300 rounded-lg" H.! A.required "required"
-          H.button H.! A.type_ "submit" H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg" $ "Add Question"
+      navBar (Just "admin")
+      H.div H.! A.class_ "ds-card max-w-4xl mx-auto mb-8" $ do
+        H.form H.! A.method "POST" H.! A.action "/admin/aorb/add" H.! A.class_ "ds-card-body space-y-4" $ do
+          H.h2 H.! A.class_ "ds-card-title" $ "new question"
+          H.textarea H.! A.placeholder "context" H.! A.id "context" H.! A.name "context" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
+          H.textarea H.! A.placeholder "subtext" H.! A.id "subtext" H.! A.name "subtext" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
+          H.textarea H.! A.placeholder "aaaaa" H.! A.id "option_a" H.! A.name "option_a" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
+          H.textarea H.! A.placeholder "bbbbb" H.! A.id "option_b" H.! A.name "option_b" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
+          H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft ds-btn-block" $ "add"
 
-      H.div H.! A.class_ "p-4 max-w-4xl mx-auto" $ do
-        H.h2 H.! A.class_ "text-2xl font-bold mb-4" $ "All Questions"
-        H.div H.! A.class_ "space-y-4" $ mapM_ renderAorbAdmin aorbs
+      H.div H.! A.class_ "ds-collapse ds-collapse-arrow border border-base-400 max-w-4xl mx-auto" $ do
+        H.input H.! A.type_ "checkbox"
+        H.div H.! A.class_ "ds-collapse-title font-black" $ "edit questions"
+        H.div H.! A.class_ "ds-collapse-content" $ mapM_ renderAorbAdmin aorbs
 
 renderAorbAdmin :: Aorb -> H.Html
 renderAorbAdmin aorb =
-  H.div H.! A.class_ "border border-base-300 rounded-lg p-4" $ do
-    H.div H.! A.class_ "flex justify-between items-start" $ do
-      H.div H.! A.class_ "space-y-2" $ do
-        H.div H.! A.class_ "font-bold" $
-          H.toHtml $ "ID: " <> T.pack (show $ aorbId aorb)
-        H.div H.! A.class_ "text-base-content/60 italic" $
-          H.toHtml $ aorbCtx aorb
-        H.div $ H.toHtml $ aorbStx aorb
-        H.div H.! A.class_ "mt-2" $ do
-          H.div $ H.toHtml $ "A: " <> aorbA aorb
-          H.div $ H.toHtml $ "B: " <> aorbB aorb
-          H.div H.! A.class_ "text-sm text-base-content/60" $
-            H.toHtml $ "Mean: " <> T.pack (show $ aorbMean aorb)
+  H.div H.! A.class_ "ds-card" $ do
+    H.div H.! A.class_ "ds-card-body" $ do
+      H.div H.! A.class_ "ds-card-title" $ do
+        H.div $ H.toHtml $ "[" <> T.pack (show $ aorbId aorb) <> "]"
+        H.div $ H.toHtml $ aorbCtx aorb
+      H.div H.! A.class_ "italic" $ H.toHtml $ aorbStx aorb
+      H.div H.! A.class_ "text-sm text-base-content/60" $ H.toHtml $ "mean: " <> T.pack (Text.printf "%.4f" $ aorbMean aorb)
+      H.div H.! A.class_ "p-4 mb-4 mt-4" $ do
+        H.div $ H.toHtml $ aorbA aorb
+        H.div H.! A.class_ "ds-divider" $ "OR"
+        H.div $ H.toHtml $ aorbB aorb
 
-      H.div H.! A.class_ "space-x-2" $ do
-        H.form H.! A.method "GET" H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/edit") H.! A.class_ "inline-block" $ do
-          H.button H.! A.type_ "submit" H.! A.class_ "px-4 py-2 bg-warning text-warning-content rounded-lg" $ "Edit"
-
+      H.div H.! A.class_ "grid gap-4" $ do
+        H.form H.! A.method "GET" H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/edit") $ do
+          H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-soft ds-btn-warning ds-btn-block" $ "edit"
         let dialogId = "delete-dialog-" <> T.pack (show $ aorbId aorb)
-        H.button H.! A.type_ "button" H.! A.class_ "px-4 py-2 bg-error text-error-content rounded-lg" H.! A.onclick (H.textValue $ "document.getElementById('" <> dialogId <> "').showModal()") $ "Delete"
+        H.button H.! A.type_ "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-error ds-btn-block" H.! A.onclick (H.textValue $ "document.getElementById('" <> dialogId <> "').showModal()") $ "delete"
 
-        H.dialog H.! A.id (H.textValue dialogId) H.! A.class_ "p-6 rounded-lg backdrop:bg-black/50" $ do
-          H.h3 H.! A.class_ "text-lg font-bold mb-4" $ "Confirm Delete"
-          H.p H.! A.class_ "mb-6" $ "Are you sure you want to delete this question? This action cannot be undone."
-          H.div H.! A.class_ "flex justify-end gap-4" $ do
-            H.button H.! A.type_ "button" H.! A.class_ "px-4 py-2 border border-base-300 rounded-lg" H.! A.onclick (H.textValue $ "document.getElementById('" <> dialogId <> "').close()") $ "Cancel"
-            H.form H.! A.method "POST" H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/delete") H.! A.class_ "inline-block" $ do
-              H.button H.! A.type_ "submit" H.! A.class_ "px-4 py-2 bg-error text-error-content rounded-lg" $ "Delete"
+        H.dialog H.! A.id (H.textValue dialogId) H.! A.class_ "ds-modal" $ do
+          H.div H.! A.class_ "ds-modal-box" $ do
+            H.h3 H.! A.class_ "text-2xl font-black mb-4" $ "confirm"
+            H.div H.! A.class_ "grid gap-2" $ do
+              H.form H.! A.method "POST" H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/delete") H.! A.class_ "" $ do
+                H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-error ds-btn-soft ds-btn-block" $ "delete"
+              H.button H.! A.type_ "button" H.! A.class_ "ds-btn ds-btn-neutral ds-btn-soft ds-btn-block" H.! A.onclick (H.textValue $ "document.getElementById('" <> dialogId <> "').close()") $ "cancel"
 
 editAorbTemplate :: Aorb -> H.Html
 editAorbTemplate aorb = H.docTypeHtml $ H.html $ do
   pageHead "edit question" mempty
-  H.body $ do
-    H.div $ do
-      navBar Nothing
-      H.div H.! A.class_ "p-4 max-w-4xl mx-auto" $ do
-        H.h2 H.! A.class_ "text-2xl font-bold mb-4" $
-          H.toHtml $ "Edit Question #" <> T.pack (show $ aorbId aorb)
+  H.body $ H.div $ do
+      navBar (Just "admin: edit")
+      H.div H.! A.class_ "ds-card max-w-4xl mx-auto mb-8" $ do
+        H.form H.! A.method "POST" H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/edit") H.! A.class_ "ds-card-body space-y-4" $ do
+          H.h2 H.! A.class_ "ds-card-title" $ H.toHtml $ "edit question #" <> T.pack (show $ aorbId aorb)
+          H.textarea H.! A.placeholder "context" H.! A.id "context" H.! A.name "context" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (aorbCtx aorb)
+          H.textarea H.! A.placeholder "subtext" H.! A.id "subtext" H.! A.name "subtext" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (aorbStx aorb)
+          H.textarea H.! A.placeholder "aaaaa" H.! A.id "option_a" H.! A.name "option_a" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (aorbA aorb)
+          H.textarea H.! A.placeholder "bbbbb" H.! A.id "option_b" H.! A.name "option_b" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (aorbB aorb)
+          H.div H.! A.class_ "grid gap-4" $ do
+            H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft ds-btn-block" $ "save"
+            H.a H.! A.href "/admin" H.! A.class_ "ds-btn ds-btn-neutral ds-btn-soft ds-btn-block" $ "cancel"
 
-        H.form H.! A.method "POST" H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/edit") H.! A.class_ "space-y-4" $ do
-          H.div $ do
-            H.label H.! A.for "context" $ "Context"
-            H.textarea H.! A.id "context" H.! A.name "context" H.! A.class_ "w-full p-2 border border-base-300 rounded-lg" H.! A.required "required" $ H.toHtml (aorbCtx aorb)
-          H.div $ do
-            H.label H.! A.for "subtext" $ "Subtext"
-            H.textarea H.! A.id "subtext" H.! A.name "subtext" H.! A.class_ "w-full p-2 border border-base-300 rounded-lg" $ H.toHtml (aorbStx aorb)
-          H.div $ do
-            H.label H.! A.for "option_a" $ "Option A"
-            H.input H.! A.type_ "text" H.! A.id "option_a" H.! A.name "option_a" H.! A.class_ "w-full p-2 border border-base-300 rounded-lg" H.! A.value (H.toValue $ aorbA aorb) H.! A.required "required"
-          H.div $ do
-            H.label H.! A.for "option_b" $ "Option B"
-            H.input H.! A.type_ "text" H.! A.id "option_b" H.! A.name "option_b" H.! A.class_ "w-full p-2 border border-base-300 rounded-lg" H.! A.value (H.toValue $ aorbB aorb) H.! A.required "required"
-
-          H.div H.! A.class_ "flex gap-4" $ do
-            H.button H.! A.type_ "submit" H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg" $ "Save Changes"
-            H.a H.! A.href "/admin" H.! A.class_ "px-4 py-2 border border-base-300 rounded-lg" $ "Cancel"
-
-data ShowAorbMode = Population Aorb [Int]
-                  | Individual AorbWithAnswer [Int] (Maybe AorbID) (Maybe T.Text)
+data ShowAorbMode
+  = Population Aorb [Int]
+  | Individual AorbWithAnswer [Int] (Maybe AorbID) (Maybe T.Text)
 
 aorbDynamicCSS :: [(String, Int)] -> H.AttributeValue
 aorbDynamicCSS orderPairs =
