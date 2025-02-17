@@ -33,9 +33,9 @@ navBar maybeSubtitle = do
       Just subtitle -> do
         H.div H.! A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-bottom ds-tooltip-secondary" $ do
           H.div H.! A.class_ "ds-tooltip-content" $ H.text subtitle
-          H.div $ H.a H.! A.class_ "ds-navbar-center text-3xl" H.! A.href "/" $ anorbyTitle
+          H.div $ H.a H.! A.class_ "ds-navbar-center md:text-3xl text-xl" H.! A.href "/" $ anorbyTitle
       Nothing -> do
-        H.div $ H.a H.! A.class_ "ds-navbar-center text-3xl" H.! A.href "/" $ anorbyTitle
+        H.div $ H.a H.! A.class_ "ds-navbar-center md:text-3xl text-xl" H.! A.href "/" $ anorbyTitle
     H.div H.! A.class_ "ds-navbar-end ds-dropdown ds-dropdown-end ds-dropdown-bottom" $ do
       H.div H.! A.tabindex "0" H.! A.role "button" H.! A.class_ "ds-btn transition-all" $ "you"
       H.ul H.! A.tabindex "0" H.! A.class_ "ds-menu ds-dropdown-content" $ do
@@ -680,7 +680,7 @@ loginTemplate token = H.docTypeHtml $ H.html $ do
   pageHead "login" mempty
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-      H.div H.! A.class_ "text-3xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
+      H.div H.! A.class_ "md:text-3xl text-xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
       H.div H.! A.class_ "w-full max-w-sm mx-auto mb-8" $ do
         H.form H.! A.class_ "flex flex-col gap-2" H.! A.method "POST" H.! A.action "/login" $ do
           H.input H.! A.type_ "email" H.! A.name "email" H.! A.placeholder "email" H.! A.class_ "p-2 font-inherit text-inherit rounded-lg border border-base-300" H.! A.required "required"
@@ -693,7 +693,7 @@ registerTemplate token = H.docTypeHtml $ H.html $ do
   pageHead "register" mempty
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
-      H.div H.! A.class_ "text-3xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
+      H.div H.! A.class_ "md:text-3xl text-xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
       H.div H.! A.class_ "w-full max-w-sm mx-auto mb-8" $ do
         H.form H.! A.class_ "flex flex-col gap-2" H.! A.method "POST" H.! A.action "/register" $ do
           H.input H.! A.type_ "email" H.! A.name "email" H.! A.placeholder "email" H.! A.class_ "p-2 font-inherit text-inherit rounded-lg border border-base-300" H.! A.required "required"
@@ -726,7 +726,7 @@ msgTemplate template = H.docTypeHtml $ H.html $ do
   pageHead (messageTitle template) mempty
   H.body $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center" $ do
-      H.div H.! A.class_ "text-3xl" $ H.a H.! A.href "/" $ anorbyTitle
+      H.div H.! A.class_ "md:text-3xl text-xl" $ H.a H.! A.href "/" $ anorbyTitle
       H.h1 H.! A.class_ "text-2xl font-bold mt-4 mb-4" $ H.toHtml $ messageHeading template
       H.div H.! A.class_ "mb-32" $ do
         H.a H.! A.href (H.textValue $ fst $ messageLink template)
