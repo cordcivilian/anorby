@@ -499,7 +499,7 @@ handleMatchTypeUpdate conn uid req = do
             (scheme, uid)
           return $ Wai.responseLBS
             HTTP.status303
-            [ (Headers.hLocation, "/match")
+            [ (Headers.hLocation, "/clash")
             , (Headers.hContentType, "text/html")
             ]
             ""
@@ -614,7 +614,7 @@ postMessageRoute config conn uid days req = do
               return $ Wai.responseLBS
                 HTTP.status303
                 [ (Headers.hLocation,
-                   BS.pack $ "/match/t-" ++ show days ++ "#bottom")
+                   BS.pack $ "/clash/t-" ++ show days ++ "#bottom")
                 ]
                 ""
             else return invalidSubmissionResponse

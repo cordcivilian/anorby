@@ -244,18 +244,18 @@ routes =
         Nothing -> return notFoundResponse
 
   -- Match routes (protected)
-  , Route "GET" "/match" $ ProtectedHandler $ \config state conn uid req ->
+  , Route "GET" "/clash" $ ProtectedHandler $ \config state conn uid req ->
       matchTemplateRoute config state conn uid req
-  , Route "POST" "/match/type" $ ProtectedHandler $ \_ _ conn uid req ->
+  , Route "POST" "/clash/type" $ ProtectedHandler $ \_ _ conn uid req ->
       handleMatchTypeUpdate conn uid req
-  , Route "GET" "/match/t-:days" $ ProtectedHandler $ \config _ conn uid req ->
-      case extractParam "/match/t-:days" (Wai.rawPathInfo req) "days" of
+  , Route "GET" "/clash/t-:days" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/clash/t-:days" (Wai.rawPathInfo req) "days" of
         Just daysBS -> case reads (BS.unpack daysBS) of
           [(days, "")] -> matchProfileTemplateRoute config conn uid days req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
-  , Route "POST" "/match/t-:days/message" $ ProtectedHandler $ \config _ conn uid req ->
-      case extractParam "/match/t-:days/message" (Wai.rawPathInfo req) "days" of
+  , Route "POST" "/clash/t-:days/message" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/clash/t-:days/message" (Wai.rawPathInfo req) "days" of
         Just daysBS -> case reads (BS.unpack daysBS) of
           [(days, "")] -> postMessageRoute config conn uid days req
           _ -> return notFoundResponse

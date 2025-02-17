@@ -28,7 +28,7 @@ navBar :: Maybe T.Text -> H.Html
 navBar maybeSubtitle = do
   H.div H.! A.class_ "ds-navbar mb-12" $ do
     H.div H.! A.class_ "ds-navbar-start" $ do
-      H.a H.! A.href "/match" $ H.div H.! A.class_ "ds-btn" $ "clash"
+      H.a H.! A.href "/clash" $ H.div H.! A.class_ "ds-btn" $ "clash"
     case maybeSubtitle of
       Just subtitle -> do
         H.div H.! A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-bottom ds-tooltip-secondary" $ do
@@ -490,7 +490,7 @@ schemeCard scheme currentScheme =
       schemeClass = if isSelected
         then A.class_ "ds-btn w-full p-4 rounded-lg cursor-pointer transition-all bg-transparent border-warning text-warning border-2"
         else A.class_ "ds-btn w-full p-4 rounded-lg cursor-pointer transition-all bg-transparent border border-base-300 hover:bg-base-200"
-  in H.form H.! A.method "POST" H.! A.action "/match/type" $ do
+  in H.form H.! A.method "POST" H.! A.action "/clash/type" $ do
     H.button H.! A.type_ "submit" H.! A.name "assoc" H.! A.value (H.toValue $ show scheme) H.! schemeClass $ do
       styleScheme scheme True
 
@@ -515,7 +515,7 @@ renderTimeDisplay label timeLeft timeStr =
 matchCard :: Integer -> Match -> Double -> Int -> H.Html
 matchCard currentTimestamp match score unreadCount =
   H.a H.! A.class_ "w-full border border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
-    H.! A.href (H.textValue $ "/match/t-" <> formatRelativeMatchDate currentTimestamp (matchTimestamp match)) $ do
+    H.! A.href (H.textValue $ "/clash/t-" <> formatRelativeMatchDate currentTimestamp (matchTimestamp match)) $ do
     H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml $ formatSemiAbsoluteMatchDate currentTimestamp (matchTimestamp match) unreadCount
     H.div H.! A.class_ "text-info font-bold" $ H.toHtml $ formatSimilarityScore score
 
@@ -631,7 +631,7 @@ renderMessages config days uid messages = do
       then
         H.div H.! A.class_ "p-4 text-center rounded-lg bg-base-200" $ H.toHtml ("you have reached the limit of " ++ (show $ matchMessageLimit config) ++ " messages")
       else
-        H.form H.! A.id "message-form" H.! A.class_ "flex flex-col" H.! A.method "POST" H.! A.action (H.textValue $ "/match/t-" <> T.pack (show days) <> "/message") $ do
+        H.form H.! A.id "message-form" H.! A.class_ "flex flex-col" H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/message") $ do
         H.div H.! A.class_ "text-sm text-base-content/70 mb-1" $ H.text $ T.pack $ show remainingMessages <> " messages remaining"
         H.textarea H.! A.class_ "w-full pt-4 pb-4 border border-base-300 resize-none field-sizing-content mb-4 target:border-primary"
           H.! A.form "message-form" H.! A.type_ "text" H.! A.id "new-message" H.! A.name "new-message"
@@ -735,14 +735,14 @@ dailyLimitTemplate :: T.Text -> H.Html
 dailyLimitTemplate timeLeft = msgTemplate MessageTemplate
   { messageTitle = "daily limit"
   , messageHeading = "daily answer limit reached, come back in " <> timeLeft
-  , messageLink = ("/match", "clash")
+  , messageLink = ("/clash", "clash")
   }
 
 noMoreQuestionsTemplate :: H.Html
 noMoreQuestionsTemplate = msgTemplate MessageTemplate
   { messageTitle = "no more questions"
   , messageHeading = "no more questions"
-  , messageLink = ("/match", "clash")
+  , messageLink = ("/clash", "clash")
   }
 
 profileNotYetActive :: Int -> H.Html
