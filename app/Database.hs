@@ -700,7 +700,7 @@ getMatchesTopXUniqueAgreement conn uid1 uid2 x = do
         , ")"
         , "SELECT id, context, subtext, a, b, mean, main_answer, other_answer"
         , "FROM matching_answers"
-        , "ORDER BY difference DESC"
+        , "ORDER BY difference"
         , "LIMIT ?"
         ]
   SQL.query conn query (uid1, uid2, x)

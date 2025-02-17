@@ -569,85 +569,53 @@ matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.
             H.div H.! A.class_ "ds-stat-title" $ "you answered"
             H.div H.! A.class_ "ds-stat-value text-primary" $ H.toHtml $ show (viewYourTotalAnswers view)
 
-    H.div H.! A.class_ "w-full max-w-2xl mx-auto grid" $ do
-      case viewTopAgreement view of
-        Just mawa -> matchProfileAgreement mawa
-        Nothing -> H.div H.! A.class_ "" $ "no agreements found"
+      H.div H.! A.class_ "grid gap-4 mt-4 mb-8" $ do
+        case viewTopAgreement view of
+          Just mawa -> showClashAorb "against the world" mawa
+          Nothing -> mempty
+        case viewMainAorbs view of
+          Just (_, mawa) -> showClashAorb "their roman empire" mawa
+          Nothing -> mempty
+        case viewTopDisagreement view of
+          Just mawa -> showClashAorb "nobody is perfect" mawa
+          Nothing -> mempty
 
-    H.div H.! A.class_ "w-full max-w-2xl mx-auto grid" $ do
-      case viewMainAorbs view of
-        Just (_, theirMain) -> spotlightAorbSection mainUserId theirMain
-        Nothing -> H.div H.! A.class_ "" $ "no main question found"
+      H.div $ do
+        renderMessages config days mainUserId messages
+      H.span H.! A.id "bottom" $ mempty
 
-    H.div H.! A.class_ "w-full max-w-2xl mx-auto grid" $ do
-      case viewTopDisagreement view of
-        Just mawa -> matchProfileDisagreement mainUserId mawa
-        Nothing -> H.div H.! A.class_ "" $ "no disagreements found"
-
-    H.div $ do
-      renderMessages config days mainUserId messages
-
-matchProfileAgreement :: MatchingAorbWithAnswer -> H.Html
-matchProfileAgreement mawa = do
+showClashAorb :: T.Text -> MatchingAorbWithAnswer -> H.Html
+showClashAorb title mawa = do
   let aorb = matchingAorbData mawa
-      sharedAns = mainUserAnswer mawa
-      mean = aorbMean aorb
-      (sharedChoice, otherChoice, agreePct) = case sharedAns of
-        AorbAnswer 0 -> (aorbA aorb, aorbB aorb, 100 * (1 - mean))
-        _ -> (aorbB aorb, aorbA aorb, 100 * mean)
-      otherPct = 100 - agreePct
-  H.div H.! A.class_ "" $ do
-    H.div H.! A.class_ "" $ H.toHtml $ aorbCtx aorb
-    H.div H.! A.class_ "" $ do
-      H.div H.! A.class_ "" $ H.toHtml sharedChoice
-      H.div H.! A.class_ "" $ H.toHtml $ T.pack $ Text.printf "against %.0f%% of the world" otherPct
-      H.div H.! A.class_ "" $ H.toHtml otherChoice
-
-spotlightAorbSection :: UserID -> MatchingAorbWithAnswer -> H.Html
-spotlightAorbSection _ mawa = do
-  let aorb = matchingAorbData mawa
-      myAns = mainUserAnswer mawa
-      theirAns = otherUserAnswer mawa
-      agreement = myAns == theirAns
-      theirChoice = if theirAns == AorbAnswer 0 then aorbA aorb else aorbB aorb
-      myChoice = if myAns == AorbAnswer 0 then aorbA aorb else aorbB aorb
-      otherChoice = if theirAns == AorbAnswer 0 then aorbB aorb else aorbA aorb
-  H.div H.! A.class_ "" $ do
-    H.div H.! A.class_ "" $ H.toHtml $ aorbCtx aorb
-    H.div H.! A.class_ "" $
-      if agreement
-        then do
-          H.div H.! A.class_ "" $ H.toHtml theirChoice
-          H.div H.! A.class_ "" $ do
-            H.div H.! A.class_ "" $ "every other idiot"
-            H.toHtml otherChoice
-        else do
-          H.div H.! A.class_ "" $ H.toHtml theirChoice
-          H.div H.! A.class_ "" $ do
-            H.div H.! A.class_ "" $ "you (proceed cautiously)"
-            H.toHtml myChoice
-
-matchProfileDisagreement :: UserID -> MatchingAorbWithAnswer -> H.Html
-matchProfileDisagreement _ mawa = do
-  let aorb = matchingAorbData mawa
-      myAns = mainUserAnswer mawa
-      theirAns = otherUserAnswer mawa
-      mean = aorbMean aorb
-      (myChoice, myPct) = if myAns == AorbAnswer 0
-                          then (aorbA aorb, 100 * (1 - mean))
-                          else (aorbB aorb, 100 * mean)
-      (theirChoice, theirPct) = if theirAns == AorbAnswer 0
-                                then (aorbA aorb, 100 * (1 - mean))
-                                else (aorbB aorb, 100 * mean)
-  H.div H.! A.class_ "" $ do
-    H.div H.! A.class_ "" $ H.toHtml $ aorbCtx aorb
-    H.div H.! A.class_ "" $ do
-      H.div H.! A.class_ "" $ do
-        H.div H.! A.class_ "" $ H.toHtml $ T.pack $ Text.printf "you and your righteous %.0f%%" myPct
-        H.div H.! A.class_ "" $ H.toHtml myChoice
-      H.div H.! A.class_ "" $ do
-        H.div H.! A.class_ "" $ H.toHtml $ T.pack $ Text.printf "them and their precious %.0f%%" theirPct
-        H.div H.! A.class_ "" $ H.toHtml theirChoice
+      mean = round (aorbMean aorb * 100)
+      aorbAs = let (d, m) = divMod mean 5 in if m < 3 then d else d + 1
+      aorbBs = 20 - aorbAs
+      mainAns = mainUserAnswer mawa
+      matchAns = otherUserAnswer mawa
+      (adjustedAorbAs, adjustedAorbBs) =
+        case (mainAns, matchAns) of
+          (AorbAnswer 0, AorbAnswer 0) -> (aorbAs - 2, aorbBs)
+          (AorbAnswer 0, AorbAnswer 1) -> (aorbAs - 1, aorbBs - 1)
+          (AorbAnswer 1, AorbAnswer 0) -> (aorbAs - 1, aorbBs - 1)
+          (AorbAnswer 1, AorbAnswer 1) -> (aorbAs, aorbBs - 2)
+          _ -> (aorbAs, aorbBs) -- impossible
+  H.div H.! A.class_ "ds-card ds-card-border w-full max-w-2xl mx-auto grid" $ do
+    H.div H.! A.class_ "ds-card-body p-6" $ do
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ H.toHtml $ title
+      H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
+      H.div H.! A.class_ "ds-stats w-full ds-stats-vertical" $ do
+        H.div H.! A.class_ "ds-stat w-full p-2" $ do
+          H.div H.! A.class_ "ds-stat-title mb-2" $ H.toHtml $ aorbA aorb
+          H.div H.! A.class_ "flex gap-1 flex-wrap" $ do
+            Monad.when (matchAns == AorbAnswer 0) (H.div H.! A.class_ "ds-badge ds-badge-warning" $ "")
+            Monad.when (mainAns == AorbAnswer 0) (H.div H.! A.class_ "ds-badge ds-badge-primary" $ "")
+            Monad.replicateM_ adjustedAorbAs (H.div H.! A.class_ "ds-badge ds-badge-secondary" $ "")
+        H.div H.! A.class_ "ds-stat w-full p-2" $ do
+          H.div H.! A.class_ "flex gap-1 flex-wrap" $ do
+            Monad.when (matchAns == AorbAnswer 1) (H.div H.! A.class_ "ds-badge ds-badge-warning" $ "")
+            Monad.when (mainAns == AorbAnswer 1) (H.div H.! A.class_ "ds-badge ds-badge-primary" $ "")
+            Monad.replicateM_ adjustedAorbBs (H.div H.! A.class_ "ds-badge ds-badge-secondary" $ "")
+          H.div H.! A.class_ "ds-stat-title mt-2" $ H.toHtml $ aorbB aorb
 
 renderMessages :: Config -> Integer -> UserID -> [Message] -> H.Html
 renderMessages config days uid messages = do
@@ -658,7 +626,7 @@ renderMessages config days uid messages = do
   H.div H.! A.class_ "w-full max-w-2xl mx-auto mt-4 mb-4" $ do
     mapM_ (renderMessage uid) messages
 
-  H.div H.! A.class_ "w-full max-w-2xl mx-auto" $ do
+  H.div H.! A.class_ "w-full max-w-2xl mx-auto mb-8" $ do
     if hasReachedLimit
       then
         H.div H.! A.class_ "p-4 text-center rounded-lg bg-base-200" $ H.toHtml ("you have reached the limit of " ++ (show $ matchMessageLimit config) ++ " messages")

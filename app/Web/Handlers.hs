@@ -614,7 +614,7 @@ postMessageRoute config conn uid days req = do
               return $ Wai.responseLBS
                 HTTP.status303
                 [ (Headers.hLocation,
-                   BS.pack $ "/match/t-" ++ show days)
+                   BS.pack $ "/match/t-" ++ show days ++ "#bottom")
                 ]
                 ""
             else return invalidSubmissionResponse
