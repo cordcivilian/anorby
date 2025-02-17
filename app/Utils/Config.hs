@@ -9,18 +9,20 @@ import qualified Control.Monad as Monad
 import qualified System.Directory as Dir
 import qualified Data.Text as T
 
-data Environment = Production
-                 | TestWithAnswers
-                 | TestWithoutAnswers
-                 | TestWithCustomData
-                 | TestWithMatches Int
-                 deriving (Show, Eq)
+data Environment
+  = Production
+  | TestWithAnswers
+  | TestWithoutAnswers
+  | TestWithCustomData
+  | TestWithMatches Int
+  deriving (Show, Eq)
 
 data Config = Config
   { environment :: Environment
   , dbPath :: FilePath
   , userCount :: Int
   , newDb :: Bool
+  , shouldMigrate :: Bool
   , matchThreshold :: Int
   , profileThreshold :: Int
   , matchCutoffTime :: T.Text
@@ -37,6 +39,7 @@ data EnvFlags = EnvFlags
   , hasMCH :: Maybe String
   , hasNEW :: Bool
   , hasSMTP :: Bool
+  , hasMIGRATE :: Bool
   } deriving (Show)
 
 productionDbPath :: FilePath
@@ -54,12 +57,12 @@ testOverrideDbPath = "data/mock-anorby-20250118114756.db"
 testWithMatchesDbPath :: Int -> FilePath
 testWithMatchesDbPath n = "data/anorby-test-mch" ++ show n ++ ".db"
 
-getEnvironment :: IO (Environment, Bool)
+getEnvironment :: IO (Environment, Bool, Bool)
 getEnvironment = do
   flags <- getEnvFlags
   validateEnvCombination flags
   env <- determineEnvironment flags
-  return (env, hasNEW flags)
+  return (env, hasNEW flags, hasMIGRATE flags)
 
 getEnvFlags :: IO EnvFlags
 getEnvFlags = do
@@ -69,6 +72,7 @@ getEnvFlags = do
   matching <- Env.lookupEnv "MCH"
   new <- Env.lookupEnv "NEW"
   smtp <- Env.lookupEnv "SMTP"
+  migrate <- Env.lookupEnv "MIGRATE"
   return $ EnvFlags
     { hasANORBY = Maybe.isJust secret
     , hasANS = Maybe.isJust answers
@@ -76,6 +80,7 @@ getEnvFlags = do
     , hasMCH = matching
     , hasNEW = Maybe.isJust new
     , hasSMTP = Maybe.isJust smtp
+    , hasMIGRATE = Maybe.isJust migrate
     }
 
 validateEnvCombination :: EnvFlags -> IO ()
@@ -122,7 +127,7 @@ checkRequiredFiles = do
 getConfig :: IO Config
 getConfig = do
   checkRequiredFiles
-  (env, newFlag) <- getEnvironment
+  (env, newFlag, migrateFlag) <- getEnvironment
 
   let dbPath' = case env of
         Production -> productionDbPath
@@ -136,6 +141,7 @@ getConfig = do
     , dbPath = dbPath'
     , userCount = 137
     , newDb = newFlag
+    , shouldMigrate = migrateFlag
     , profileThreshold = 10
     , matchThreshold = 20
     , matchCutoffTime = "18:00"

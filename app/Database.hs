@@ -260,6 +260,40 @@ initAorbMeanTrigger conn = do
     , "END"
     ]
 
+migrateDatabase :: Config -> SQL.Connection -> IO ()
+migrateDatabase config conn = Monad.when (shouldMigrate config) $ do
+  putStrLn "Running database migrations..."
+  initSQLitePragmas conn
+  recreateIndexes conn
+  recreateTriggers conn
+  putStrLn "Database migrations completed."
+
+recreateIndexes :: SQL.Connection -> IO ()
+recreateIndexes conn = do
+  putStrLn "Recreating indexes..."
+  SQL.execute_ conn "DROP INDEX IF EXISTS idx_auth_hash"
+  SQL.execute_ conn "DROP INDEX IF EXISTS idx_auth_user"
+  SQL.execute_ conn "DROP INDEX IF EXISTS idx_users_email"
+  SQL.execute_ conn "DROP INDEX IF EXISTS idx_users_uuid"
+  SQL.execute_ conn "DROP INDEX IF EXISTS idx_answers_user_recent"
+  SQL.execute_ conn "DROP INDEX IF EXISTS idx_matched_user"
+  SQL.execute_ conn "DROP INDEX IF EXISTS idx_matched_user_time"
+  SQL.execute_ conn "DROP INDEX IF EXISTS idx_unmatched_since"
+  SQL.execute_ conn "DROP INDEX IF EXISTS idx_messages_match"
+  SQL.execute_ conn "DROP INDEX IF EXISTS idx_messages_sender"
+  SQL.execute_ conn "DROP INDEX IF EXISTS idx_messages_read"
+  initIndexes conn
+  putStrLn "Indexes recreated."
+
+recreateTriggers :: SQL.Connection -> IO ()
+recreateTriggers conn = do
+  putStrLn "Recreating triggers..."
+  SQL.execute_ conn "DROP TRIGGER IF EXISTS update_aorb_mean_insert"
+  SQL.execute_ conn "DROP TRIGGER IF EXISTS update_aorb_mean_update"
+  SQL.execute_ conn "DROP TRIGGER IF EXISTS update_aorb_mean_delete"
+  initAorbMeanTrigger conn
+  putStrLn "Triggers recreated."
+
 -- | Base data management
 
 readBaseAorbs :: IO (Maybe [Aorb])

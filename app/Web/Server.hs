@@ -89,13 +89,18 @@ getServerPort = maybe 5001 read <$> Env.lookupEnv "PORT"
 initDatabasePool :: Config -> IO (Pool.Pool SQL.Connection)
 initDatabasePool config = do
   dbExists <- Dir.doesFileExist (dbPath config)
-  case environment config of
+  pool <- case environment config of
     Production -> initProductionDb config dbExists
     TestWithAnswers -> initTestWithAnswersDb config dbExists
     TestWithoutAnswers -> initTestWithoutAnswersDb config dbExists
     TestWithCustomData -> initPool (dbPath config)
     TestWithMatches 1 -> initGaleShapleyTestDb config dbExists
     TestWithMatches _ -> initLocalSearchTestDb config dbExists
+
+  Monad.when (shouldMigrate config) $ Pool.withResource pool $ \conn ->
+    migrateDatabase config conn
+
+  return pool
 
 initProductionDb :: Config -> Bool -> IO (Pool.Pool SQL.Connection)
 initProductionDb config dbExists = do
