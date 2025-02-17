@@ -80,7 +80,7 @@ getRootStats state conn = do
     Just stats -> return stats
     Nothing -> do
       now <- POSIXTime.getPOSIXTime
-      let startOfDay = floor now - (floor now `mod` 86400)
+      let startOfDay = floor now - (mod (floor now) 86400)
           weekAgo = floor now - (7 * 24 * 60 * 60)
 
       totalQuestions' <- getCachedQuery state conn "total_questions"
@@ -90,7 +90,7 @@ getRootStats state conn = do
         "SELECT COUNT(*) FROM aorb_answers WHERE user_id != -1" []
 
       todayAnswers' <- getCachedQuery state conn "today_answers"
-        "SELECT COUNT(*) FROM aorb_answers WHERE answered_on >= ?"
+        "SELECT COUNT(*) FROM aorb_answers WHERE user_id != -1 AND answered_on >= ?"
         [SQL.SQLInteger startOfDay]
 
       activeUsers' <- getCachedQuery state conn "active_users"

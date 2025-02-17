@@ -429,7 +429,7 @@ matchTemplate
       H.div $ do
         navBar $ Just "clash"
 
-        H.div H.! A.class_ "ds-collapse ds-collapse-arrow mb-4 grid max-w-xl mx-auto bg-base-100 border border-base-300" $ do
+        H.div H.! A.class_ "ds-collapse ds-collapse-arrow mb-4 grid max-w-xl mx-auto bg-base-100 border-2 border-base-300" $ do
           H.input H.! A.type_ "checkbox"
           H.div H.! A.class_ "ds-collapse-title text-center font-black" $ case userAssoc user of
             Just scheme -> styleScheme scheme False
@@ -461,13 +461,13 @@ matchTemplate
 
         H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
           if null pastMatches
-            then H.h3 H.! A.class_ "w-full border border-base-300 p-6 rounded-lg" $ do
+            then H.h3 H.! A.class_ "w-full border-2 border-base-300 p-6 rounded-lg" $ do
               H.div "1. join the clash pool before the daily cutoff"
               H.div "2. check in on your clash-of-the-day at the daily reveal"
               H.div "3. repeat"
             else do
               case (timeState, maybeMatchScore) of
-                (AfterRelease, Nothing) -> H.div H.! A.class_ "w-full border border-base-300 p-6 rounded-lg text-center" $ H.text "you were not in the clash pool today"
+                (AfterRelease, Nothing) -> H.div H.! A.class_ "w-full border-2 border-base-300 p-6 rounded-lg text-center" $ H.text "you were not in the clash pool today"
                 (AfterRelease, Just (match, score)) -> matchCard (floor now) match score 0
                 _ -> mempty
               mapM_ (\(m, s, u) -> matchCard (floor now) m s u) pastMatches
@@ -502,7 +502,7 @@ renderTimeDisplay label timeLeft timeStr =
 
 matchCard :: Integer -> Match -> Double -> Int -> H.Html
 matchCard currentTimestamp match score unreadCount =
-  H.a H.! A.class_ "w-full border border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
+  H.a H.! A.class_ "w-full border-2 border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
     H.! A.href (H.textValue $ "/clash/t-" <> formatRelativeMatchDate currentTimestamp (matchTimestamp match)) $ do
     H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml $ formatSemiAbsoluteMatchDate currentTimestamp (matchTimestamp match) unreadCount
     H.div H.! A.class_ "text-info font-bold" $ H.toHtml $ formatSimilarityScore score
@@ -587,7 +587,7 @@ showClashAorb title mawa = do
           (AorbAnswer 1, AorbAnswer 0) -> (aorbAs - 1, aorbBs - 1)
           (AorbAnswer 1, AorbAnswer 1) -> (aorbAs, aorbBs - 2)
           _ -> (aorbAs, aorbBs) -- impossible
-  H.div H.! A.class_ "ds-card ds-card-border w-full max-w-2xl mx-auto grid" $ do
+  H.div H.! A.class_ "ds-card ds-card-border border-2 w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
       H.div H.! A.class_ "ds-card-title text-light text-sm" $ H.toHtml $ title
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
@@ -621,7 +621,7 @@ renderMessages config days uid messages = do
       else
         H.form H.! A.id "message-form" H.! A.class_ "flex flex-col" H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/message") $ do
         H.div H.! A.class_ "text-sm text-base-content/70 mb-1" $ H.text $ T.pack $ show remainingMessages <> " messages remaining"
-        H.textarea H.! A.class_ "w-full pt-4 pb-4 border border-base-300 resize-none field-sizing-content mb-4 target:border-primary"
+        H.textarea H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content mb-4 target:border-primary"
           H.! A.form "message-form" H.! A.type_ "text" H.! A.id "new-message" H.! A.name "new-message"
           H.! A.placeholder ( "message (max " <> (H.toValue $ show $ matchMessageMaxLength config) <> " characters)")
           H.! A.required "required"
@@ -647,9 +647,9 @@ accountTemplate user = H.docTypeHtml $ H.html $ do
   H.body $ H.div $ do
     navBar (Just $ userEmail user)
     H.div H.! A.class_ "w-full m-32 max-w-xl mx-auto" $ do
-      H.div H.! A.class_ "ds-collapse ds-collapse-arrow bg-base-100 border border-base-300 mt-12 p-4 border-2 rounded-lg" $ do
+      H.div H.! A.class_ "ds-collapse ds-collapse-arrow bg-base-100 border border-base-400 mt-12 p-4 border-2 rounded-lg" $ do
         H.input H.! A.type_ "checkbox"
-        H.h3 H.! A.class_ "ds-collapse-title text-xl font-bold text-base-300" $ "danger zone"
+        H.h3 H.! A.class_ "ds-collapse-title text-xl font-bold text-base-400" $ "danger zone"
         H.div H.! A.class_ "ds-collapse-content" $ do
           H.a H.! A.href "/logout" H.! A.class_ "ds-btn ds-btn-block mt-4 mb-4 ds-btn-warning" $ "logout from all devices"
           H.a H.! A.href "/delete" H.! A.class_ "ds-btn ds-btn-block ds-btn-error" $ "delete account and all data"
