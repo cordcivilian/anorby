@@ -155,11 +155,11 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers newQu
         rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers newQuestions matchingEnrolled matchStatus
         H.fieldset H.! A.class_ "flex flex-col mb-2 items-center gap-4" $ do
           H.div "sorter:"
-          H.div H.! A.class_ "flex gap-8" $ do
+          H.div H.! A.class_ "flex gap-2 md:gap-8" $ do
             H.input H.! A.id "remember-diced" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.checked "checked" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "random"
             H.input H.! A.id "remember-sided" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "unanimity"
             H.input H.! A.id "remember-split" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "deadlocks"
-        H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
+        H.div H.! A.class_ "grid gap-8 justify-items-center px-4 py-4 pt-0 pb-0 w-full" $ do
           H.div H.! A.class_ "ds-toast ds-toast-end" H.! A.style "z-index: 10000" $ do
             H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "back to top"
           mapM_ (showAorb . uncurry Population) (orderAorbs aorbs orderFuncs)
@@ -172,7 +172,7 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers newQu
 
 rootStats :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> MatchStatus -> H.Html
 rootStats totalQuestions totalAnswers todayAnswers activeUsers newUsers newQuestions matchingEnrolled matchStatus =
-  H.div H.! A.class_ "ds-stats ds-stats-vertical lg:ds-stats-horizontal grid grid-cols-2 lg:grid-cols-4 shadow" $ do
+  H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal grid grid-cols-2 md:grid-cols-4 shadow" $ do
     H.div H.! A.class_ "ds-stat" $ do
       H.div H.! A.class_ "ds-stat-title" $ "population"
       H.div H.! A.class_ "ds-stat-value" $ H.toHtml $ show activeUsers
@@ -226,10 +226,10 @@ showAorb mode =
         Just mainAorbId -> aorbId (aorbData awa) == mainAorbId
         Nothing -> False
     aorbClass = case (main, clickable) of
-      (True, True) -> A.class_ "aorb w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-warning hover:-translate-y-1 hover:bg-base-200 transition-all"
-      (True, False) -> A.class_ "aorb w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-primary"
-      (False, True) -> A.class_ "aorb w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl hover:-translate-y-1 hover:bg-base-200 transition-all"
-      (False, False) -> A.class_ "aorb w-screen max-w-3xl ds-card ds-card-border border-3 rounded-4xl"
+      (True, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-warning hover:-translate-y-1 hover:bg-base-200 transition-all"
+      (True, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-primary"
+      (False, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl hover:-translate-y-1 hover:bg-base-200 transition-all"
+      (False, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl"
     aorbStyle = case mode of
       Population _ orders -> A.style (aorbDynamicCSS (zip ["diced", "sided", "split"] orders))
       Individual _ orders _ _ -> A.style (aorbDynamicCSS (zip ["basic", "flake"] orders))
@@ -293,7 +293,7 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
     navBar $ case maybeUuid of
       Just uuid -> Just $ "#" <> uuid
       Nothing -> Just "whoami"
-    H.div H.! A.class_ "grid gap-8 place-items-center" $ do
+    H.div H.! A.class_ "grid gap-8 place-items-center w-full p-4" $ do
       case (maybeUuid, shareUrl) of
         (Nothing, Just url) -> H.div $ H.div $ H.text url
         _ -> mempty
@@ -429,15 +429,16 @@ matchTemplate
       H.div $ do
         navBar $ Just "clash"
 
-        H.div H.! A.class_ "ds-collapse ds-collapse-arrow mb-4 grid max-w-xl mx-auto bg-base-100 border-2 border-base-300" $ do
-          H.input H.! A.type_ "checkbox"
-          H.div H.! A.class_ "ds-collapse-title text-center font-black" $ case userAssoc user of
-            Just scheme -> styleScheme scheme False
-            Nothing -> "choose your clashes"
-          H.div H.! A.class_ "ds-collapse-content grid gap-2 w-full" $ do
-            schemeCard PPPod (userAssoc user)
-            schemeCard Swing (userAssoc user)
-            schemeCard Bipolar (userAssoc user)
+        H.div H.! A.class_ "p-4" $ do
+          H.div H.! A.class_ "ds-collapse ds-collapse-arrow mb-4 grid max-w-xl mx-auto bg-base-100 border-2 border-base-300" $ do
+            H.input H.! A.type_ "checkbox"
+            H.div H.! A.class_ "ds-collapse-title text-center font-black" $ case userAssoc user of
+              Just scheme -> styleScheme scheme False
+              Nothing -> "choose your clashes"
+            H.div H.! A.class_ "ds-collapse-content grid gap-2 w-full" $ do
+              schemeCard PPPod (userAssoc user)
+              schemeCard Swing (userAssoc user)
+              schemeCard Bipolar (userAssoc user)
 
         case timeState of
           AfterRelease -> mempty
@@ -485,9 +486,9 @@ schemeCard scheme currentScheme =
 styleScheme :: AssociationScheme -> Bool -> H.Html
 styleScheme scheme showDescription =
   let (schemeNameClass, schemeDesc, schemeDescClass)  = case scheme of
-        PPPod -> (A.class_ "font-sans italic", "i need validation", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
+        PPPod -> (A.class_ "font-sans italic", "validate me", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
         Swing -> (A.class_ "font-serif", "lol who cares", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-left")
-        Bipolar -> (A.class_ "font-mono", "they are wrong", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
+        Bipolar -> (A.class_ "font-mono", "they're wrong", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
   in if showDescription
         then H.div H.! schemeDescClass H.! H.dataAttribute "tip" schemeDesc $
           H.div H.! schemeNameClass $ H.toHtml $ show scheme
@@ -557,18 +558,18 @@ matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.
             H.div H.! A.class_ "ds-stat-title" $ "you answered"
             H.div H.! A.class_ "ds-stat-value text-primary" $ H.toHtml $ show (viewYourTotalAnswers view)
 
-      H.div H.! A.class_ "grid gap-4 mt-4 mb-8" $ do
+      H.div H.! A.class_ "grid gap-4 mt-4 p-4" $ do
         case viewTopAgreement view of
-          Just mawa -> showClashAorb "against the world" mawa
+          Just mawa -> showClashAorb "two and the truth is a majority" mawa
           Nothing -> mempty
         case viewMainAorbs view of
           Just (_, mawa) -> showClashAorb "their roman empire" mawa
           Nothing -> mempty
         case viewTopDisagreement view of
-          Just mawa -> showClashAorb "nobody is perfect" mawa
+          Just mawa -> showClashAorb "who's the idiot" mawa
           Nothing -> mempty
 
-      H.div $ do
+      H.div H.! A.class_ "p-4" $ do
         renderMessages config days mainUserId messages
       H.span H.! A.id "bottom" $ mempty
 
@@ -611,7 +612,7 @@ renderMessages config days uid messages = do
       remainingMessages = matchMessageLimit config - userMessageCount
       hasReachedLimit = userMessageCount >= matchMessageLimit config
 
-  H.div H.! A.class_ "w-full max-w-2xl mx-auto mt-4 mb-4" $ do
+  H.div H.! A.class_ "w-full max-w-2xl mx-auto mb-4" $ do
     mapM_ (renderMessage uid) messages
 
   H.div H.! A.class_ "w-full max-w-2xl mx-auto mb-8" $ do
@@ -621,7 +622,7 @@ renderMessages config days uid messages = do
       else
         H.form H.! A.id "message-form" H.! A.class_ "flex flex-col" H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/message") $ do
         H.div H.! A.class_ "text-sm text-base-content/70 mb-1" $ H.text $ T.pack $ show remainingMessages <> " messages remaining"
-        H.textarea H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content mb-4 target:border-primary"
+        H.textarea H.! A.class_ "w-full p-4 mb-4 border border-base-400 resize-none field-sizing-content target:border-primary"
           H.! A.form "message-form" H.! A.type_ "text" H.! A.id "new-message" H.! A.name "new-message"
           H.! A.placeholder ( "message (max " <> (H.toValue $ show $ matchMessageMaxLength config) <> " characters)")
           H.! A.required "required"
@@ -646,13 +647,13 @@ accountTemplate user = H.docTypeHtml $ H.html $ do
   pageHead "account" mempty
   H.body $ H.div $ do
     navBar (Just $ userEmail user)
-    H.div H.! A.class_ "w-full m-32 max-w-xl mx-auto" $ do
+    H.div H.! A.class_ "w-full m-8 max-w-xl mx-auto p-4" $ do
       H.div H.! A.class_ "ds-collapse ds-collapse-arrow bg-base-100 border border-base-400 mt-12 p-4 border-2 rounded-lg" $ do
         H.input H.! A.type_ "checkbox"
         H.h3 H.! A.class_ "ds-collapse-title text-xl font-bold text-base-400" $ "danger zone"
         H.div H.! A.class_ "ds-collapse-content" $ do
           H.a H.! A.href "/logout" H.! A.class_ "ds-btn ds-btn-block mt-4 mb-4 ds-btn-warning" $ "logout from all devices"
-          H.a H.! A.href "/delete" H.! A.class_ "ds-btn ds-btn-block ds-btn-error" $ "delete account and all data"
+          H.a H.! A.href "/delete" H.! A.class_ "ds-btn ds-btn-block ds-btn-error" $ "delete account and data"
 
 loginTemplate :: T.Text -> H.Html
 loginTemplate token = H.docTypeHtml $ H.html $ do
