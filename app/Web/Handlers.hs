@@ -613,35 +613,20 @@ matchProfileTemplateRoute config conn uid days _ = do
 handleGuessSubmission :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
 handleGuessSubmission _ conn uid days req = do
   (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
-
-  let maybeParams = (,,) <$> lookup "aorb_id" params
-                         <*> lookup "choice" params
-                         <*> lookup "match_id" params
-
-  case maybeParams of
+  case (,,) <$> lookup "aorb_id" params <*> lookup "choice" params <*> lookup "match_id" params of
     Just (aorbIdBS, choiceBS, matchIdBS) -> do
-      let aorbIdStr = BS.unpack aorbIdBS
-          choiceStr = BS.unpack choiceBS
-          matchIdStr = BS.unpack matchIdBS
-
-      case (Read.readMaybe aorbIdStr :: Maybe AorbID,
-            Read.readMaybe choiceStr :: Maybe Word.Word8,
-            Read.readMaybe matchIdStr :: Maybe Int) of
+      case ( Read.readMaybe (BS.unpack aorbIdBS) :: Maybe AorbID
+           , Read.readMaybe (BS.unpack choiceBS) :: Maybe Word.Word8
+           , Read.readMaybe (BS.unpack matchIdBS) :: Maybe Int
+           ) of
         (Just aid, Just choice, Just matchId) -> do
-          now <- POSIXTime.getPOSIXTime
-
-          SQL.execute conn
-            "INSERT OR REPLACE INTO guesses (match_id, user_id, aorb_id, guess, created_on) VALUES (?, ?, ?, ?, ?)"
-            (matchId, uid, aid, choice, floor now :: Integer)
-
+          saveGuess conn matchId uid aid (AorbAnswer choice)
           return $ Wai.responseLBS
             HTTP.status303
             [ (Headers.hLocation, BS.pack $ "/clash/t-" ++ show days ++ "#guesses") ]
             ""
-
         _ -> do
           return invalidSubmissionResponse
-
     Nothing -> do
       return invalidSubmissionResponse
 

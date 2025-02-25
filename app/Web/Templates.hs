@@ -570,13 +570,8 @@ matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeH
           Nothing -> mempty
 
       H.div H.! A.id "guesses" H.! A.class_ "grid gap-4 mt-8 p-4" $ do
-        H.h3 H.! A.class_ "text-xl font-semibold" $ "guess their answers"
-
         Monad.forM_ (viewGuessResults view) $ \result -> H.div $ showGuessResult result
-
-        let completedCount = length (viewGuessResults view)
-
-        if completedCount < 3
+        if length (viewGuessResults view) < 3
           then
             case viewGuessAorbs view of
               [] -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "No more questions available for guessing"
@@ -589,16 +584,10 @@ matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeH
               (results, _)  | length results >= 3 -> any guessResultCorrect results
               _ -> False
 
-      H.div H.! A.class_ "mb-4 text-sm text-base-content/70" $ do
-        H.toHtml $
-          "Completed " <> T.pack (show (length (viewGuessResults view))) <> " of 3 guesses. " <>
-          "Available: " <> T.pack (show (length (viewGuessAorbs view)))
-
       H.div H.! A.class_ "p-4" $ do
         if chatEnabled
           then renderMessages config days mainUserId messages
-          else H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $
-                 "Complete all guesses with at least one correct to unlock chat"
+          else H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "Complete all guesses with at least one correct to unlock chat"
 
       H.span H.! A.id "bottom" $ mempty
 
