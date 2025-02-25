@@ -98,7 +98,34 @@ data MatchView = MatchView
   , viewMainAorbs :: Maybe (MatchingAorbWithAnswer, MatchingAorbWithAnswer)
   , viewTopAgreement :: Maybe MatchingAorbWithAnswer
   , viewTopDisagreement :: Maybe MatchingAorbWithAnswer
+  , viewGuessAorbs :: [Aorb]
+  , viewGuessResults :: [GuessResult]
   }
+
+data Guess = Guess
+  { guessId :: Int
+  , guessMatchId :: Int
+  , guessUserId :: UserID
+  , guessAorbId :: AorbID
+  , guessAnswer :: AorbAnswer
+  , guessCreatedOn :: Integer
+  } deriving (Show, Eq)
+
+instance SQL.FromRow Guess where
+  fromRow = Guess
+    <$> SQL.field
+    <*> SQL.field
+    <*> SQL.field
+    <*> SQL.field
+    <*> SQL.field
+    <*> SQL.field
+
+data GuessResult = GuessResult
+  { guessResultAorb :: Aorb
+  , guessResultGuess :: AorbAnswer
+  , guessResultActual :: AorbAnswer
+  , guessResultCorrect :: Bool
+  } deriving (Show, Eq)
 
 data Message = Message
   { messageId :: Int

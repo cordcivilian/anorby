@@ -265,6 +265,12 @@ routes =
           [(days, "")] -> postMessageRoute config conn uid days req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
+  , Route "POST" "/clash/t-:days/guess" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/clash/t-:days/guess" (Wai.rawPathInfo req) "days" of
+        Just daysBS -> case reads (BS.unpack daysBS) :: [(Integer, String)] of
+          [(days, "")] -> handleGuessSubmission config conn uid days req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
 
   -- Account management routes (protected)
   , Route "GET" "/logout" $ ProtectedHandler $ \_ _ conn uid req ->

@@ -14,6 +14,7 @@ import qualified Data.Text.Encoding.Error as TEE
 import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import qualified Data.Word as Word
 import qualified Database.SQLite.Simple as SQL
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP.Types.Header as Headers
@@ -21,6 +22,7 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Parse as Wai
 import qualified System.Random as Random
 import qualified Text.Blaze.Html.Renderer.Utf8 as R
+import qualified Text.Read as Read
 
 import Auth
 import Core.Matching
@@ -567,8 +569,27 @@ matchProfileTemplateRoute config conn uid days _ = do
       targetMainAorbs <- getMatchesMainAorbs conn uid targetId
       agreements <- getMatchesTopXUniqueAgreement conn uid targetId 1
       disagreements <- getMatchesTopXCommonDisagreement conn uid targetId 1
+
+      -- Get existing guesses
+      let shownAorbIds =
+            (maybe [] (\(a1, a2) -> [aorbId (matchingAorbData a1), aorbId (matchingAorbData a2)]) targetMainAorbs) ++
+            (maybe [] (\a -> [aorbId (matchingAorbData a)]) $ Maybe.listToMaybe agreements) ++
+            (maybe [] (\a -> [aorbId (matchingAorbData a)]) $ Maybe.listToMaybe disagreements)
+
+      guessResults <- getGuessResults conn matchId uid targetId
+      guessAorbs <- if length guessResults < 3
+                       then do
+                         let neededGuesses = 3 - length guessResults
+                         let guessedAorbIds = map (aorbId . guessResultAorb) guessResults
+                         let excludeIds = shownAorbIds ++ guessedAorbIds
+                         aorbs <- getGuessAorbs conn targetId excludeIds neededGuesses
+                         return aorbs
+                       else
+                         return []
+
       messages <- getMessagesForMatch conn matchId
       markMessagesRead conn matchId uid
+
       let matchView = MatchView
             { viewTimestamp = matchTimestamp match
             , viewAgreementRate = agreementRate
@@ -577,13 +598,80 @@ matchProfileTemplateRoute config conn uid days _ = do
             , viewMainAorbs = targetMainAorbs
             , viewTopAgreement = Maybe.listToMaybe agreements
             , viewTopDisagreement = Maybe.listToMaybe disagreements
+            , viewGuessAorbs = guessAorbs
+            , viewGuessResults = guessResults
             }
+
       return $ Wai.responseLBS
         HTTP.status200
         [ (Headers.hContentType, "text/html; charset=utf-8") ]
         (R.renderHtml $
-          matchProfileTemplate config days uid targetId matchView messages)
+          matchProfileTemplate config days uid targetId matchId matchView messages)
     [] -> return notFoundResponse
+
+
+handleGuessSubmission :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
+handleGuessSubmission _ conn uid days req = do
+  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+
+  let maybeParams = (,,) <$> lookup "aorb_id" params
+                         <*> lookup "choice" params
+                         <*> lookup "match_id" params
+
+  case maybeParams of
+    Just (aorbIdBS, choiceBS, matchIdBS) -> do
+      let aorbIdStr = BS.unpack aorbIdBS
+          choiceStr = BS.unpack choiceBS
+          matchIdStr = BS.unpack matchIdBS
+
+      case (Read.readMaybe aorbIdStr :: Maybe AorbID,
+            Read.readMaybe choiceStr :: Maybe Word.Word8,
+            Read.readMaybe matchIdStr :: Maybe Int) of
+        (Just aid, Just choice, Just matchId) -> do
+          now <- POSIXTime.getPOSIXTime
+
+          SQL.execute conn
+            "INSERT OR REPLACE INTO guesses (match_id, user_id, aorb_id, guess, created_on) VALUES (?, ?, ?, ?, ?)"
+            (matchId, uid, aid, choice, floor now :: Integer)
+
+          return $ Wai.responseLBS
+            HTTP.status303
+            [ (Headers.hLocation, BS.pack $ "/clash/t-" ++ show days ++ "#guesses") ]
+            ""
+
+        _ -> do
+          return invalidSubmissionResponse
+
+    Nothing -> do
+      return invalidSubmissionResponse
+
+submitGuessRoute :: Config -> SQL.Connection -> UserID -> Integer -> AorbID -> AorbAnswer -> Wai.Request -> IO Wai.Response
+submitGuessRoute _ conn uid days aid answer _ = do
+  now <- POSIXTime.getPOSIXTime
+  let startOfDay = floor (now / 86400) * 86400
+      targetDay = startOfDay - (days * 86400)
+      nextDay = targetDay + 86400
+
+  matches <- SQL.query conn
+    (SQL.Query $ T.unwords
+      [ "SELECT id"
+      , "FROM matched"
+      , "WHERE (user_id = ? OR target_id = ?)"
+      , "AND matched_on >= ? AND matched_on < ?"
+      , "ORDER BY matched_on DESC LIMIT 1"
+      ])
+    (uid, uid, targetDay, nextDay) :: IO [SQL.Only Int]
+
+  case matches of
+    [SQL.Only matchId] -> do
+      saveGuess conn matchId uid aid answer
+      return $ Wai.responseLBS
+        HTTP.status303
+        [ (Headers.hLocation,
+           BS.pack $ "/clash/t-" ++ show days ++ "#guesses")
+        ]
+        ""
+    _ -> return notFoundResponse
 
 postMessageRoute :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
 postMessageRoute config conn uid days req = do

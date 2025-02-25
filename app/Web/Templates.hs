@@ -539,8 +539,8 @@ formatSemiAbsoluteMatchDate currentTimestamp' matchTimestamp' unread =
         then "[" <> T.pack (show unread) <> "] " <> baseText
         else baseText
 
-matchProfileTemplate :: Config -> Integer -> UserID -> UserID -> MatchView -> [Message] -> H.Html
-matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.html $ do
+matchProfileTemplate :: Config -> Integer -> UserID -> UserID -> Int -> MatchView -> [Message] -> H.Html
+matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeHtml $ H.html $ do
   pageHead (T.pack $ "clash #" ++ show days) mempty
   H.body $ do
     H.div $ do
@@ -569,9 +569,104 @@ matchProfileTemplate config days mainUserId _ view messages = H.docTypeHtml $ H.
           Just mawa -> showClashAorb "who's the idiot" mawa
           Nothing -> mempty
 
+      H.div H.! A.id "guesses" H.! A.class_ "grid gap-4 mt-8 p-4" $ do
+        H.h3 H.! A.class_ "text-xl font-semibold" $ "guess their answers"
+
+        Monad.forM_ (viewGuessResults view) $ \result -> H.div $ showGuessResult result
+
+        let completedCount = length (viewGuessResults view)
+
+        if completedCount < 3
+          then
+            case viewGuessAorbs view of
+              [] -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "No more questions available for guessing"
+              (nextGuess:_) -> showGuessForm days nextGuess matchId
+          else mempty
+
+      let chatEnabled =
+            case (viewGuessResults view, viewGuessAorbs view) of
+              (results, []) | null results -> True
+              (results, _)  | length results >= 3 -> any guessResultCorrect results
+              _ -> False
+
+      H.div H.! A.class_ "mb-4 text-sm text-base-content/70" $ do
+        H.toHtml $
+          "Completed " <> T.pack (show (length (viewGuessResults view))) <> " of 3 guesses. " <>
+          "Available: " <> T.pack (show (length (viewGuessAorbs view)))
+
       H.div H.! A.class_ "p-4" $ do
-        renderMessages config days mainUserId messages
+        if chatEnabled
+          then renderMessages config days mainUserId messages
+          else H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $
+                 "Complete all guesses with at least one correct to unlock chat"
+
       H.span H.! A.id "bottom" $ mempty
+
+showGuessForm :: Integer -> Aorb -> Int -> H.Html
+showGuessForm days aorb matchId = do
+  H.div H.! A.class_ "ds-card ds-card-border border-2 w-full max-w-2xl mx-auto grid" $ do
+    H.div H.! A.class_ "ds-card-body p-6" $ do
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "Guess"
+      H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
+      H.div H.! A.class_ "italic mt-2 mb-4" $ H.toHtml $ aorbStx aorb
+
+      H.div H.! A.class_ "grid gap-4 mt-4" $ do
+        H.form H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/guess") $ do
+          H.input H.! A.type_ "hidden" H.! A.name "aorb_id" H.! A.value (H.toValue $ show $ aorbId aorb)
+          H.input H.! A.type_ "hidden" H.! A.name "choice" H.! A.value "0"
+          H.input H.! A.type_ "hidden" H.! A.name "match_id" H.! A.value (H.toValue $ show matchId)
+          H.button H.! A.type_ "submit" H.! A.class_ "w-full p-4 text-left border rounded-lg hover:bg-base-200" $
+            H.toHtml $ aorbA aorb
+
+        H.form H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/guess") $ do
+          H.input H.! A.type_ "hidden" H.! A.name "aorb_id" H.! A.value (H.toValue $ show $ aorbId aorb)
+          H.input H.! A.type_ "hidden" H.! A.name "choice" H.! A.value "1"
+          H.input H.! A.type_ "hidden" H.! A.name "match_id" H.! A.value (H.toValue $ show matchId)
+          H.button H.! A.type_ "submit" H.! A.class_ "w-full p-4 text-left border rounded-lg hover:bg-base-200" $
+            H.toHtml $ aorbB aorb
+
+showGuessResult :: GuessResult -> H.Html
+showGuessResult result = do
+  let aorb = guessResultAorb result
+      isCorrect = guessResultCorrect result
+      resultClass = if isCorrect
+                    then A.class_ "ds-card ds-card-border border-2 border-success w-full max-w-2xl mx-auto grid"
+                    else A.class_ "ds-card ds-card-border border-2 border-error w-full max-w-2xl mx-auto grid"
+
+  H.div H.! resultClass $ do
+    H.div H.! A.class_ "ds-card-body p-6" $ do
+      H.div H.! A.class_ "ds-card-title text-light text-sm flex justify-between" $ do
+        H.span "Your guess"
+        H.span H.! A.class_ (if isCorrect then "text-success" else "text-error") $
+          if isCorrect then "Correct!" else "Incorrect"
+
+      H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
+      H.div H.! A.class_ "italic mt-2 mb-4" $ H.toHtml $ aorbStx aorb
+
+      H.div H.! A.class_ "mt-4" $ do
+        let guessClassA = if guessResultGuess result == AorbAnswer 0
+                         then A.class_ "w-full p-4 text-left border-2 rounded-lg mb-2 border-primary"
+                         else A.class_ "w-full p-4 text-left border rounded-lg mb-2"
+
+            actualClassA = if guessResultActual result == AorbAnswer 0
+                          then A.class_ "absolute top-2 right-2 ds-badge ds-badge-warning"
+                          else A.class_ "hidden"
+
+            guessClassB = if guessResultGuess result == AorbAnswer 1
+                         then A.class_ "w-full p-4 text-left border-2 rounded-lg border-primary"
+                         else A.class_ "w-full p-4 text-left border rounded-lg"
+
+            actualClassB = if guessResultActual result == AorbAnswer 1
+                          then A.class_ "absolute top-2 right-2 ds-badge ds-badge-warning"
+                          else A.class_ "hidden"
+
+        H.div H.! A.class_ "relative" $ do
+          H.div H.! guessClassA $ H.toHtml $ aorbA aorb
+          H.div H.! actualClassA $ "Their choice"
+
+        H.div H.! A.class_ "relative" $ do
+          H.div H.! guessClassB $ H.toHtml $ aorbB aorb
+          H.div H.! actualClassB $ "Their choice"
 
 showClashAorb :: T.Text -> MatchingAorbWithAnswer -> H.Html
 showClashAorb title mawa = do

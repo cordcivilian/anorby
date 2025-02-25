@@ -12,6 +12,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
 import qualified Data.Time.Clock.POSIX as POSIXTime
+import qualified Data.Word as Word
 import qualified Database.SQLite.Simple as SQL
 
 import Types
@@ -100,6 +101,7 @@ initTables conn = SQL.withTransaction conn $ do
   initAuthTable conn
   initMatchedTable conn
   initUnmatchedTable conn
+  initGuessesTable conn
   initMessagesTable conn
   initIndexes conn
 
@@ -206,6 +208,21 @@ initUnmatchedTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   , "(user_id INTEGER PRIMARY KEY,"
   , "unmatched_since INTEGER NOT NULL,"
   , "FOREIGN KEY (user_id) REFERENCES users(id))"
+  ]
+
+initGuessesTable :: SQL.Connection -> IO ()
+initGuessesTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+  [ "CREATE TABLE IF NOT EXISTS guesses"
+  , "(id INTEGER PRIMARY KEY,"
+  , "match_id INTEGER NOT NULL,"
+  , "user_id INTEGER NOT NULL,"
+  , "aorb_id INTEGER NOT NULL,"
+  , "guess INTEGER NOT NULL,"
+  , "created_on INTEGER NOT NULL,"
+  , "FOREIGN KEY (match_id) REFERENCES matched(id),"
+  , "FOREIGN KEY (user_id) REFERENCES users(id),"
+  , "FOREIGN KEY (aorb_id) REFERENCES aorb(id),"
+  , "UNIQUE(match_id, user_id, aorb_id))"
   ]
 
 initMessagesTable :: SQL.Connection -> IO ()
@@ -752,6 +769,73 @@ getLargestIntersectionAnswers conn uid1 uid2 = do
             List.partition (\(uid, _, _) -> uid == uid1) rows
       return (map (\(_, _, ans) -> ans) answers1,
               map (\(_, _, ans) -> ans) answers2)
+
+-- | Guess query functions
+
+getGuessAorbs :: SQL.Connection -> UserID -> [AorbID] -> Int -> IO [Aorb]
+getGuessAorbs conn targetId excludeIds count = do
+  let placeholders =
+        if null excludeIds
+          then "(-1)"
+          else "(" <> T.intercalate "," (map (T.pack . show) excludeIds) <> ")"
+  SQL.query conn
+    (SQL.Query $ T.unwords
+      [ "SELECT a.*"
+      , "FROM aorb a"
+      , "JOIN aorb_answers ans ON a.id = ans.aorb_id"
+      , "WHERE ans.user_id = ?"
+      , "AND a.id NOT IN " <> placeholders
+      , "ORDER BY RANDOM()"
+      , "LIMIT ?"
+      ])
+    (targetId, count)
+
+saveGuess :: SQL.Connection -> Int -> UserID -> AorbID -> AorbAnswer -> IO ()
+saveGuess conn matchId uid aid answer = do
+  now <- POSIXTime.getPOSIXTime
+  SQL.execute conn
+    (SQL.Query $ T.unwords
+      [ "INSERT OR REPLACE INTO guesses"
+      , "(match_id, user_id, aorb_id, guess, created_on)"
+      , "VALUES (?, ?, ?, ?, ?)"
+      ])
+    (matchId, uid, aid, answer, floor now :: Integer)
+
+getGuesses :: SQL.Connection -> Int -> UserID -> IO [Guess]
+getGuesses conn matchId uid = do
+  SQL.query conn
+    ( SQL.Query $ T.unwords
+        [ "SELECT id, match_id, user_id, aorb_id, guess, created_on"
+        , "FROM guesses"
+        , "WHERE match_id = ? AND user_id = ?"
+        , "ORDER BY created_on ASC"
+        ]
+    ) (matchId, uid)
+
+getGuessResults :: SQL.Connection -> Int -> UserID -> UserID -> IO [GuessResult]
+getGuessResults conn matchId uid targetId = do
+  guesses <- SQL.query conn
+    "SELECT aorb_id, guess FROM guesses WHERE match_id = ? AND user_id = ? ORDER BY created_on"
+    (matchId, uid) :: IO [(AorbID, Word.Word8)]
+
+  results <- Monad.forM guesses $ \(gAorbId, gGuess) -> do
+    aorbs <- SQL.query conn
+      "SELECT id, context, subtext, a, b, mean, created_on FROM aorb WHERE id = ?"
+      (SQL.Only gAorbId) :: IO [Aorb]
+    targetAnswers <- SQL.query conn
+      "SELECT answer FROM aorb_answers WHERE user_id = ? AND aorb_id = ?"
+      (targetId, gAorbId) :: IO [SQL.Only AorbAnswer]
+    case (aorbs, targetAnswers) of
+      ([aorb], [SQL.Only actual]) ->
+        return $ Just $ GuessResult
+          { guessResultAorb = aorb
+          , guessResultGuess = AorbAnswer gGuess
+          , guessResultActual = actual
+          , guessResultCorrect = AorbAnswer gGuess == actual
+          }
+      _ -> return Nothing
+
+  return $ Maybe.catMaybes results
 
 -- | Message query functions
 
