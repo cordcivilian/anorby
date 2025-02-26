@@ -1397,6 +1397,21 @@
       --ds-toast-y: 0;
     }
   }
+  .ds-indicator {
+    position: relative;
+    display: inline-flex;
+    width: max-content;
+    :where(.ds-indicator-item) {
+      z-index: 1;
+      position: absolute;
+      white-space: nowrap;
+      top: var(--ds-inidicator-t, 0);
+      bottom: var(--ds-inidicator-b, auto);
+      left: var(--ds-inidicator-s, auto);
+      right: var(--ds-inidicator-e, 0);
+      translate: var(--ds-inidicator-x, 50%) var(--ds-indicator-y, -50%);
+    }
+  }
   .ds-collapse-title {
     grid-column-start: 1;
     grid-row-start: 1;
@@ -2184,6 +2199,11 @@
   .ds-btn-warning {
     --ds-btn-color: var(--color-warning);
     --ds-btn-fg: var(--color-warning-content);
+  }
+  .ds-indicator-middle {
+    --ds-inidicator-t: 50%;
+    --ds-inidicator-b: 50%;
+    --ds-indicator-y: -50%;
   }
   .target\:border-primary {
     &:target {

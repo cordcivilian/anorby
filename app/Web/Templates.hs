@@ -569,7 +569,7 @@ matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeH
           Just mawa -> showClashAorb "who's the idiot" mawa
           Nothing -> mempty
 
-      H.div H.! A.id "guesses" H.! A.class_ "grid gap-4 mt-8 p-4" $ do
+      H.div H.! A.id "guesses" H.! A.class_ "grid gap-4 p-4" $ do
         Monad.forM_ (viewGuessResults view) $ \result -> H.div $ showGuessResult result
         if length (viewGuessResults view) < 3
           then
@@ -587,7 +587,7 @@ matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeH
       H.div H.! A.class_ "p-4" $ do
         if chatEnabled
           then renderMessages config days mainUserId messages
-          else H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "Complete all guesses with at least one correct to unlock chat"
+          else H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "complete all guesses with at least one correct to unlock chat"
 
       H.span H.! A.id "bottom" $ mempty
 
@@ -595,9 +595,8 @@ showGuessForm :: Integer -> Aorb -> Int -> H.Html
 showGuessForm days aorb matchId = do
   H.div H.! A.class_ "ds-card ds-card-border border-2 w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
-      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "Guess"
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "guess"
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
-      H.div H.! A.class_ "italic mt-2 mb-4" $ H.toHtml $ aorbStx aorb
 
       H.div H.! A.class_ "grid gap-4 mt-4" $ do
         H.form H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/guess") $ do
@@ -625,20 +624,19 @@ showGuessResult result = do
   H.div H.! resultClass $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
       H.div H.! A.class_ "ds-card-title text-light text-sm flex justify-between" $ do
-        H.span "Your guess"
+        H.span "your guess"
         H.span H.! A.class_ (if isCorrect then "text-success" else "text-error") $
-          if isCorrect then "Correct!" else "Incorrect"
+          if isCorrect then "correct!" else "incorrect"
 
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
-      H.div H.! A.class_ "italic mt-2 mb-4" $ H.toHtml $ aorbStx aorb
 
-      H.div H.! A.class_ "mt-4" $ do
+      H.div H.! A.class_ "grid gap-4 mt-4" $ do
         let guessClassA = if guessResultGuess result == AorbAnswer 0
-                         then A.class_ "w-full p-4 text-left border-2 rounded-lg mb-2 border-primary"
-                         else A.class_ "w-full p-4 text-left border rounded-lg mb-2"
+                         then A.class_ "w-full p-4 text-left border-2 rounded-lg border-primary"
+                         else A.class_ "w-full p-4 text-left border rounded-lg"
 
             actualClassA = if guessResultActual result == AorbAnswer 0
-                          then A.class_ "absolute top-2 right-2 ds-badge ds-badge-warning"
+                          then A.class_ "ds-indicator-item ds-indicator-middle ds-badge ds-badge-warning"
                           else A.class_ "hidden"
 
             guessClassB = if guessResultGuess result == AorbAnswer 1
@@ -646,16 +644,16 @@ showGuessResult result = do
                          else A.class_ "w-full p-4 text-left border rounded-lg"
 
             actualClassB = if guessResultActual result == AorbAnswer 1
-                          then A.class_ "absolute top-2 right-2 ds-badge ds-badge-warning"
+                          then A.class_ "ds-indicator-item ds-indicator-middle ds-badge ds-badge-warning"
                           else A.class_ "hidden"
 
-        H.div H.! A.class_ "relative" $ do
+        H.div H.! A.class_ "ds-indicator w-full" $ do
           H.div H.! guessClassA $ H.toHtml $ aorbA aorb
-          H.div H.! actualClassA $ "Their choice"
+          H.div H.! actualClassA $ ""
 
-        H.div H.! A.class_ "relative" $ do
+        H.div H.! A.class_ "ds-indicator w-full" $ do
           H.div H.! guessClassB $ H.toHtml $ aorbB aorb
-          H.div H.! actualClassB $ "Their choice"
+          H.div H.! actualClassB $ ""
 
 showClashAorb :: T.Text -> MatchingAorbWithAnswer -> H.Html
 showClashAorb title mawa = do
