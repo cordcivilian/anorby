@@ -837,6 +837,19 @@ getGuessResults conn matchId uid targetId = do
 
   return $ Maybe.catMaybes results
 
+hasAllGuessesCorrect :: SQL.Connection -> Int -> UserID -> IO Bool
+hasAllGuessesCorrect conn matchId uid = do
+  matchQuery <- SQL.query conn
+    "SELECT user_id, target_id FROM matched WHERE id = ? AND (user_id = ? OR target_id = ?)"
+    (matchId, uid, uid) :: IO [(UserID, UserID)]
+
+  case matchQuery of
+    [(u, t)] -> do
+      let targetId = if u == uid then t else u
+      guessResults <- getGuessResults conn matchId uid targetId
+      return $ length guessResults == 3 && all guessResultCorrect guessResults
+    _ -> return False
+
 -- | Message query functions
 
 getMessageCount :: SQL.Connection -> Int -> UserID -> IO Int
@@ -852,8 +865,9 @@ getMessageCount conn matchId uid = do
 
 validateNewMessage :: Config -> SQL.Connection -> Int -> UserID -> T.Text -> IO Bool
 validateNewMessage config conn matchId senderId content = do
+  unlimitedMessages <- hasAllGuessesCorrect conn matchId senderId
   messageCount <- getMessageCount conn matchId senderId
-  if messageCount >= matchMessageLimit config
+  if not unlimitedMessages && messageCount >= matchMessageLimit config
     then return False
     else if T.length content > matchMessageMaxLength config
       then return False

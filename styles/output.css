@@ -1028,6 +1028,56 @@
       pointer-events: none;
     }
   }
+  .ds-collapse-plus {
+     > .ds-collapse-title:after {
+      position: absolute;
+      display: block;
+      height: 0.5rem;
+      width: 0.5rem;
+      transition-property: all;
+      transition-duration: 300ms;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+      top: 0.9rem;
+      inset-inline-end: 1.4rem;
+      content: "+";
+      pointer-events: none;
+    }
+  }
+  .ds-drawer-open {
+     > .ds-drawer-side {
+      overflow-y: auto;
+    }
+     > .ds-drawer-toggle {
+      display: none;
+      & ~ .ds-drawer-side {
+        pointer-events: auto;
+        visibility: visible;
+        position: sticky;
+        display: block;
+        width: auto;
+        overscroll-behavior: auto;
+        opacity: 100%;
+        & > .ds-drawer-overlay {
+          cursor: default;
+          background-color: transparent;
+        }
+        & > *:not(.ds-drawer-overlay) {
+          translate: 0%;
+          [dir="rtl"] & {
+            translate: 0%;
+          }
+        }
+      }
+      &:checked ~ .ds-drawer-side {
+        pointer-events: auto;
+        visibility: visible;
+      }
+    }
+  }
+  .ds-tab-disabled {
+    pointer-events: none;
+    opacity: 40%;
+  }
   .ds-collapse {
     &:not(td, tr, colgroup) {
       visibility: visible;
@@ -1151,6 +1201,12 @@
     padding-left: 1rem;
     padding-right: 1rem;
     cursor: unset;
+  }
+  .collapse {
+    visibility: collapse;
+  }
+  .visible {
+    visibility: visible;
   }
   .ds-card {
     position: relative;
@@ -1432,6 +1488,9 @@
   .absolute {
     position: absolute;
   }
+  .fixed {
+    position: fixed;
+  }
   .relative {
     position: relative;
   }
@@ -1513,6 +1572,26 @@
       }
     }
   }
+  .ds-dropdown-right {
+    --ds-anchor-h: right;
+    --ds-anchor-v: span-bottom;
+    .ds-dropdown-content {
+      inset-inline-start: 100%;
+      top: calc(0.25rem * 0);
+      bottom: auto;
+      transform-origin: left;
+    }
+  }
+  .ds-dropdown-left {
+    --ds-anchor-h: left;
+    --ds-anchor-v: span-bottom;
+    .ds-dropdown-content {
+      inset-inline-end: 100%;
+      top: calc(0.25rem * 0);
+      bottom: auto;
+      transform-origin: right;
+    }
+  }
   .ds-dropdown-end {
     --ds-anchor-h: span-left;
     :where(.ds-dropdown-content) {
@@ -1548,6 +1627,9 @@
   }
   .right-2 {
     right: calc(var(--spacing) * 2);
+  }
+  .isolate {
+    isolation: isolate;
   }
   .ds-tab-content {
     order: var(--ds-tabcontent-order);
@@ -1606,6 +1688,22 @@
   .ds-stat-actions {
     grid-column-start: 1;
     white-space: nowrap;
+  }
+  .ds-chat-image {
+    grid-row: span 2 / span 2;
+    align-self: flex-end;
+  }
+  .ds-chat-footer {
+    grid-row-start: 3;
+    display: flex;
+    gap: calc(0.25rem * 1);
+    font-size: 0.6875rem;
+  }
+  .ds-chat-header {
+    grid-row-start: 1;
+    display: flex;
+    gap: calc(0.25rem * 1);
+    font-size: 0.6875rem;
   }
   .ds-divider {
     display: flex;
@@ -1785,6 +1883,9 @@
     align-items: center;
     flex-shrink: 0;
   }
+  .block {
+    display: block;
+  }
   .flex {
     display: flex;
   }
@@ -1796,6 +1897,15 @@
   }
   .inline-block {
     display: inline-block;
+  }
+  .inline-flex {
+    display: inline-flex;
+  }
+  .inline-grid {
+    display: inline-grid;
+  }
+  .list-item {
+    display: list-item;
   }
   .table {
     display: table;
@@ -1842,6 +1952,18 @@
   .flex-1 {
     flex: 1;
   }
+  .flex-shrink {
+    flex-shrink: 1;
+  }
+  .flex-grow {
+    flex-grow: 1;
+  }
+  .border-collapse {
+    border-collapse: collapse;
+  }
+  .transform {
+    transform: var(--tw-rotate-x) var(--tw-rotate-y) var(--tw-rotate-z) var(--tw-skew-x) var(--tw-skew-y);
+  }
   .ds-link {
     cursor: pointer;
     text-decoration-line: underline;
@@ -1859,6 +1981,9 @@
   }
   .cursor-pointer {
     cursor: pointer;
+  }
+  .resize {
+    resize: both;
   }
   .resize-none {
     resize: none;
@@ -1989,6 +2114,9 @@
   .bg-transparent {
     background-color: transparent;
   }
+  .bg-warning {
+    background-color: var(--color-warning);
+  }
   .bg-warning\/5 {
     background-color: color-mix(in oklab, var(--color-warning) 5%, transparent);
   }
@@ -2003,6 +2131,13 @@
   }
   .p-8 {
     padding: calc(var(--spacing) * 8);
+  }
+  .ds-menu-title {
+    padding-inline: calc(0.25rem * 3);
+    padding-block: calc(0.25rem * 2);
+    color: color-mix(in oklab, var(--color-base-content) 40%, transparent);
+    font-size: 0.875rem;
+    font-weight: 600;
   }
   .px-4 {
     padding-inline: calc(var(--spacing) * 4);
@@ -2074,6 +2209,9 @@
   .font-semibold {
     --tw-font-weight: var(--font-weight-semibold);
     font-weight: var(--font-weight-semibold);
+  }
+  .text-wrap {
+    text-wrap: wrap;
   }
   .ds-badge-error {
     --ds-badge-color: var(--color-error);
@@ -2147,6 +2285,20 @@
   .italic {
     font-style: italic;
   }
+  .ds-btn-link {
+    text-decoration-line: underline;
+    outline-color: currentColor;
+    --ds-btn-border: #0000;
+    --ds-btn-bg: #0000;
+    --ds-btn-fg: var(--color-primary);
+    --ds-btn-noise: none;
+    --ds-btn-shadow: "";
+    &:is(.ds-btn-active, :hover, :active:focus, :focus-visible) {
+      text-decoration-line: underline;
+      --ds-btn-border: #0000;
+      --ds-btn-bg: #0000;
+    }
+  }
   .ds-link-hover {
     text-decoration-line: none;
     &:hover {
@@ -2155,17 +2307,49 @@
       }
     }
   }
+  .underline {
+    text-decoration-line: underline;
+  }
   .shadow {
     --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
+  .outline {
+    outline-style: var(--tw-outline-style);
+    outline-width: 1px;
+  }
+  .ds-btn-ghost {
+    &:not(.ds-btn-active, :hover, :active:focus, :focus-visible) {
+      --ds-btn-shadow: "";
+      --ds-btn-bg: #0000;
+      --ds-btn-border: #0000;
+      --ds-btn-noise: none;
+      &:not(:disabled, [disabled], .ds-btn-disabled) {
+        outline-color: currentColor;
+        --ds-btn-fg: currentColor;
+      }
+    }
+  }
   .filter {
     filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
+  }
+  .transition {
+    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
   }
   .transition-all {
     transition-property: all;
     transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
     transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+  .ease-in-out {
+    --tw-ease: var(--ease-in-out);
+    transition-timing-function: var(--ease-in-out);
+  }
+  .ease-out {
+    --tw-ease: var(--ease-out);
+    transition-timing-function: var(--ease-out);
   }
   .ds-btn-error {
     --ds-btn-color: var(--color-error);
@@ -2178,6 +2362,10 @@
   .ds-btn-primary {
     --ds-btn-color: var(--color-primary);
     --ds-btn-fg: var(--color-primary-content);
+  }
+  .ds-btn-secondary {
+    --ds-btn-color: var(--color-secondary);
+    --ds-btn-fg: var(--color-secondary-content);
   }
   .ds-btn-soft {
     &:not(.ds-btn-active, :hover, :active:focus, :focus-visible, :disabled, [disabled], .ds-btn-disabled) {
@@ -2762,6 +2950,31 @@ video {
     animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
   }
 }
+@property --tw-rotate-x {
+  syntax: "*";
+  inherits: false;
+  initial-value: rotateX(0);
+}
+@property --tw-rotate-y {
+  syntax: "*";
+  inherits: false;
+  initial-value: rotateY(0);
+}
+@property --tw-rotate-z {
+  syntax: "*";
+  inherits: false;
+  initial-value: rotateZ(0);
+}
+@property --tw-skew-x {
+  syntax: "*";
+  inherits: false;
+  initial-value: skewX(0);
+}
+@property --tw-skew-y {
+  syntax: "*";
+  inherits: false;
+  initial-value: skewY(0);
+}
 @property --tw-space-y-reverse {
   syntax: "*";
   inherits: false;
@@ -2835,6 +3048,11 @@ video {
   inherits: false;
   initial-value: 0 0 #0000;
 }
+@property --tw-outline-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
 @property --tw-blur {
   syntax: "*";
   inherits: false;
@@ -2868,6 +3086,10 @@ video {
   inherits: false;
 }
 @property --tw-sepia {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-ease {
   syntax: "*";
   inherits: false;
 }

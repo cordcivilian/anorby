@@ -574,7 +574,7 @@ matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeH
         if length (viewGuessResults view) < 3
           then
             case viewGuessAorbs view of
-              [] -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "No more questions available for guessing"
+              [] -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "no more questions available for guessing"
               (nextGuess:_) -> showGuessForm days nextGuess matchId
           else mempty
 
@@ -584,10 +584,16 @@ matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeH
               (results, _)  | length results >= 3 -> any guessResultCorrect results
               _ -> False
 
+          allGuessesCorrect =
+            case viewGuessResults view of
+              results | length results == 3 -> all guessResultCorrect results
+              _ -> False
+
       H.div H.! A.class_ "p-4" $ do
         if chatEnabled
-          then renderMessages config days mainUserId messages
-          else H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "complete all guesses with at least one correct to unlock chat"
+          then renderMessages config days mainUserId messages allGuessesCorrect
+          else H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $
+                "complete all guesses with at least one correct to unlock chat"
 
       H.span H.! A.id "bottom" $ mempty
 
@@ -688,11 +694,13 @@ showClashAorb title mawa = do
             Monad.replicateM_ adjustedAorbBs (H.div H.! A.class_ "ds-badge ds-badge-secondary" $ "")
           H.div H.! A.class_ "ds-stat-title mt-2" $ H.toHtml $ aorbB aorb
 
-renderMessages :: Config -> Integer -> UserID -> [Message] -> H.Html
-renderMessages config days uid messages = do
+renderMessages :: Config -> Integer -> UserID -> [Message] -> Bool -> H.Html
+renderMessages config days uid messages unlimitedMessages = do
   let userMessageCount = length $ filter ((== uid) . messageSenderId) messages
-      remainingMessages = matchMessageLimit config - userMessageCount
-      hasReachedLimit = userMessageCount >= matchMessageLimit config
+      remainingMessages = if unlimitedMessages
+                          then "unlimited"
+                          else T.pack $ show $ matchMessageLimit config - userMessageCount
+      hasReachedLimit = not unlimitedMessages && userMessageCount >= matchMessageLimit config
 
   H.div H.! A.class_ "w-full max-w-2xl mx-auto mb-4" $ do
     mapM_ (renderMessage uid) messages
@@ -700,18 +708,24 @@ renderMessages config days uid messages = do
   H.div H.! A.class_ "w-full max-w-2xl mx-auto mb-8" $ do
     if hasReachedLimit
       then
-        H.div H.! A.class_ "p-4 text-center rounded-lg bg-base-200" $ H.toHtml ("you have reached the limit of " ++ (show $ matchMessageLimit config) ++ " messages")
+        H.div H.! A.class_ "p-4 text-center rounded-lg bg-base-200" $
+          H.toHtml ("you have reached the limit of " ++ (show $ matchMessageLimit config) ++ " messages")
       else
-        H.form H.! A.id "message-form" H.! A.class_ "flex flex-col" H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/message") $ do
-        H.div H.! A.class_ "text-sm text-base-content/70 mb-1" $ H.text $ T.pack $ show remainingMessages <> " messages remaining"
-        H.textarea H.! A.class_ "w-full p-4 mb-4 border border-base-400 resize-none field-sizing-content target:border-primary"
-          H.! A.form "message-form" H.! A.type_ "text" H.! A.id "new-message" H.! A.name "new-message"
-          H.! A.placeholder ( "message (max " <> (H.toValue $ show $ matchMessageMaxLength config) <> " characters)")
-          H.! A.required "required"
-          H.! A.autocomplete "off"
-          H.! A.maxlength (H.toValue $ show $ matchMessageMaxLength config)
-          $ ""
-        H.input H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg cursor-pointer font-inherit hover:bg-primary/90" H.! A.type_ "submit" H.! A.value "send"
+        H.form H.! A.id "message-form" H.! A.class_ "flex flex-col" H.! A.method "POST"
+               H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/message") $ do
+          H.div H.! A.class_ "text-sm text-base-content/70 mb-1" $
+            H.text $ if unlimitedMessages
+                     then "unlimited messages (all guesses correct!)"
+                     else remainingMessages <> " messages remaining"
+          H.textarea H.! A.class_ "w-full p-4 mb-4 border border-base-400 resize-none field-sizing-content target:border-primary"
+            H.! A.form "message-form" H.! A.type_ "text" H.! A.id "new-message" H.! A.name "new-message"
+            H.! A.placeholder ( "message (max " <> (H.toValue $ show $ matchMessageMaxLength config) <> " characters)")
+            H.! A.required "required"
+            H.! A.autocomplete "off"
+            H.! A.maxlength (H.toValue $ show $ matchMessageMaxLength config)
+            $ ""
+          H.input H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg cursor-pointer font-inherit hover:bg-primary/90"
+                 H.! A.type_ "submit" H.! A.value "send"
 
 renderMessage :: UserID -> Message -> H.Html
 renderMessage uid msg = do
@@ -769,17 +783,11 @@ confirmTemplate title warning action token actionText cancelUrl = H.docTypeHtml 
   H.body H.! A.class_ "min-h-screen bg-base-100 text-base-content" $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       H.form H.! A.method "POST" H.! A.action (H.textValue action) $ do
-        H.input H.! A.type_ "hidden"
-              H.! A.name "token"
-              H.! A.value (H.textValue token)
-        H.button H.! A.type_ "submit"
-              H.! A.class_ "mb-8 px-8 py-4 bg-error text-error-content rounded-lg hover:bg-error/90" $
-          H.toHtml actionText
+        H.input H.! A.type_ "hidden" H.! A.name "token" H.! A.value (H.textValue token)
+        H.button H.! A.type_ "submit" H.! A.class_ "mb-8 px-8 py-4 ds-btn ds-btn-error" $ H.toHtml actionText
       H.h1 H.! A.class_ "text-2xl font-bold mb-4" $ H.toHtml title
       H.p H.! A.class_ "mb-8" $ H.toHtml warning
-      H.a H.! A.href (H.textValue cancelUrl)
-          H.! A.class_ "px-8 py-4 border border-base-300 rounded-lg hover:bg-base-200" $
-        "cancel"
+      H.a H.! A.href (H.textValue cancelUrl) H.! A.class_ "px-8 py-4 ds-btn ds-btn-secondary" $ "cancel"
 
 -- | Message Templates
 

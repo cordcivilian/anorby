@@ -1,16 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Auth
-  ( -- * User Management
-    getAuthenticatedUser
-    -- * Token Generation and Validation
-  , generateAnswerToken
-  , validateAnswerToken
-  , generateAuthHash
-    -- * Cookie Management
-  , getCookie
-  , setCookie
-  ) where
+module Auth where
 
 import qualified Control.Monad as Monad
 import qualified Data.Binary.Builder as Builder
@@ -138,6 +128,7 @@ setCookie hash resp =
         , Cookie.setCookieSecure = True
         , Cookie.setCookieSameSite = Just Cookie.sameSiteStrict
         , Cookie.setCookieHttpOnly = True
+        , Cookie.setCookieMaxAge = Just (10 * 365 * 24 * 60 * 60)
         }
       cookieHeader = ("Set-Cookie", BSL.toStrict $
                       Builder.toLazyByteString $
