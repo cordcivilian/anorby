@@ -592,8 +592,7 @@ matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeH
       H.div H.! A.class_ "p-4" $ do
         if chatEnabled
           then renderMessages config days mainUserId messages allGuessesCorrect
-          else H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $
-                "complete all guesses with at least one correct to unlock chat"
+          else H.div H.! A.class_ "w-full max-w-2xl mx-auto text-center p-4 bg-base-200 rounded-lg" $ "complete all 3 guesses with at least one correct to unlock chat"
 
       H.span H.! A.id "bottom" $ mempty
 
