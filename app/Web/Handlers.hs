@@ -6,6 +6,7 @@ import qualified Control.Monad as Monad
 import qualified System.Directory as Dir
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Digest.Pure.SHA as SHA
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as T
@@ -54,6 +55,45 @@ serveStaticFile path = do
         content
     else do
       return notFoundResponse
+
+serveCachedCss :: AppState -> BS.ByteString -> Wai.Request -> IO Wai.Response
+serveCachedCss state path req = do
+  cached <- getFromCache (BS.unpack path) (appStaticCache state)
+  case cached of
+    Just (content, etag) ->
+      serveWithEtag req path content etag
+    Nothing -> do
+      projectDir <- Dir.getCurrentDirectory
+      let filePath = projectDir ++ BS.unpack path
+      exists <- Dir.doesFileExist filePath
+      if exists
+        then do
+          content <- BSL.readFile filePath
+          let etag = T.pack $ SHA.showDigest $ SHA.sha1 content
+          putInCacheWithTTL
+            (BS.unpack path)
+            (content, etag)
+            (365 * 24 * 60 * 60)
+            (appStaticCache state)
+          serveWithEtag req path content etag
+        else do
+          return notFoundResponse
+
+serveWithEtag :: Wai.Request -> BS.ByteString -> BSL.ByteString -> T.Text -> IO Wai.Response
+serveWithEtag req path content etag = do
+  let ifNoneMatch = lookup Headers.hIfNoneMatch (Wai.requestHeaders req)
+  case ifNoneMatch of
+    Just clientEtag | clientEtag == TE.encodeUtf8 etag -> do
+      let headers = [ (Headers.hETag, TE.encodeUtf8 etag),
+                      (Headers.hCacheControl, "public, max-age=31536000")
+                    ]
+      return $ Wai.responseLBS HTTP.status304 headers ""
+    _ -> do
+      let headers = [ (Headers.hContentType, getMimeType path),
+                      (Headers.hETag, TE.encodeUtf8 etag),
+                      (Headers.hCacheControl, "public, max-age=31536000")
+                    ]
+      return $ Wai.responseLBS HTTP.status200 headers content
 
 getMimeType :: BS.ByteString -> BS.ByteString
 getMimeType path

@@ -19,6 +19,7 @@ data AppState = AppState
   , appStatsCache :: MVar.MVar (Cache RootStats)
   , appHtmlCache :: MVar.MVar (Cache BSL.ByteString)
   , appQueryCache :: MVar.MVar (Cache QueryResult)
+  , appStaticCache :: MVar.MVar (Cache (BSL.ByteString, T.Text))
   , appMatchState :: MatchState
   }
 

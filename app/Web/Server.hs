@@ -37,7 +37,7 @@ import Core.RollingShadow
 import Types
 
 -- | Server Runners
---
+
 runServer :: IO ()
 runServer = do
   config <- getConfig
@@ -71,6 +71,7 @@ initAppState config = do
   statsCache <- initCache (5 * 60)
   htmlCache <- initCache (2 * 60)
   queryCache <- initCache 30
+  staticCache <- initCache (365 * 24 * 60 * 60)
   matchState <- initMatchState
   return AppState
     { appPool = pool
@@ -78,6 +79,7 @@ initAppState config = do
     , appStatsCache = statsCache
     , appHtmlCache = htmlCache
     , appQueryCache = queryCache
+    , appStaticCache = staticCache
     , appMatchState = matchState
     }
 
@@ -180,8 +182,8 @@ data Route = Route
 routes :: [Route]
 routes =
   -- Public routes
-  [ Route "GET" "/styles/output.css" $ PublicHandler $ \_ _ _->
-      serveStaticFile "/styles/output.css"
+  [ Route "GET" "/styles/output.css" $ PublicHandler $ \state _ req ->
+      serveCachedCss state "/styles/output.css" req
   , Route "GET" "/" $ PublicHandler rootTemplateRoute
   , Route "GET" "/share/:uuid" $ PublicHandler $ \_ conn req ->
       case extractParam "/share/:uuid" (Wai.rawPathInfo req) "uuid" of
