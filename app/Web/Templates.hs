@@ -578,20 +578,12 @@ matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeH
               (nextGuess:_) -> showGuessForm days nextGuess matchId
           else mempty
 
-      let chatEnabled =
-            case (viewGuessResults view, viewGuessAorbs view) of
-              (results, []) | null results -> True
-              (results, _)  | length results >= 3 -> any guessResultCorrect results
-              _ -> False
-
-          allGuessesCorrect =
-            case viewGuessResults view of
-              results | length results == 3 -> all guessResultCorrect results
-              _ -> False
+      let correctGuessCount = length $ filter guessResultCorrect $ viewGuessResults view
+          chatEnabled = correctGuessCount > 0
 
       H.div H.! A.class_ "p-4" $ do
         if chatEnabled
-          then renderMessages config days mainUserId messages allGuessesCorrect
+          then renderMessages config days mainUserId messages correctGuessCount
           else H.div H.! A.class_ "w-full max-w-2xl mx-auto text-center p-4 bg-base-200 rounded-lg" $ "complete all 3 guesses with at least one correct to unlock chat"
 
       H.span H.! A.id "bottom" $ mempty
@@ -603,14 +595,14 @@ showGuessForm days aorb matchId = do
       H.div H.! A.class_ "ds-card-title text-light text-sm" $ "guess"
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
 
-      H.div H.! A.class_ "grid gap-4 mt-4" $ do
+      H.div H.! A.class_ "grid mt-4" $ do
         H.form H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/guess") $ do
           H.input H.! A.type_ "hidden" H.! A.name "aorb_id" H.! A.value (H.toValue $ show $ aorbId aorb)
           H.input H.! A.type_ "hidden" H.! A.name "choice" H.! A.value "0"
           H.input H.! A.type_ "hidden" H.! A.name "match_id" H.! A.value (H.toValue $ show matchId)
           H.button H.! A.type_ "submit" H.! A.class_ "w-full p-4 text-left border rounded-lg hover:bg-base-200" $
             H.toHtml $ aorbA aorb
-
+        H.div H.! A.class_ "ds-divider" $ "OR"
         H.form H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/guess") $ do
           H.input H.! A.type_ "hidden" H.! A.name "aorb_id" H.! A.value (H.toValue $ show $ aorbId aorb)
           H.input H.! A.type_ "hidden" H.! A.name "choice" H.! A.value "1"
@@ -635,7 +627,7 @@ showGuessResult result = do
 
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
 
-      H.div H.! A.class_ "grid gap-4 mt-4" $ do
+      H.div H.! A.class_ "grid mt-4" $ do
         let guessClassA = if guessResultGuess result == AorbAnswer 0
                          then A.class_ "w-full p-4 text-left border-2 rounded-lg border-primary"
                          else A.class_ "w-full p-4 text-left border rounded-lg"
@@ -655,7 +647,7 @@ showGuessResult result = do
         H.div H.! A.class_ "ds-indicator w-full" $ do
           H.div H.! guessClassA $ H.toHtml $ aorbA aorb
           H.div H.! actualClassA $ ""
-
+        H.div H.! A.class_ "ds-divider" $ "OR"
         H.div H.! A.class_ "ds-indicator w-full" $ do
           H.div H.! guessClassB $ H.toHtml $ aorbB aorb
           H.div H.! actualClassB $ ""
@@ -674,7 +666,7 @@ showClashAorb title mawa = do
           (AorbAnswer 0, AorbAnswer 1) -> (aorbAs - 1, aorbBs - 1)
           (AorbAnswer 1, AorbAnswer 0) -> (aorbAs - 1, aorbBs - 1)
           (AorbAnswer 1, AorbAnswer 1) -> (aorbAs, aorbBs - 2)
-          _ -> (aorbAs, aorbBs) -- impossible
+          _ -> (aorbAs, aorbBs)
   H.div H.! A.class_ "ds-card ds-card-border border-2 w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
       H.div H.! A.class_ "ds-card-title text-light text-sm" $ H.toHtml $ title
@@ -693,13 +685,16 @@ showClashAorb title mawa = do
             Monad.replicateM_ adjustedAorbBs (H.div H.! A.class_ "ds-badge ds-badge-secondary" $ "")
           H.div H.! A.class_ "ds-stat-title mt-2" $ H.toHtml $ aorbB aorb
 
-renderMessages :: Config -> Integer -> UserID -> [Message] -> Bool -> H.Html
-renderMessages config days uid messages unlimitedMessages = do
+renderMessages :: Config -> Integer -> UserID -> [Message] -> Int -> H.Html
+renderMessages config days uid messages correctGuessCount = do
   let userMessageCount = length $ filter ((== uid) . messageSenderId) messages
-      remainingMessages = if unlimitedMessages
-                          then "unlimited"
-                          else T.pack $ show $ matchMessageLimit config - userMessageCount
-      hasReachedLimit = not unlimitedMessages && userMessageCount >= matchMessageLimit config
+      messageLimit = case correctGuessCount of
+        0 -> 0
+        1 -> 3
+        2 -> 6
+        3 -> 18
+        _ -> 3
+      hasReachedLimit = userMessageCount >= messageLimit
 
   H.div H.! A.class_ "w-full max-w-2xl mx-auto mb-4" $ do
     mapM_ (renderMessage uid) messages
@@ -708,14 +703,17 @@ renderMessages config days uid messages unlimitedMessages = do
     if hasReachedLimit
       then
         H.div H.! A.class_ "p-4 text-center rounded-lg bg-base-200" $
-          H.toHtml ("you have reached the limit of " ++ (show $ matchMessageLimit config) ++ " messages")
+          H.toHtml ("you have reached the limit of " ++ show messageLimit ++ " messages")
       else
         H.form H.! A.id "message-form" H.! A.class_ "flex flex-col" H.! A.method "POST"
                H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/message") $ do
           H.div H.! A.class_ "text-sm text-base-content/70 mb-1" $
-            H.text $ if unlimitedMessages
-                     then "unlimited messages (all guesses correct!)"
-                     else remainingMessages <> " messages remaining"
+            H.text $ case correctGuessCount of
+              0 -> "no messages allowed (0 correct guesses)"
+              1 -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining (1 correct guess)"
+              2 -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining (2 correct guesses)"
+              3 -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining (all guesses correct!)"
+              _ -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining"
           H.textarea H.! A.class_ "w-full p-4 mb-4 border border-base-400 resize-none field-sizing-content target:border-primary"
             H.! A.form "message-form" H.! A.type_ "text" H.! A.id "new-message" H.! A.name "new-message"
             H.! A.placeholder ( "message (max " <> (H.toValue $ show $ matchMessageMaxLength config) <> " characters)")

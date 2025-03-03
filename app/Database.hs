@@ -865,17 +865,28 @@ getMessageCount conn matchId uid = do
 
 validateNewMessage :: Config -> SQL.Connection -> Int -> UserID -> T.Text -> IO Bool
 validateNewMessage config conn matchId senderId content = do
-  unlimitedMessages <- hasAllGuessesCorrect conn matchId senderId
-  messageCount <- getMessageCount conn matchId senderId
-  if not unlimitedMessages && messageCount >= matchMessageLimit config
-    then return False
-    else if T.length content > matchMessageMaxLength config
-      then return False
-      else do
-        match <- SQL.query conn
-          "SELECT 1 FROM matched WHERE id = ? AND (user_id = ? OR target_id = ?)"
-          (matchId, senderId, senderId) :: IO [SQL.Only Int]
-        return $ not $ null match
+  matchQuery <- SQL.query conn
+    "SELECT user_id, target_id FROM matched WHERE id = ? AND (user_id = ? OR target_id = ?)"
+    (matchId, senderId, senderId) :: IO [(UserID, UserID)]
+
+  case matchQuery of
+    [(u, t)] -> do
+      let targetId = if u == senderId then t else u
+      guessResults <- getGuessResults conn matchId senderId targetId
+      let correctGuessCount = length $ filter guessResultCorrect guessResults
+          messageLimit = case correctGuessCount of
+            0 -> 0
+            1 -> 3
+            2 -> 6
+            3 -> 18
+            _ -> 3
+      messageCount <- getMessageCount conn matchId senderId
+      if messageCount >= messageLimit
+        then return False
+        else if T.length content > matchMessageMaxLength config
+          then return False
+          else return True
+    _ -> return False
 
 insertMessage :: SQL.Connection -> Int -> UserID -> T.Text -> IO ()
 insertMessage conn matchId senderId content = do
