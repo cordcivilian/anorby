@@ -580,17 +580,19 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
               (nextGuess:_) -> showGuessForm days nextGuess matchId
           else mempty
 
-      let hasCorrectGuess = any guessResultCorrect (viewGuessResults view)
-          hasCompletedAllBaseGuesses = length (viewGuessResults view) >= 3
+      let hasCompletedAllBaseGuesses = length (viewGuessResults view) >= 3
+          correctGuessCount = length $ filter guessResultCorrect $ viewGuessResults view
+          hasCompletedAllStereoGuesses = length (viewStereoGuesses view) >= 3
+          chatEnabled = correctGuessCount > 0 && hasCompletedAllStereoGuesses
 
-      Monad.when (hasCorrectGuess && hasCompletedAllBaseGuesses) $ do
+      Monad.when (correctGuessCount > 0 && hasCompletedAllBaseGuesses) $ do
         H.div H.! A.id "stereo" H.! A.class_ "grid gap-4 p-4" $ do
 
           Monad.forM_ (viewStereoGuesses view) $ \guess -> do
             case Map.lookup (stereoGuessStereoId guess) stereoMap of
               Just stereo -> H.div $ showStereoGuess stereo guess
               Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $
-                         "Question #" <> H.toHtml (show (stereoGuessStereoId guess))
+                         "question #" <> H.toHtml (show (stereoGuessStereoId guess))
 
           if length (viewStereoGuesses view) < 3
             then
@@ -606,15 +608,19 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
             case Map.lookup (stereoGuessStereoId guess) stereoMap of
               Just stereo -> H.div $ showStereoGuessAboutYou stereo guess
               Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $
-                         "Question #" <> H.toHtml (show (stereoGuessStereoId guess))
-
-      let correctGuessCount = length $ filter guessResultCorrect $ viewGuessResults view
-          chatEnabled = correctGuessCount > 0
+                         "question #" <> H.toHtml (show (stereoGuessStereoId guess))
 
       H.div H.! A.class_ "p-4" $ do
         if chatEnabled
           then renderMessages config days mainUserId messages correctGuessCount
-          else H.div H.! A.class_ "w-full max-w-2xl mx-auto text-center p-4 bg-base-200 rounded-lg" $ "complete all 3 guesses with at least one correct to unlock chat"
+          else H.div H.! A.class_ "w-full max-w-2xl mx-auto text-center p-4 bg-base-200 rounded-lg" $
+            case hasCompletedAllBaseGuesses of
+              False -> "more correct guesses = more messages in chat mode"
+              True -> case correctGuessCount of
+                0 -> "chatting not enabled"
+                _ -> case hasCompletedAllStereoGuesses of
+                  False -> "let them know who you think they are"
+                  True -> "chat unlocked"
 
       H.span H.! A.id "bottom" $ mempty
 
@@ -721,7 +727,6 @@ showStereoForm days stereo matchId targetId = do
     H.div H.! A.class_ "ds-card-body p-6" $ do
       H.div H.! A.class_ "ds-card-title text-light text-sm" $ "personal guess"
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
-      H.div H.! A.class_ "text-sm italic mb-4" $ H.toHtml $ stereoStx stereo
 
       H.div H.! A.class_ "grid mt-4" $ do
         H.form H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/stereo") $ do

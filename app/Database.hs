@@ -981,19 +981,26 @@ validateNewMessage config conn matchId senderId content = do
     [(u, t)] -> do
       let targetId = if u == senderId then t else u
       guessResults <- getGuessResults conn matchId senderId targetId
+      stereoGuesses <- getStereoGuesses conn matchId senderId
+
       let correctGuessCount = length $ filter guessResultCorrect guessResults
+          hasCompletedAllStereoGuesses = length stereoGuesses >= 3
           messageLimit = case correctGuessCount of
             0 -> 0
             1 -> 3
             2 -> 6
             3 -> 18
             _ -> 3
-      messageCount <- getMessageCount conn matchId senderId
-      if messageCount >= messageLimit
+
+      if not hasCompletedAllStereoGuesses
         then return False
-        else if T.length content > matchMessageMaxLength config
-          then return False
-          else return True
+        else do
+          messageCount <- getMessageCount conn matchId senderId
+          if messageCount >= messageLimit
+            then return False
+            else if T.length content > matchMessageMaxLength config
+              then return False
+              else return True
     _ -> return False
 
 insertMessage :: SQL.Connection -> Int -> UserID -> T.Text -> IO ()
