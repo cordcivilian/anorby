@@ -4,6 +4,7 @@ module Web.Templates where
 
 import qualified Control.Monad as Monad
 import qualified Data.List as List
+import qualified Data.Map as Map
 import qualified Data.Ord as Ord
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -539,8 +540,8 @@ formatSemiAbsoluteMatchDate currentTimestamp' matchTimestamp' unread =
         then "[" <> T.pack (show unread) <> "] " <> baseText
         else baseText
 
-matchProfileTemplate :: Config -> Integer -> UserID -> UserID -> Int -> MatchView -> [Message] -> H.Html
-matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeHtml $ H.html $ do
+matchProfileTemplate :: Config -> Integer -> UserID -> UserID -> Int -> MatchView -> [Message] -> [StereoGuess] -> Map.Map Int Stereo -> H.Html
+matchProfileTemplate config days mainUserId targetId matchId view messages stereoGuessesAboutUser stereoMap = H.docTypeHtml $ H.html $ do
   pageHead (T.pack $ "clash #" ++ show days) mempty
   H.body $ do
     H.div $ do
@@ -570,6 +571,7 @@ matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeH
           Nothing -> mempty
 
       H.div H.! A.id "guesses" H.! A.class_ "grid gap-4 p-4" $ do
+
         Monad.forM_ (viewGuessResults view) $ \result -> H.div $ showGuessResult result
         if length (viewGuessResults view) < 3
           then
@@ -577,6 +579,34 @@ matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeH
               [] -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "no more questions available for guessing"
               (nextGuess:_) -> showGuessForm days nextGuess matchId
           else mempty
+
+      let hasCorrectGuess = any guessResultCorrect (viewGuessResults view)
+          hasCompletedAllBaseGuesses = length (viewGuessResults view) >= 3
+
+      Monad.when (hasCorrectGuess && hasCompletedAllBaseGuesses) $ do
+        H.div H.! A.id "stereo" H.! A.class_ "grid gap-4 p-4" $ do
+
+          Monad.forM_ (viewStereoGuesses view) $ \guess -> do
+            case Map.lookup (stereoGuessStereoId guess) stereoMap of
+              Just stereo -> H.div $ showStereoGuess stereo guess
+              Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $
+                         "Question #" <> H.toHtml (show (stereoGuessStereoId guess))
+
+          if length (viewStereoGuesses view) < 3
+            then
+              case viewStereoQuestions view of
+                [] -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "no more personal questions available"
+                (nextQuestion:_) -> showStereoForm days nextQuestion matchId targetId
+            else mempty
+
+      Monad.unless (null stereoGuessesAboutUser) $ do
+        H.div H.! A.id "about-you" H.! A.class_ "grid gap-4 p-4" $ do
+
+          Monad.forM_ stereoGuessesAboutUser $ \guess -> do
+            case Map.lookup (stereoGuessStereoId guess) stereoMap of
+              Just stereo -> H.div $ showStereoGuessAboutYou stereo guess
+              Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $
+                         "Question #" <> H.toHtml (show (stereoGuessStereoId guess))
 
       let correctGuessCount = length $ filter guessResultCorrect $ viewGuessResults view
           chatEnabled = correctGuessCount > 0
@@ -587,6 +617,39 @@ matchProfileTemplate config days mainUserId _ matchId view messages = H.docTypeH
           else H.div H.! A.class_ "w-full max-w-2xl mx-auto text-center p-4 bg-base-200 rounded-lg" $ "complete all 3 guesses with at least one correct to unlock chat"
 
       H.span H.! A.id "bottom" $ mempty
+
+showClashAorb :: T.Text -> MatchingAorbWithAnswer -> H.Html
+showClashAorb title mawa = do
+  let aorb = matchingAorbData mawa
+      mean = round (aorbMean aorb * 100)
+      aorbAs = let (d, m) = divMod mean 5 in if m < 3 then d else d + 1
+      aorbBs = 20 - aorbAs
+      mainAns = mainUserAnswer mawa
+      matchAns = otherUserAnswer mawa
+      (adjustedAorbAs, adjustedAorbBs) =
+        case (mainAns, matchAns) of
+          (AorbAnswer 0, AorbAnswer 0) -> (aorbAs - 2, aorbBs)
+          (AorbAnswer 0, AorbAnswer 1) -> (aorbAs - 1, aorbBs - 1)
+          (AorbAnswer 1, AorbAnswer 0) -> (aorbAs - 1, aorbBs - 1)
+          (AorbAnswer 1, AorbAnswer 1) -> (aorbAs, aorbBs - 2)
+          _ -> (aorbAs, aorbBs)
+  H.div H.! A.class_ "ds-card ds-card-border border-2 w-full max-w-2xl mx-auto grid" $ do
+    H.div H.! A.class_ "ds-card-body p-6" $ do
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ H.toHtml $ title
+      H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
+      H.div H.! A.class_ "ds-stats w-full ds-stats-vertical" $ do
+        H.div H.! A.class_ "ds-stat w-full p-2" $ do
+          H.div H.! A.class_ "ds-stat-title mb-2" $ H.toHtml $ aorbA aorb
+          H.div H.! A.class_ "flex gap-1 flex-wrap" $ do
+            Monad.when (matchAns == AorbAnswer 0) (H.div H.! A.class_ "ds-badge ds-badge-warning" $ "")
+            Monad.when (mainAns == AorbAnswer 0) (H.div H.! A.class_ "ds-badge ds-badge-primary" $ "")
+            Monad.replicateM_ adjustedAorbAs (H.div H.! A.class_ "ds-badge ds-badge-secondary" $ "")
+        H.div H.! A.class_ "ds-stat w-full p-2" $ do
+          H.div H.! A.class_ "flex gap-1 flex-wrap" $ do
+            Monad.when (matchAns == AorbAnswer 1) (H.div H.! A.class_ "ds-badge ds-badge-warning" $ "")
+            Monad.when (mainAns == AorbAnswer 1) (H.div H.! A.class_ "ds-badge ds-badge-primary" $ "")
+            Monad.replicateM_ adjustedAorbBs (H.div H.! A.class_ "ds-badge ds-badge-secondary" $ "")
+          H.div H.! A.class_ "ds-stat-title mt-2" $ H.toHtml $ aorbB aorb
 
 showGuessForm :: Integer -> Aorb -> Int -> H.Html
 showGuessForm days aorb matchId = do
@@ -652,38 +715,66 @@ showGuessResult result = do
           H.div H.! guessClassB $ H.toHtml $ aorbB aorb
           H.div H.! actualClassB $ ""
 
-showClashAorb :: T.Text -> MatchingAorbWithAnswer -> H.Html
-showClashAorb title mawa = do
-  let aorb = matchingAorbData mawa
-      mean = round (aorbMean aorb * 100)
-      aorbAs = let (d, m) = divMod mean 5 in if m < 3 then d else d + 1
-      aorbBs = 20 - aorbAs
-      mainAns = mainUserAnswer mawa
-      matchAns = otherUserAnswer mawa
-      (adjustedAorbAs, adjustedAorbBs) =
-        case (mainAns, matchAns) of
-          (AorbAnswer 0, AorbAnswer 0) -> (aorbAs - 2, aorbBs)
-          (AorbAnswer 0, AorbAnswer 1) -> (aorbAs - 1, aorbBs - 1)
-          (AorbAnswer 1, AorbAnswer 0) -> (aorbAs - 1, aorbBs - 1)
-          (AorbAnswer 1, AorbAnswer 1) -> (aorbAs, aorbBs - 2)
-          _ -> (aorbAs, aorbBs)
+showStereoForm :: Integer -> Stereo -> Int -> UserID -> H.Html
+showStereoForm days stereo matchId targetId = do
   H.div H.! A.class_ "ds-card ds-card-border border-2 w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
-      H.div H.! A.class_ "ds-card-title text-light text-sm" $ H.toHtml $ title
-      H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
-      H.div H.! A.class_ "ds-stats w-full ds-stats-vertical" $ do
-        H.div H.! A.class_ "ds-stat w-full p-2" $ do
-          H.div H.! A.class_ "ds-stat-title mb-2" $ H.toHtml $ aorbA aorb
-          H.div H.! A.class_ "flex gap-1 flex-wrap" $ do
-            Monad.when (matchAns == AorbAnswer 0) (H.div H.! A.class_ "ds-badge ds-badge-warning" $ "")
-            Monad.when (mainAns == AorbAnswer 0) (H.div H.! A.class_ "ds-badge ds-badge-primary" $ "")
-            Monad.replicateM_ adjustedAorbAs (H.div H.! A.class_ "ds-badge ds-badge-secondary" $ "")
-        H.div H.! A.class_ "ds-stat w-full p-2" $ do
-          H.div H.! A.class_ "flex gap-1 flex-wrap" $ do
-            Monad.when (matchAns == AorbAnswer 1) (H.div H.! A.class_ "ds-badge ds-badge-warning" $ "")
-            Monad.when (mainAns == AorbAnswer 1) (H.div H.! A.class_ "ds-badge ds-badge-primary" $ "")
-            Monad.replicateM_ adjustedAorbBs (H.div H.! A.class_ "ds-badge ds-badge-secondary" $ "")
-          H.div H.! A.class_ "ds-stat-title mt-2" $ H.toHtml $ aorbB aorb
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "personal guess"
+      H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
+      H.div H.! A.class_ "text-sm italic mb-4" $ H.toHtml $ stereoStx stereo
+
+      H.div H.! A.class_ "grid mt-4" $ do
+        H.form H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/stereo") $ do
+          H.input H.! A.type_ "hidden" H.! A.name "stereo_id" H.! A.value (H.toValue $ show $ stereoId stereo)
+          H.input H.! A.type_ "hidden" H.! A.name "choice" H.! A.value "0"
+          H.input H.! A.type_ "hidden" H.! A.name "match_id" H.! A.value (H.toValue $ show matchId)
+          H.input H.! A.type_ "hidden" H.! A.name "target_id" H.! A.value (H.toValue $ show targetId)
+          H.button H.! A.type_ "submit" H.! A.class_ "w-full p-4 text-left border rounded-lg hover:bg-base-200" $
+            H.toHtml $ stereoA stereo
+        H.div H.! A.class_ "ds-divider" $ "OR"
+        H.form H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/stereo") $ do
+          H.input H.! A.type_ "hidden" H.! A.name "stereo_id" H.! A.value (H.toValue $ show $ stereoId stereo)
+          H.input H.! A.type_ "hidden" H.! A.name "choice" H.! A.value "1"
+          H.input H.! A.type_ "hidden" H.! A.name "match_id" H.! A.value (H.toValue $ show matchId)
+          H.input H.! A.type_ "hidden" H.! A.name "target_id" H.! A.value (H.toValue $ show targetId)
+          H.button H.! A.type_ "submit" H.! A.class_ "w-full p-4 text-left border rounded-lg hover:bg-base-200" $
+            H.toHtml $ stereoB stereo
+
+showStereoGuess :: Stereo -> StereoGuess -> H.Html
+showStereoGuess stereo guess = do
+  H.div H.! A.class_ "ds-card ds-card-border border-2 border-secondary w-full max-w-2xl mx-auto grid" $ do
+    H.div H.! A.class_ "ds-card-body p-6" $ do
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "your guess about them"
+      H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
+
+      H.div H.! A.class_ "grid mt-4" $ do
+        H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 0
+                           then "w-full p-4 text-left border-2 rounded-lg border-primary"
+                           else "w-full p-4 text-left border rounded-lg") $
+          H.toHtml $ stereoA stereo
+        H.div H.! A.class_ "ds-divider" $ "OR"
+        H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 1
+                           then "w-full p-4 text-left border-2 rounded-lg border-primary"
+                           else "w-full p-4 text-left border rounded-lg") $
+          H.toHtml $ stereoB stereo
+
+showStereoGuessAboutYou :: Stereo -> StereoGuess -> H.Html
+showStereoGuessAboutYou stereo guess = do
+  H.div H.! A.class_ "ds-card ds-card-border border-2 border-warning w-full max-w-2xl mx-auto grid" $ do
+    H.div H.! A.class_ "ds-card-body p-6" $ do
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "their guess about you"
+      H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
+
+      H.div H.! A.class_ "grid mt-4" $ do
+        H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 0
+                           then "w-full p-4 text-left border-2 rounded-lg border-warning"
+                           else "w-full p-4 text-left border rounded-lg") $
+          H.toHtml $ stereoA stereo
+        H.div H.! A.class_ "ds-divider" $ "OR"
+        H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 1
+                           then "w-full p-4 text-left border-2 rounded-lg border-warning"
+                           else "w-full p-4 text-left border rounded-lg") $
+          H.toHtml $ stereoB stereo
 
 renderMessages :: Config -> Integer -> UserID -> [Message] -> Int -> H.Html
 renderMessages config days uid messages correctGuessCount = do

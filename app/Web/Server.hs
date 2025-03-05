@@ -273,6 +273,12 @@ routes =
           [(days, "")] -> handleGuessSubmission config conn uid days req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
+  , Route "POST" "/clash/t-:days/stereo" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/clash/t-:days/stereo" (Wai.rawPathInfo req) "days" of
+        Just daysBS -> case reads (BS.unpack daysBS) :: [(Integer, String)] of
+          [(days, "")] -> handleStereoSubmission config conn uid days req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
 
   -- Account management routes (protected)
   , Route "GET" "/logout" $ ProtectedHandler $ \_ _ conn uid req ->

@@ -35,6 +35,7 @@ initDB db clean = do
     mapM_ (SQL.execute_ conn . SQL.Query . T.pack) cleanupQueries
     initTables conn
     ingestBaseAorbData conn
+    ingestStereoData conn
   initSQLitePragmas conn
   return conn
 
@@ -98,10 +99,12 @@ initTables conn = SQL.withTransaction conn $ do
   initAorbTable conn
   initAorbAnswersTable conn
   initAorbMeanTrigger conn
+  initStereoTable conn
   initAuthTable conn
   initMatchedTable conn
   initUnmatchedTable conn
   initGuessesTable conn
+  initStereoGuessesTable conn
   initMessagesTable conn
   initIndexes conn
 
@@ -225,6 +228,34 @@ initGuessesTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   , "UNIQUE(match_id, user_id, aorb_id))"
   ]
 
+initStereoTable :: SQL.Connection -> IO()
+initStereoTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+ [ "CREATE TABLE IF NOT EXISTS stereo"
+ , "(id INTEGER PRIMARY KEY,"
+ , "context TEXT NOT NULL,"
+ , "subtext TEXT NOT NULL,"
+ , "a TEXT NOT NULL,"
+ , "b TEXT NOT NULL,"
+ , "created_on INTEGER NOT NULL DEFAULT (unixepoch('now')))"
+ ]
+
+initStereoGuessesTable :: SQL.Connection -> IO ()
+initStereoGuessesTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
+  [ "CREATE TABLE IF NOT EXISTS stereo_guesses"
+  , "(id INTEGER PRIMARY KEY,"
+  , "match_id INTEGER NOT NULL,"
+  , "user_id INTEGER NOT NULL,"
+  , "target_id INTEGER NOT NULL,"
+  , "stereo_id INTEGER NOT NULL,"
+  , "guess INTEGER NOT NULL,"
+  , "created_on INTEGER NOT NULL,"
+  , "FOREIGN KEY (match_id) REFERENCES matched(id),"
+  , "FOREIGN KEY (user_id) REFERENCES users(id),"
+  , "FOREIGN KEY (target_id) REFERENCES users(id),"
+  , "FOREIGN KEY (stereo_id) REFERENCES stereo(id),"
+  , "UNIQUE(match_id, user_id, stereo_id))"
+  ]
+
 initMessagesTable :: SQL.Connection -> IO ()
 initMessagesTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   [ "CREATE TABLE IF NOT EXISTS messages"
@@ -327,11 +358,25 @@ ingestBaseAorbData conn = do
             [ "INSERT OR REPLACE INTO aorb (id, context, subtext, a, b)"
             , "VALUES (?, ?, ?, ?, ?)"
             ]
-      )
-      (map (\aorb ->
-        (aorbId aorb, aorbCtx aorb, aorbStx aorb, aorbA aorb, aorbB aorb)
-           ) aorbs)
-    Nothing -> putStrLn "error parsing json"
+      ) (map (\aorb -> (aorbId aorb, aorbCtx aorb, aorbStx aorb, aorbA aorb, aorbB aorb)) aorbs)
+    Nothing -> putStrLn "error parsing base.json"
+
+readStereoQuestions :: IO (Maybe [Stereo])
+readStereoQuestions = do
+  jsonData <- BSL.readFile "data/stereo.json"
+  return $ JSON.decode jsonData
+
+ingestStereoData :: SQL.Connection -> IO ()
+ingestStereoData conn = do
+  stereo <- readStereoQuestions
+  case stereo of
+    Just questions -> SQL.withTransaction conn $ SQL.executeMany conn
+      (SQL.Query $ T.unwords
+            [ "INSERT OR REPLACE INTO stereo (id, context, subtext, a, b)"
+            , "VALUES (?, ?, ?, ?, ?)"
+            ]
+      ) (map (\q -> (stereoId q, stereoCtx q, stereoStx q, stereoA q, stereoB q)) questions)
+    Nothing -> putStrLn "error parsing stereo.json"
 
 -- | User query functions
 
@@ -849,6 +894,69 @@ hasAllGuessesCorrect conn matchId uid = do
       guessResults <- getGuessResults conn matchId uid targetId
       return $ length guessResults == 3 && all guessResultCorrect guessResults
     _ -> return False
+
+getStereoQuestions :: SQL.Connection -> Int -> IO [Stereo]
+getStereoQuestions conn count = do
+  SQL.query conn
+    "SELECT * FROM stereo ORDER BY RANDOM() LIMIT ?"
+    (SQL.Only count)
+
+getStereoQuestionsExcluding :: SQL.Connection -> [Int] -> Int -> IO [Stereo]
+getStereoQuestionsExcluding conn excludeIds count = do
+  let placeholders =
+        if null excludeIds
+          then "(-1)"
+          else "(" <> T.intercalate "," (map (T.pack . show) excludeIds) <> ")"
+
+  SQL.query conn
+    (SQL.Query $ T.unwords
+      [ "SELECT *"
+      , "FROM stereo"
+      , "WHERE id NOT IN " <> placeholders
+      , "ORDER BY RANDOM()"
+      , "LIMIT ?"
+      ])
+    (SQL.Only count)
+
+saveStereoGuess :: SQL.Connection -> Int -> UserID -> UserID -> Int -> AorbAnswer -> IO ()
+saveStereoGuess conn matchId uid targetId sid answer = do
+  now <- POSIXTime.getPOSIXTime
+  SQL.execute conn
+    (SQL.Query $ T.unwords
+      [ "INSERT OR REPLACE INTO stereo_guesses"
+      , "(match_id, user_id, target_id, stereo_id, guess, created_on)"
+      , "VALUES (?, ?, ?, ?, ?, ?)"
+      ])
+    (matchId, uid, targetId, sid, answer, floor now :: Integer)
+
+getStereoGuesses :: SQL.Connection -> Int -> UserID -> IO [StereoGuess]
+getStereoGuesses conn matchId uid = do
+  SQL.query conn
+    ( SQL.Query $ T.unwords
+        [ "SELECT id, match_id, user_id, target_id, stereo_id, guess, created_on"
+        , "FROM stereo_guesses"
+        , "WHERE match_id = ? AND user_id = ?"
+        , "ORDER BY created_on ASC"
+        ]
+    ) (matchId, uid)
+
+getStereoGuessesForTarget :: SQL.Connection -> Int -> UserID -> IO [StereoGuess]
+getStereoGuessesForTarget conn matchId targetId = do
+  SQL.query conn
+    ( SQL.Query $ T.unwords
+        [ "SELECT id, match_id, user_id, target_id, stereo_id, guess, created_on"
+        , "FROM stereo_guesses"
+        , "WHERE match_id = ? AND target_id = ?"
+        , "ORDER BY created_on ASC"
+        ]
+    ) (matchId, targetId)
+
+getStereoById :: SQL.Connection -> Int -> IO (Maybe Stereo)
+getStereoById conn sid = do
+  results <- SQL.query conn "SELECT * FROM stereo WHERE id = ?" (SQL.Only sid)
+  case results of
+    [stereo] -> return $ Just stereo
+    _ -> return Nothing
 
 -- | Message query functions
 

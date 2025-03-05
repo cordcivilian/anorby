@@ -7,6 +7,7 @@ import qualified System.Directory as Dir
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Digest.Pure.SHA as SHA
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as T
@@ -610,25 +611,36 @@ matchProfileTemplateRoute config conn uid days _ = do
       agreements <- getMatchesTopXUniqueAgreement conn uid targetId 1
       disagreements <- getMatchesTopXCommonDisagreement conn uid targetId 1
 
-      -- Get existing guesses
-      let shownAorbIds =
-            (maybe [] (\(a1, a2) -> [aorbId (matchingAorbData a1), aorbId (matchingAorbData a2)]) targetMainAorbs) ++
-            (maybe [] (\a -> [aorbId (matchingAorbData a)]) $ Maybe.listToMaybe agreements) ++
-            (maybe [] (\a -> [aorbId (matchingAorbData a)]) $ Maybe.listToMaybe disagreements)
-
       guessResults <- getGuessResults conn matchId uid targetId
       guessAorbs <- if length guessResults < 3
                        then do
                          let neededGuesses = 3 - length guessResults
                          let guessedAorbIds = map (aorbId . guessResultAorb) guessResults
+                         let shownAorbIds =
+                               (maybe [] (\(a1, a2) -> [aorbId (matchingAorbData a1), aorbId (matchingAorbData a2)]) targetMainAorbs) ++
+                               (maybe [] (\a -> [aorbId (matchingAorbData a)]) $ Maybe.listToMaybe agreements) ++
+                               (maybe [] (\a -> [aorbId (matchingAorbData a)]) $ Maybe.listToMaybe disagreements)
                          let excludeIds = shownAorbIds ++ guessedAorbIds
                          aorbs <- getGuessAorbs conn targetId excludeIds neededGuesses
                          return aorbs
                        else
                          return []
 
-      messages <- getMessagesForMatch conn matchId
-      markMessagesRead conn matchId uid
+      stereoGuesses <- getStereoGuesses conn matchId uid
+
+      let hasCorrectGuess = any guessResultCorrect guessResults
+          existingStereoIds = map stereoGuessStereoId stereoGuesses
+
+      stereoQuestions <- if hasCorrectGuess && length stereoGuesses < 3 then getStereoQuestionsExcluding conn existingStereoIds (3 - length stereoGuesses) else return []
+      stereoGuessesAboutUser <- getStereoGuessesForTarget conn matchId uid
+
+      let allStereoIds = List.nub $ map stereoGuessStereoId stereoGuesses ++ map stereoGuessStereoId stereoGuessesAboutUser ++ map stereoId stereoQuestions
+
+      allStereoQuestions <- Monad.forM allStereoIds $ \sid -> do
+        maybeStereo <- getStereoById conn sid
+        return $ maybe Nothing (\s -> Just (sid, s)) maybeStereo
+
+      let stereoMap = Map.fromList $ Maybe.catMaybes allStereoQuestions
 
       let matchView = MatchView
             { viewTimestamp = matchTimestamp match
@@ -640,15 +652,18 @@ matchProfileTemplateRoute config conn uid days _ = do
             , viewTopDisagreement = Maybe.listToMaybe disagreements
             , viewGuessAorbs = guessAorbs
             , viewGuessResults = guessResults
+            , viewStereoQuestions = stereoQuestions
+            , viewStereoGuesses = stereoGuesses
             }
+
+      messages <- getMessagesForMatch conn matchId
+      markMessagesRead conn matchId uid
 
       return $ Wai.responseLBS
         HTTP.status200
         [ (Headers.hContentType, "text/html; charset=utf-8") ]
-        (R.renderHtml $
-          matchProfileTemplate config days uid targetId matchId matchView messages)
+        (R.renderHtml $ matchProfileTemplate config days uid targetId matchId matchView messages stereoGuessesAboutUser stereoMap)
     [] -> return notFoundResponse
-
 
 handleGuessSubmission :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
 handleGuessSubmission _ conn uid days req = do
@@ -697,6 +712,45 @@ submitGuessRoute _ conn uid days aid answer _ = do
         ]
         ""
     _ -> return notFoundResponse
+
+handleStereoSubmission :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
+handleStereoSubmission _ conn uid days req = do
+  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  case (,,,) <$> lookup "stereo_id" params <*> lookup "choice" params <*> lookup "match_id" params <*> lookup "target_id" params of
+    Just (stereoIdBS, choiceBS, matchIdBS, targetIdBS) -> do
+      case ( Read.readMaybe (BS.unpack stereoIdBS) :: Maybe Int
+           , Read.readMaybe (BS.unpack choiceBS) :: Maybe Word.Word8
+           , Read.readMaybe (BS.unpack matchIdBS) :: Maybe Int
+           , Read.readMaybe (BS.unpack targetIdBS) :: Maybe UserID
+           ) of
+        (Just sid, Just choice, Just matchId, Just targetId) -> do
+          matchDetails <- SQL.query conn
+            "SELECT 1 FROM matched WHERE id = ? AND (user_id = ? OR target_id = ?)"
+            (matchId, uid, uid) :: IO [SQL.Only Int]
+
+          if null matchDetails
+            then return notFoundResponse
+            else do
+
+              guessResults <- getGuessResults conn matchId uid targetId
+              let hasCorrectGuess = any guessResultCorrect guessResults
+                  hasCompletedAllBaseGuesses = length guessResults >= 3
+
+              if not (hasCorrectGuess && hasCompletedAllBaseGuesses)
+                then return $ Wai.responseLBS
+                  HTTP.status403
+                  [(Headers.hContentType, BS.pack "text/html")]
+                  (R.renderHtml $ errorTemplateWithLink 403 "must complete all 3 base guesses with at least one correct" ("/clash/t-" <> T.pack (show days), "back"))
+                else do
+                  saveStereoGuess conn matchId uid targetId sid (AorbAnswer choice)
+                  return $ Wai.responseLBS
+                    HTTP.status303
+                    [ (Headers.hLocation, BS.pack $ "/clash/t-" ++ show days ++ "#stereo") ]
+                    ""
+        _ -> do
+          return invalidSubmissionResponse
+    Nothing -> do
+      return invalidSubmissionResponse
 
 postMessageRoute :: Config -> SQL.Connection -> UserID -> Integer -> Wai.Request -> IO Wai.Response
 postMessageRoute config conn uid days req = do
