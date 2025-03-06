@@ -4,6 +4,7 @@ module Utils.Simulate where
 
 import qualified Control.Monad as Monad
 import qualified Data.Map as Map
+import qualified Data.Map.Strict as StrictMap
 import qualified Data.Text as T
 import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Time.Format as DateTimeFormat
@@ -113,7 +114,7 @@ mockBaseAorbAnswersWithMatching conn n matchingAlgorithm = do
     let (group1Rankings, group2Rankings) = splitRankings rankingsWithShadow
     marriages <- matchingAlgorithm group1Rankings group2Rankings
 
-    let matches = marriagesToMatches (fromIntegral startOfDay) marriages
+    let matches = marriagesToDatedMatches (fromIntegral startOfDay) marriages
     SQL.withTransaction conn $
       SQL.executeMany conn
         (SQL.Query $ T.unwords
@@ -127,6 +128,20 @@ mockBaseAorbAnswersWithMatching conn n matchingAlgorithm = do
     putStrLn $ "Completed matches for day " ++ show daysAgo
 
   putStrLn "Mock data with matching history complete."
+
+marriagesToDatedMatches :: POSIXTime.POSIXTime -> Marriages -> [Match]
+marriagesToDatedMatches timestamp marriages =
+  [ Match uid tid (floor timestamp)
+    | (uid, Just tid) <- StrictMap.toList marriages
+    , uid < tid
+  ] >>= makeSymmetric
+   where
+    makeSymmetric match =
+      [ match
+      , match { matchUserId = matchTargetId match
+              , matchTargetId = matchUserId match
+              }
+      ]
 
 localSearchWithParams :: Rankings -> Rankings -> IO Marriages
 localSearchWithParams = \g1 g2 -> localSearch g1 g2 1000 1.0 5

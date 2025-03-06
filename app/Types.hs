@@ -145,6 +145,19 @@ instance Random.Random AorbAnswer where
     case Random.random g of
       (b, g') -> (if b then AorbAnswer 1 else AorbAnswer 0, g')
 
+data MockAorbAnswer = MockAorbAnswer
+  { mockUserId :: UserID
+  , mockAorbId :: AorbID
+  , mockAnswer :: AorbAnswer
+  }
+
+instance SQL.ToRow MockAorbAnswer where
+  toRow ans =
+    [ SQL.SQLInteger (fromIntegral $ mockUserId ans)
+    , SQL.SQLInteger (fromIntegral $ mockAorbId ans)
+    , SQL.toField (mockAnswer ans)
+    ]
+
 data AorbAnswers = AorbAnswers
   { aorbUserId :: UserID
   , aorbAorbId :: AorbID

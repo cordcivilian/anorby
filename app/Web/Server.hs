@@ -12,7 +12,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding.Error as TEE
 import qualified Data.Text.IO as TIO
-import qualified Data.Time.Clock.POSIX as POSIXTime
 import qualified Data.Word as Word
 import qualified Database.SQLite.Simple as SQL
 import qualified Network.HTTP.Types as HTTP
@@ -391,11 +390,10 @@ handleAnswerEdit _ conn uid req = do
 
 updateLastAccessed :: SQL.Connection -> Wai.Request -> IO ()
 updateLastAccessed conn req = do
-  now <- POSIXTime.getPOSIXTime
   case getCookie req of
     Just cookieBS -> do
       let hash = TE.decodeUtf8 cookieBS
       SQL.execute conn
-        "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-        (floor now :: Integer, hash)
+        "UPDATE auth SET last_accessed = unixepoch('now') WHERE hash = ?"
+        (SQL.Only hash)
     Nothing -> return ()

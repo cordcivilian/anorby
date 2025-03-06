@@ -150,8 +150,8 @@ initAuthTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   , "(id INTEGER PRIMARY KEY,"
   , "user_id INTEGER NOT NULL,"
   , "hash TEXT NOT NULL,"
-  , "created_on INTEGER NOT NULL,"
-  , "last_accessed INTEGER NOT NULL,"
+  , "created_on INTEGER NOT NULL DEFAULT (unixepoch('now')),"
+  , "last_accessed INTEGER NOT NULL DEFAULT (unixepoch('now')),"
   , "FOREIGN KEY (user_id) REFERENCES users(id),"
   , "UNIQUE(hash))"
   ]
@@ -188,7 +188,7 @@ initAorbAnswersTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
  , "(user_id INTEGER NOT NULL,"
  , "aorb_id INTEGER NOT NULL,"
  , "answer INTEGER NOT NULL,"
- , "answered_on INTEGER NOT NULL,"
+ , "answered_on INTEGER NOT NULL DEFAULT (unixepoch('now')),"
  , "FOREIGN KEY (user_id) REFERENCES users(id),"
  , "FOREIGN KEY (aorb_id) REFERENCES aorb(id),"
  , "UNIQUE(user_id, aorb_id))"
@@ -200,7 +200,7 @@ initMatchedTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   , "(id INTEGER PRIMARY KEY,"
   , "user_id INTEGER NOT NULL,"
   , "target_id INTEGER NOT NULL,"
-  , "matched_on INTEGER NOT NULL,"
+  , "matched_on INTEGER NOT NULL DEFAULT (unixepoch('now')),"
   , "FOREIGN KEY (user_id) REFERENCES users(id),"
   , "FOREIGN KEY (target_id) REFERENCES users(id))"
   ]
@@ -209,7 +209,7 @@ initUnmatchedTable :: SQL.Connection -> IO ()
 initUnmatchedTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   [ "CREATE TABLE IF NOT EXISTS unmatched_users"
   , "(user_id INTEGER PRIMARY KEY,"
-  , "unmatched_since INTEGER NOT NULL,"
+  , "unmatched_since INTEGER NOT NULL DEFAULT (unixepoch('now')),"
   , "FOREIGN KEY (user_id) REFERENCES users(id))"
   ]
 
@@ -221,7 +221,7 @@ initGuessesTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   , "user_id INTEGER NOT NULL,"
   , "aorb_id INTEGER NOT NULL,"
   , "guess INTEGER NOT NULL,"
-  , "created_on INTEGER NOT NULL,"
+  , "created_on INTEGER NOT NULL DEFAULT (unixepoch('now')),"
   , "FOREIGN KEY (match_id) REFERENCES matched(id),"
   , "FOREIGN KEY (user_id) REFERENCES users(id),"
   , "FOREIGN KEY (aorb_id) REFERENCES aorb(id),"
@@ -248,7 +248,7 @@ initStereoGuessesTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   , "target_id INTEGER NOT NULL,"
   , "stereo_id INTEGER NOT NULL,"
   , "guess INTEGER NOT NULL,"
-  , "created_on INTEGER NOT NULL,"
+  , "created_on INTEGER NOT NULL DEFAULT (unixepoch('now')),"
   , "FOREIGN KEY (match_id) REFERENCES matched(id),"
   , "FOREIGN KEY (user_id) REFERENCES users(id),"
   , "FOREIGN KEY (target_id) REFERENCES users(id),"
@@ -263,7 +263,7 @@ initMessagesTable conn = SQL.execute_ conn $ SQL.Query $ T.unwords
   , "match_id INTEGER NOT NULL,"
   , "sender_id INTEGER NOT NULL,"
   , "content TEXT NOT NULL,"
-  , "sent_on INTEGER NOT NULL,"
+  , "sent_on INTEGER NOT NULL DEFAULT (unixepoch('now')),"
   , "is_read INTEGER NOT NULL DEFAULT 0,"
   , "FOREIGN KEY (match_id) REFERENCES matched(id),"
   , "FOREIGN KEY (sender_id) REFERENCES users(id))"
@@ -412,13 +412,12 @@ hasThresholdAccess conn uid threshold = do
 getUserFromAuthHash :: SQL.Connection -> T.Text -> IO (Maybe User)
 getUserFromAuthHash conn hash = do
   let query = SQL.Query "SELECT users.* FROM users JOIN auth ON users.id = auth.user_id WHERE auth.hash = ?"
-  now <- POSIXTime.getPOSIXTime
   results <- SQL.query conn query (SQL.Only hash) :: IO [User]
   case results of
     [user] -> do
       SQL.execute conn
-        "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-        (floor now :: Integer, hash)
+        "UPDATE auth SET last_accessed = unixepoch('now') WHERE hash = ?"
+        (SQL.Only hash)
       return $ Just user
     _ -> return Nothing
 
@@ -583,30 +582,18 @@ getMatchBetweenUsers conn uid1 uid2 = do
 
 insertMatches :: SQL.Connection -> Marriages -> IO ()
 insertMatches conn marriages = do
-  now <- POSIXTime.getPOSIXTime
-  let matches = marriagesToMatches now marriages
+  let matches = marriagesToMatches marriages
   SQL.withTransaction conn $ do
-    SQL.executeMany conn
-      (SQL.Query $ T.unwords
-        [ "INSERT INTO matched"
-        , "(user_id, target_id, matched_on)"
-        , "VALUES (?, ?, ?)"
-        ]
-      ) matches
+    SQL.executeMany conn "INSERT INTO matched (user_id, target_id) VALUES (?, ?)" matches
 
-marriagesToMatches :: POSIXTime.POSIXTime -> Marriages -> [Match]
-marriagesToMatches timestamp marriages =
-  [ Match uid tid (floor timestamp)
+marriagesToMatches :: Marriages -> [(UserID, UserID)]
+marriagesToMatches marriages =
+  [ (uid, tid)
   | (uid, Just tid) <- StrictMap.toList marriages
   , uid < tid
   ] >>= makeSymmetric
   where
-    makeSymmetric match =
-      [ match
-      , match { matchUserId = matchTargetId match
-              , matchTargetId = matchUserId match
-              }
-      ]
+    makeSymmetric (p1, p2) = [(p1, p2), (p2, p1)]
 
 -- | Aorb query functions
 
@@ -837,14 +824,13 @@ getGuessAorbs conn targetId excludeIds count = do
 
 saveGuess :: SQL.Connection -> Int -> UserID -> AorbID -> AorbAnswer -> IO ()
 saveGuess conn matchId uid aid answer = do
-  now <- POSIXTime.getPOSIXTime
   SQL.execute conn
     (SQL.Query $ T.unwords
       [ "INSERT OR REPLACE INTO guesses"
-      , "(match_id, user_id, aorb_id, guess, created_on)"
-      , "VALUES (?, ?, ?, ?, ?)"
+      , "(match_id, user_id, aorb_id, guess)"
+      , "VALUES (?, ?, ?, ?)"
       ])
-    (matchId, uid, aid, answer, floor now :: Integer)
+    (matchId, uid, aid, answer)
 
 getGuesses :: SQL.Connection -> Int -> UserID -> IO [Guess]
 getGuesses conn matchId uid = do
@@ -920,14 +906,13 @@ getStereoQuestionsExcluding conn excludeIds count = do
 
 saveStereoGuess :: SQL.Connection -> Int -> UserID -> UserID -> Int -> AorbAnswer -> IO ()
 saveStereoGuess conn matchId uid targetId sid answer = do
-  now <- POSIXTime.getPOSIXTime
   SQL.execute conn
     (SQL.Query $ T.unwords
       [ "INSERT OR REPLACE INTO stereo_guesses"
-      , "(match_id, user_id, target_id, stereo_id, guess, created_on)"
-      , "VALUES (?, ?, ?, ?, ?, ?)"
+      , "(match_id, user_id, target_id, stereo_id, guess)"
+      , "VALUES (?, ?, ?, ?, ?)"
       ])
-    (matchId, uid, targetId, sid, answer, floor now :: Integer)
+    (matchId, uid, targetId, sid, answer)
 
 getStereoGuesses :: SQL.Connection -> Int -> UserID -> IO [StereoGuess]
 getStereoGuesses conn matchId uid = do
@@ -1005,14 +990,13 @@ validateNewMessage config conn matchId senderId content = do
 
 insertMessage :: SQL.Connection -> Int -> UserID -> T.Text -> IO ()
 insertMessage conn matchId senderId content = do
-  now <- POSIXTime.getPOSIXTime
   SQL.execute conn
     ( SQL.Query $ T.unwords
       [ "INSERT INTO messages"
-      , "(match_id, sender_id, content, sent_on)"
-      , "VALUES (?, ?, ?, ?)"
+      , "(match_id, sender_id, content)"
+      , "VALUES (?, ?, ?)"
       ]
-    ) (matchId, senderId, content, floor now :: Integer)
+    ) (matchId, senderId, content)
 
 getMessagesForMatch :: SQL.Connection -> Int -> IO [Message]
 getMessagesForMatch conn matchId =

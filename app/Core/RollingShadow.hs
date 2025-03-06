@@ -24,10 +24,9 @@ shadowUserEmail = "public@cordcivilian.com"
 
 trackUnmatchedUser :: SQL.Connection -> UserID -> IO ()
 trackUnmatchedUser conn uid = do
-  now <- POSIXTime.getPOSIXTime
   SQL.execute conn
-    "INSERT OR REPLACE INTO unmatched_users VALUES (?, ?)"
-    (uid, floor now :: Integer)
+    "INSERT OR REPLACE INTO unmatched_users (user_id) VALUES (?)"
+    (SQL.Only uid)
 
 clearUnmatchedUser :: SQL.Connection -> UserID -> IO ()
 clearUnmatchedUser conn uid =

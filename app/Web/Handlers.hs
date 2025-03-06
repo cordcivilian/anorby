@@ -405,19 +405,13 @@ submitAnswerRoute conn uid aid answer token _ = do
               [(Headers.hContentType, BS.pack "text/html")]
               (R.renderHtml alreadyAnsweredTemplate)
             [] -> do
-              now <- POSIXTime.getPOSIXTime
-              let ans = AorbAnswers
-                    { aorbUserId = uid
-                    , aorbAorbId = aid
-                    , aorbAnswer = answer
-                    , aorbAnsweredOn = floor now
-                    }
-                  query = SQL.Query $ T.unwords
-                    [ "INSERT INTO aorb_answers"
-                    , "(user_id, aorb_id, answer, answered_on)"
-                    , "VALUES (?, ?, ?, ?)"
-                    ]
-              SQL.execute conn query ans
+              SQL.execute conn
+                (SQL.Query $ T.unwords
+                  [ "INSERT INTO aorb_answers"
+                  , "(user_id, aorb_id, answer)"
+                  , "VALUES (?, ?, ?)"
+                  ])
+                (uid, aid, answer)
               return $ Wai.responseLBS
                 HTTP.status303
                 [ (Headers.hLocation, BS.pack "/ans")
@@ -434,24 +428,13 @@ editAnswerRoute conn uid aid answer token _ = do
       [(Headers.hContentType, BS.pack "text/html")]
       (R.renderHtml invalidTokenTemplate)
     else do
-      now <- POSIXTime.getPOSIXTime
-      let ans = AorbAnswers
-            { aorbUserId = uid
-            , aorbAorbId = aid
-            , aorbAnswer = answer
-            , aorbAnsweredOn = floor now
-            }
-          query = SQL.Query $ T.unwords
-            [ "UPDATE aorb_answers"
-            , "SET answer = ?, answered_on = ?"
-            , "WHERE user_id = ? AND aorb_id = ?"
-            ]
-      SQL.execute conn query
-        ( aorbAnswer ans
-        , aorbAnsweredOn ans
-        , aorbUserId ans
-        , aorbAorbId ans
-        )
+      SQL.execute conn
+        (SQL.Query $ T.unwords
+          [ "UPDATE aorb_answers"
+          , "SET answer = ?"
+          , "WHERE user_id = ? AND aorb_id = ?"
+          ])
+        (answer, uid, aid)
       return $ Wai.responseLBS
         HTTP.status303
         [ (Headers.hLocation, BS.pack $ "/ans/" ++ show aid)
@@ -854,19 +837,14 @@ loginPostRoute conn req = do
               [(Headers.hContentType, "text/html")]
               (R.renderHtml userNotFoundTemplate)
             [user] -> do
-              now <- POSIXTime.getPOSIXTime
               let query = SQL.Query $ T.unwords
                     [ "INSERT INTO auth"
-                    , "(user_id, hash, created_on, last_accessed)"
-                    , "VALUES (?, ?, ?, ?)"
+                    , "(user_id, hash)"
+                    , "VALUES (?, ?)"
                     ]
               hash <- generateAuthHash (TE.decodeUtf8 email)
               SQL.execute conn query
-                ( userId user
-                , hash :: T.Text
-                , floor now :: Integer
-                , floor now :: Integer
-                )
+                (userId user, hash :: T.Text)
               emailConfig <- getEmailConfig
               sendAuthEmail emailConfig (TE.decodeUtf8 email) hash
               return $ Wai.responseLBS
@@ -977,10 +955,9 @@ authHashRoute conn hash _ = do
       [(Headers.hContentType, "text/html")]
       (R.renderHtml notFoundTemplate)
     Just _ -> do
-      now <- POSIXTime.getPOSIXTime
       SQL.execute conn
-        "UPDATE auth SET last_accessed = ? WHERE hash = ?"
-        (floor now :: Integer, hash)
+        "UPDATE auth SET last_accessed = unixepoch('now') WHERE hash = ?"
+        (SQL.Only hash)
       return $ setCookie hash $ Wai.responseLBS
         HTTP.status303
         [ (Headers.hLocation, "/whoami")
