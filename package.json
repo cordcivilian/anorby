@@ -5,10 +5,10 @@
     "build": "tailwindcss -i ./styles/input.css -o ./styles/output.css -w"
   },
   "devDependencies": {
-    "daisyui": "^5.0.0-beta.7",
-    "tailwindcss": "^4.0.4"
+    "daisyui": "^5.0.4",
+    "tailwindcss": "^4.0.14"
   },
   "dependencies": {
-    "@tailwindcss/cli": "^4.0.4"
+    "@tailwindcss/cli": "^4.0.14"
   }
 }
