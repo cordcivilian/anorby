@@ -559,7 +559,15 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
             H.div H.! A.class_ "ds-stat-title" $ "you answered"
             H.div H.! A.class_ "ds-stat-value text-primary" $ H.toHtml $ show (viewYourTotalAnswers view)
 
-      H.div H.! A.class_ "grid gap-4 mt-4 p-4" $ do
+      Monad.unless (null stereoGuessesAboutUser) $ do
+        H.div H.! A.id "about-you" H.! A.class_ "grid gap-4 p-4" $ do
+
+          Monad.forM_ stereoGuessesAboutUser $ \guess -> do
+            case Map.lookup (stereoGuessStereoId guess) stereoMap of
+              Just stereo -> H.div $ showStereoGuessAboutYou stereo guess
+              Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "question #" <> H.toHtml (show (stereoGuessStereoId guess))
+
+      H.div H.! A.class_ "grid gap-4 p-4" $ do
         case viewTopAgreement view of
           Just mawa -> showClashAorb "two and the truth is a majority" mawa
           Nothing -> mempty
@@ -599,14 +607,6 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
                 [] -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "no more personal questions available"
                 (nextQuestion:_) -> showStereoForm days nextQuestion matchId targetId
             else mempty
-
-      Monad.unless (null stereoGuessesAboutUser) $ do
-        H.div H.! A.id "about-you" H.! A.class_ "grid gap-4 p-4" $ do
-
-          Monad.forM_ stereoGuessesAboutUser $ \guess -> do
-            case Map.lookup (stereoGuessStereoId guess) stereoMap of
-              Just stereo -> H.div $ showStereoGuessAboutYou stereo guess
-              Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "question #" <> H.toHtml (show (stereoGuessStereoId guess))
 
       H.div H.! A.class_ "p-4" $ do
         if chatEnabled
@@ -722,7 +722,7 @@ showStereoForm :: Integer -> Stereo -> Int -> UserID -> H.Html
 showStereoForm days stereo matchId targetId = do
   H.div H.! A.class_ "ds-card ds-card-border border-2 w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
-      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "how do you picture them"
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "how do you picture them from their choices?"
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
 
       H.div H.! A.class_ "grid mt-4" $ do
@@ -760,9 +760,9 @@ showStereoGuess stereo guess = do
 
 showStereoGuessAboutYou :: Stereo -> StereoGuess -> H.Html
 showStereoGuessAboutYou stereo guess = do
-  H.div H.! A.class_ "ds-card ds-card-border border-2 border-warning w-full max-w-2xl mx-auto grid" $ do
+  H.div H.! A.class_ "ds-card ds-card-border border-2 border-secondary w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
-      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "how they picture you"
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "how they picture you from your choices"
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
 
       H.div H.! A.class_ "grid mt-4" $ do
