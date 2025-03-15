@@ -591,8 +591,7 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
           Monad.forM_ (viewStereoGuesses view) $ \guess -> do
             case Map.lookup (stereoGuessStereoId guess) stereoMap of
               Just stereo -> H.div $ showStereoGuess stereo guess
-              Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $
-                         "question #" <> H.toHtml (show (stereoGuessStereoId guess))
+              Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "question #" <> H.toHtml (show (stereoGuessStereoId guess))
 
           if length (viewStereoGuesses view) < 3
             then
@@ -607,19 +606,18 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
           Monad.forM_ stereoGuessesAboutUser $ \guess -> do
             case Map.lookup (stereoGuessStereoId guess) stereoMap of
               Just stereo -> H.div $ showStereoGuessAboutYou stereo guess
-              Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $
-                         "question #" <> H.toHtml (show (stereoGuessStereoId guess))
+              Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "question #" <> H.toHtml (show (stereoGuessStereoId guess))
 
       H.div H.! A.class_ "p-4" $ do
         if chatEnabled
           then renderMessages config days mainUserId messages correctGuessCount
           else H.div H.! A.class_ "w-full max-w-2xl mx-auto text-center p-4 bg-base-200 rounded-lg" $
             case hasCompletedAllBaseGuesses of
-              False -> "more correct guesses = more messages in chat mode"
+              False -> "earn chat messages with correct guesses"
               True -> case correctGuessCount of
-                0 -> "chatting not enabled"
+                0 -> "chat not enabled"
                 _ -> case hasCompletedAllStereoGuesses of
-                  False -> "let them know who you think they are"
+                  False -> "impress them with your first impression"
                   True -> "chat unlocked"
 
       H.span H.! A.id "bottom" $ mempty
@@ -661,7 +659,7 @@ showGuessForm :: Integer -> Aorb -> Int -> H.Html
 showGuessForm days aorb matchId = do
   H.div H.! A.class_ "ds-card ds-card-border border-2 w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
-      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "guess"
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "guess what they picked"
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
 
       H.div H.! A.class_ "grid mt-4" $ do
@@ -690,9 +688,8 @@ showGuessResult result = do
   H.div H.! resultClass $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
       H.div H.! A.class_ "ds-card-title text-light text-sm flex justify-between" $ do
-        H.span "your guess"
-        H.span H.! A.class_ (if isCorrect then "text-success" else "text-error") $
-          if isCorrect then "correct!" else "incorrect"
+        H.span "your educated guess"
+        H.span H.! A.class_ (if isCorrect then "text-success" else "text-error") $ if isCorrect then "correct!" else "incorrect"
 
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
 
@@ -725,7 +722,7 @@ showStereoForm :: Integer -> Stereo -> Int -> UserID -> H.Html
 showStereoForm days stereo matchId targetId = do
   H.div H.! A.class_ "ds-card ds-card-border border-2 w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
-      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "personal guess"
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "how do you picture them"
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
 
       H.div H.! A.class_ "grid mt-4" $ do
@@ -749,37 +746,33 @@ showStereoGuess :: Stereo -> StereoGuess -> H.Html
 showStereoGuess stereo guess = do
   H.div H.! A.class_ "ds-card ds-card-border border-2 border-secondary w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
-      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "your guess about them"
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "reverse stereotyping"
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
 
       H.div H.! A.class_ "grid mt-4" $ do
         H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 0
                            then "w-full p-4 text-left border-2 rounded-lg border-primary"
-                           else "w-full p-4 text-left border rounded-lg") $
-          H.toHtml $ stereoA stereo
+                           else "w-full p-4 text-left border rounded-lg") $ H.toHtml $ stereoA stereo
         H.div H.! A.class_ "ds-divider" $ "OR"
         H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 1
                            then "w-full p-4 text-left border-2 rounded-lg border-primary"
-                           else "w-full p-4 text-left border rounded-lg") $
-          H.toHtml $ stereoB stereo
+                           else "w-full p-4 text-left border rounded-lg") $ H.toHtml $ stereoB stereo
 
 showStereoGuessAboutYou :: Stereo -> StereoGuess -> H.Html
 showStereoGuessAboutYou stereo guess = do
   H.div H.! A.class_ "ds-card ds-card-border border-2 border-warning w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
-      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "their guess about you"
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "how they picture you"
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
 
       H.div H.! A.class_ "grid mt-4" $ do
         H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 0
                            then "w-full p-4 text-left border-2 rounded-lg border-warning"
-                           else "w-full p-4 text-left border rounded-lg") $
-          H.toHtml $ stereoA stereo
+                           else "w-full p-4 text-left border rounded-lg") $ H.toHtml $ stereoA stereo
         H.div H.! A.class_ "ds-divider" $ "OR"
         H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 1
                            then "w-full p-4 text-left border-2 rounded-lg border-warning"
-                           else "w-full p-4 text-left border rounded-lg") $
-          H.toHtml $ stereoB stereo
+                           else "w-full p-4 text-left border rounded-lg") $ H.toHtml $ stereoB stereo
 
 renderMessages :: Config -> Integer -> UserID -> [Message] -> Int -> H.Html
 renderMessages config days uid messages correctGuessCount = do
