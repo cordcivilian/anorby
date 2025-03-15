@@ -39,6 +39,7 @@ executable anorby
                     , cookie
                     , directory
                     , extra
+                    , http-conduit
                     , http-types
                     , mime-mail
                     , random

@@ -1,5 +1,6 @@
 module Web.Types where
 
+import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
@@ -21,6 +22,7 @@ data AppState = AppState
   , appQueryCache :: MVar.MVar (Cache QueryResult)
   , appStaticCache :: MVar.MVar (Cache (BSL.ByteString, T.Text))
   , appMatchState :: MatchState
+  , appPingTimer :: MVar.MVar (Maybe Concurrent.ThreadId)
   }
 
 data RootStats = RootStats

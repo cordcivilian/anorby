@@ -2,6 +2,9 @@
 
 module Web.Server where
 
+import qualified Control.Concurrent as Concurrent
+import qualified Control.Concurrent.MVar as MVar
+import qualified Control.Exception as Exception
 import qualified Control.Monad as Monad
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
@@ -14,11 +17,13 @@ import qualified Data.Text.Encoding.Error as TEE
 import qualified Data.Text.IO as TIO
 import qualified Data.Word as Word
 import qualified Database.SQLite.Simple as SQL
+import qualified Network.HTTP.Simple as HTTP
 import qualified Network.HTTP.Types as HTTP
+import qualified Network.HTTP.Types.Status as HTTPStatus
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Middleware.RequestLogger as Mid
 import qualified Network.Wai.Middleware.Gzip as Gzip
+import qualified Network.Wai.Middleware.RequestLogger as Mid
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
 import qualified Text.Read as Read
@@ -61,6 +66,10 @@ runServer = do
   putStrLn $ "Server starting on port " ++ show port
   putStrLn $ "  Environment: " ++ show (environment config)
   putStrLn $ "  Database: " ++ dbPath config
+
+  pingThread <- setupSelfPing port TIO.putStrLn
+  MVar.modifyMVar_ (appPingTimer state) $ \_ -> return (Just pingThread)
+
   Warp.runSettings settings $ monolith state
 
 initAppState :: Config -> IO AppState
@@ -72,6 +81,7 @@ initAppState config = do
   queryCache <- initCache 30
   staticCache <- initCache (365 * 24 * 60 * 60)
   matchState <- initMatchState
+  pingTimer <- MVar.newMVar Nothing
   return AppState
     { appPool = pool
     , appRootCache = rootCache
@@ -80,6 +90,7 @@ initAppState config = do
     , appQueryCache = queryCache
     , appStaticCache = staticCache
     , appMatchState = matchState
+    , appPingTimer = pingTimer
     }
 
 getServerPort :: IO Int
@@ -335,6 +346,27 @@ application _ state request respond = do
               updateLastAccessed conn request
               h config state conn (userId user) request
         ) >>= respond
+
+setupSelfPing :: Int -> (T.Text -> IO ()) -> IO Concurrent.ThreadId
+setupSelfPing port logAction = Concurrent.forkIO $ do
+  let pingAction = do
+        logAction "Performing hourly self-ping"
+        Exception.catch
+          (do
+            request <- HTTP.parseRequest $ "http://localhost:" ++ show port ++ "/"
+            response <- HTTP.httpLBS request
+            let status = HTTP.getResponseStatus response
+            if HTTPStatus.statusIsSuccessful status
+              then logAction "Self-ping successful"
+              else logAction $ "Self-ping failed with status: " <> T.pack (show $ HTTPStatus.statusCode status)
+          )
+          (\e -> do
+            let _ = e :: Exception.SomeException
+            logAction $ "Self-ping error: " <> T.pack (show e)
+          )
+        Concurrent.threadDelay (60 * 60 * 1000000)
+        pingAction
+  pingAction
 
 data AnswerSubmission = AnswerSubmission
   { submissionAorbId :: AorbID
