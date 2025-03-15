@@ -157,9 +157,9 @@ rootTemplate totalQuestions totalAnswers todayAnswers activeUsers newUsers newQu
         H.fieldset H.! A.class_ "flex flex-col mb-2 items-center gap-4" $ do
           H.div "sorter:"
           H.div H.! A.class_ "flex gap-2 md:gap-8" $ do
-            H.input H.! A.id "remember-diced" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.checked "checked" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "random"
-            H.input H.! A.id "remember-sided" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "unanimity"
-            H.input H.! A.id "remember-split" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "deadlocks"
+            H.input H.! A.id "remember-diced" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.checked "checked" H.! A.class_ "ds-btn" H.! I.customAttribute "aria-label" "random"
+            H.input H.! A.id "remember-sided" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn" H.! I.customAttribute "aria-label" "unanimity"
+            H.input H.! A.id "remember-split" H.! A.name "root-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn" H.! I.customAttribute "aria-label" "deadlocks"
         H.div H.! A.class_ "grid gap-8 justify-items-center px-4 py-4 pt-0 pb-0 w-full" $ do
           H.div H.! A.class_ "ds-toast ds-toast-end" H.! A.style "z-index: 10000" $ do
             H.a H.! A.role "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-primary" H.! A.href "#top" $ "back to top"
@@ -333,8 +333,8 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
           H.fieldset H.! A.class_ "flex flex-col mb-8 items-center gap-4" $ do
             H.div "sorter:"
             H.div H.! A.class_ "flex gap-8" $ do
-              H.input H.! A.id "remember-flake" H.! A.name "whoami-sort" H.! A.type_ "radio" H.! A.checked "checked" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "contrarian"
-              H.input H.! A.id "remember-basic" H.! A.name "whoami-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn ds-btn-neutral" H.! I.customAttribute "aria-label" "conformist"
+              H.input H.! A.id "remember-flake" H.! A.name "whoami-sort" H.! A.type_ "radio" H.! A.checked "checked" H.! A.class_ "ds-btn" H.! I.customAttribute "aria-label" "contrarian"
+              H.input H.! A.id "remember-basic" H.! A.name "whoami-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn" H.! I.customAttribute "aria-label" "conformist"
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
             Monad.forM_ (orderAorbs awas orderFuncs) $ \(aorb, orders) ->
               let aorbMode = Individual aorb orders maybeMain maybeUuid
