@@ -722,7 +722,7 @@ showStereoForm :: Integer -> Stereo -> Int -> UserID -> H.Html
 showStereoForm days stereo matchId targetId = do
   H.div H.! A.class_ "ds-card ds-card-border border-2 w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
-      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "how do you picture them from their choices?"
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "how do you picture them?"
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
 
       H.div H.! A.class_ "grid mt-4" $ do
@@ -762,7 +762,7 @@ showStereoGuessAboutYou :: Stereo -> StereoGuess -> H.Html
 showStereoGuessAboutYou stereo guess = do
   H.div H.! A.class_ "ds-card ds-card-border border-2 border-secondary w-full max-w-2xl mx-auto grid" $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
-      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "how they picture you from your choices"
+      H.div H.! A.class_ "ds-card-title text-light text-sm" $ "how they picture you"
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
 
       H.div H.! A.class_ "grid mt-4" $ do
