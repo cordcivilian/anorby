@@ -870,6 +870,9 @@
       background-color 0.2sease-out;
     }
   }
+  .visible {
+    visibility: visible;
+  }
   .ds-tabs-lift {
     --ds-tabs-height: auto;
     --ds-tabs-direction: row;
@@ -1151,11 +1154,17 @@
     overflow-x: auto;
     border-radius: var(--radius-box);
   }
+  .absolute {
+    position: absolute;
+  }
   .fixed {
     position: fixed;
   }
   .relative {
     position: relative;
+  }
+  .static {
+    position: static;
   }
   .ds-tooltip-bottom {
      > .ds-tooltip-content, &[data-tip]:before {
@@ -1630,6 +1639,9 @@
       }
     }
   }
+  .block {
+    display: block;
+  }
   .flex {
     display: flex;
   }
@@ -1780,6 +1792,9 @@
       margin-block-start: calc(calc(var(--spacing) * 4) * var(--tw-space-y-reverse));
       margin-block-end: calc(calc(var(--spacing) * 4) * calc(1 - var(--tw-space-y-reverse)));
     }
+  }
+  .rounded {
+    border-radius: 0.25rem;
   }
   .rounded-4xl {
     border-radius: var(--radius-4xl);
@@ -2002,6 +2017,9 @@
   }
   .text-warning {
     color: var(--color-warning);
+  }
+  .lowercase {
+    text-transform: lowercase;
   }
   .italic {
     font-style: italic;
