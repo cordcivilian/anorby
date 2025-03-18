@@ -561,7 +561,6 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
 
       Monad.unless (null stereoGuessesAboutUser) $ do
         H.div H.! A.id "about-you" H.! A.class_ "grid gap-4 p-4" $ do
-
           Monad.forM_ stereoGuessesAboutUser $ \guess -> do
             case Map.lookup (stereoGuessStereoId guess) stereoMap of
               Just stereo -> H.div $ showStereoGuessAboutYou stereo guess
@@ -579,7 +578,6 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
           Nothing -> mempty
 
       H.div H.! A.id "guesses" H.! A.class_ "grid gap-4 p-4" $ do
-
         Monad.forM_ (viewGuessResults view) $ \result -> H.div $ showGuessResult result
         if length (viewGuessResults view) < 3
           then
@@ -595,12 +593,10 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
 
       Monad.when (correctGuessCount > 0 && hasCompletedAllBaseGuesses) $ do
         H.div H.! A.id "stereo" H.! A.class_ "grid gap-4 p-4" $ do
-
           Monad.forM_ (viewStereoGuesses view) $ \guess -> do
             case Map.lookup (stereoGuessStereoId guess) stereoMap of
               Just stereo -> H.div $ showStereoGuess stereo guess
               Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "question #" <> H.toHtml (show (stereoGuessStereoId guess))
-
           if length (viewStereoGuesses view) < 3
             then
               case viewStereoQuestions view of

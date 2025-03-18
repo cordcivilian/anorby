@@ -48,20 +48,21 @@ runServer = do
   state <- initAppState config
   port <- getServerPort
 
-  let settings = Warp.setServerName "anorby"
-                  $ Warp.setPort port
-                  $ Warp.setTimeout 60
-                  $ Warp.setGracefulCloseTimeout1 1000
-                  $ Warp.setGracefulCloseTimeout2 5000
-                  $ Warp.setFdCacheDuration 600
-                  $ Warp.setFileInfoCacheDuration 600
-                  $ Warp.setSlowlorisSize 8192
-                  $ Warp.setMaxTotalHeaderLength (1024*50)
-                  $ Warp.setOnException (\_ e ->
-                      Monad.when (Warp.defaultShouldDisplayException e) $
-                        putStrLn $ "Error: " ++ show e)
-                  $ Warp.setGracefulShutdownTimeout (Just 30)
-                  $ Warp.defaultSettings
+  let settings =
+        Warp.setServerName "anorby"
+          $ Warp.setPort port
+          $ Warp.setTimeout 60
+          $ Warp.setGracefulCloseTimeout1 1000
+          $ Warp.setGracefulCloseTimeout2 5000
+          $ Warp.setFdCacheDuration 600
+          $ Warp.setFileInfoCacheDuration 600
+          $ Warp.setSlowlorisSize 8192
+          $ Warp.setMaxTotalHeaderLength (1024*50)
+          $ Warp.setOnException (\_ e ->
+            Monad.when (Warp.defaultShouldDisplayException e) $
+              putStrLn $ "Error: " ++ show e)
+          $ Warp.setGracefulShutdownTimeout (Just 30)
+          $ Warp.defaultSettings
 
   putStrLn $ "Server starting on port " ++ show port
   putStrLn $ "  Environment: " ++ show (environment config)

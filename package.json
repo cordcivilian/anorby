@@ -2,7 +2,8 @@
   "name": "anorby",
   "version": "1.0.0",
   "scripts": {
-    "build": "tailwindcss -i ./styles/input.css -o ./styles/output.css -w"
+    "dev": "tailwindcss -i ./styles/input.css -o ./styles/output.css --watch",
+    "build": "tailwindcss -i ./styles/input.css -o ./styles/output.css --minify"
   },
   "devDependencies": {
     "daisyui": "^5.0.5",
