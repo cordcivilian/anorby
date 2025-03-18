@@ -6,7 +6,7 @@
     "build": "tailwindcss -i ./styles/input.css -o ./styles/output.css --minify"
   },
   "devDependencies": {
-    "daisyui": "^5.0.5",
+    "daisyui": "^5.0.6",
     "tailwindcss": "^4.0.14"
   },
   "dependencies": {

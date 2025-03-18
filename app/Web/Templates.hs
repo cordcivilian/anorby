@@ -504,7 +504,11 @@ renderTimeDisplay label timeLeft timeStr =
 
 matchCard :: Integer -> Match -> Double -> Int -> H.Html
 matchCard currentTimestamp match score unreadCount =
-  H.a H.! A.class_ "w-full border-2 border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
+  H.a H.!
+      ( if getRelativeMatchDate currentTimestamp (matchTimestamp match) == 0
+        then A.class_ "w-full border-4 border-double border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
+        else A.class_ "w-full border-2 border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
+      )
     H.! A.href (H.textValue $ "/clash/t-" <> formatRelativeMatchDate currentTimestamp (matchTimestamp match)) $ do
     H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml $ formatSemiAbsoluteMatchDate currentTimestamp (matchTimestamp match) unreadCount
     H.div H.! A.class_ "text-info font-bold" $ H.toHtml $ formatSimilarityScore score
@@ -530,8 +534,7 @@ formatAbsoluteMatchDate timestamp =
 
 formatSemiAbsoluteMatchDate :: Integer -> Integer -> Int -> T.Text
 formatSemiAbsoluteMatchDate currentTimestamp' matchTimestamp' unread =
-  let dayDelta = getRelativeMatchDate currentTimestamp' matchTimestamp'
-      baseText = case dayDelta of
+  let baseText = case getRelativeMatchDate currentTimestamp' matchTimestamp' of
         0 -> "today"
         1 -> "yesterday"
         _ -> T.toLower . T.pack $ DateTimeFormat.formatTime DateTimeFormat.defaultTimeLocale "%A, %Y-%m-%d"
