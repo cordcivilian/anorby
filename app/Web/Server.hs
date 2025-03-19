@@ -351,7 +351,7 @@ setupSelfPing :: Int -> (T.Text -> IO ()) -> IO Concurrent.ThreadId
 setupSelfPing port logAction = do
   syncLogger <- setupSyncLogger logAction
   Concurrent.forkIO $ do
-    let pingAction = do
+    let pingLoop = Monad.forever $ do
           syncLogger "Performing hourly self-ping"
           Exception.catch
             (do
@@ -367,5 +367,4 @@ setupSelfPing port logAction = do
               syncLogger $ "Self-ping error: " <> T.pack (show e)
             )
           Concurrent.threadDelay (60 * 60 * 1000000)
-          pingAction
-    pingAction
+    pingLoop
