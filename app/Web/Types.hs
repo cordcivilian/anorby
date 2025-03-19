@@ -2,11 +2,11 @@ module Web.Types where
 
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.MVar as MVar
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
+import qualified Data.Word as Word
 import qualified Database.SQLite.Simple as SQL
-import qualified Data.ByteString.Lazy as BSL
-
 
 import Types
 import Utils.Cache
@@ -48,4 +48,10 @@ data NavLink = NavLink
   { linkPath :: T.Text
   , linkText :: T.Text
   , linkActive :: Bool
+  }
+
+data AnswerSubmission = AnswerSubmission
+  { submissionAorbId :: AorbID
+  , submissionChoice :: Word.Word8
+  , submissionToken :: T.Text
   }

@@ -282,6 +282,62 @@ handleDeleteAorb _ conn _ aid _ = do
         ]
         ""
 
+parseAnswerBody :: BSL.ByteString -> Maybe AnswerSubmission
+parseAnswerBody body = do
+  let params = HTTP.parseQueryText $ BSL.toStrict $
+        BSL.fromStrict $ TE.encodeUtf8 $
+          TE.decodeUtf8With TEE.lenientDecode $ BSL.toStrict body
+  aorb <- Monad.join (lookup "aorb_id" params) >>=
+    Read.readMaybe . T.unpack
+  choice <- Monad.join (lookup "choice" params) >>=
+    Read.readMaybe . T.unpack
+  token <- Monad.join (lookup "token" params)
+  return AnswerSubmission
+    { submissionAorbId = aorb
+    , submissionChoice = choice
+    , submissionToken = token
+    }
+
+routeAnswerSubmit :: AnswerSubmission -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+routeAnswerSubmit submission conn uid req =
+  submitAnswerRoute conn uid
+    (submissionAorbId submission)
+    (AorbAnswer $ submissionChoice submission)
+    (submissionToken submission)
+    req
+
+routeAnswerEdit :: AnswerSubmission -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+routeAnswerEdit submission conn uid req =
+  editAnswerRoute conn uid
+    (submissionAorbId submission)
+    (AorbAnswer $ submissionChoice submission)
+    (submissionToken submission)
+    req
+
+handleAnswerSubmission :: AppState -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+handleAnswerSubmission _ conn uid req = do
+  body <- Wai.strictRequestBody req
+  case parseAnswerBody body of
+    Just submission -> routeAnswerSubmit submission conn uid req
+    Nothing -> return invalidSubmissionResponse
+
+handleAnswerEdit :: AppState -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+handleAnswerEdit _ conn uid req = do
+  body <- Wai.strictRequestBody req
+  case parseAnswerBody body of
+    Just submission -> routeAnswerEdit submission conn uid req
+    Nothing -> return invalidSubmissionResponse
+
+updateLastAccessed :: SQL.Connection -> Wai.Request -> IO ()
+updateLastAccessed conn req = do
+  case getCookie req of
+    Just cookieBS -> do
+      let hash = TE.decodeUtf8 cookieBS
+      SQL.execute conn
+        "UPDATE auth SET last_accessed = unixepoch('now') WHERE hash = ?"
+        (SQL.Only hash)
+    Nothing -> return ()
+
 profileTemplateRoute :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 profileTemplateRoute config conn uid _ = do
   hasAccess <- hasThresholdAccess conn uid (profileThreshold config)

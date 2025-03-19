@@ -7,18 +7,13 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Exception as Exception
 import qualified Control.Monad as Monad
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Pool as Pool
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
-import qualified Data.Text.Encoding.Error as TEE
 import qualified Data.Text.IO as TIO
-import qualified Data.Word as Word
 import qualified Database.SQLite.Simple as SQL
 import qualified Network.HTTP.Simple as HTTP
-import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP.Types.Status as HTTPStatus
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
@@ -26,7 +21,6 @@ import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified Network.Wai.Middleware.RequestLogger as Mid
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
-import qualified Text.Read as Read
 
 import Auth
 import Database
@@ -348,85 +342,30 @@ application _ state request respond = do
               h config state conn (userId user) request
         ) >>= respond
 
+setupSyncLogger :: (T.Text -> IO ()) -> IO (T.Text -> IO ())
+setupSyncLogger logAction = do
+  logLock <- MVar.newMVar ()
+  return $ \msg -> MVar.withMVar logLock $ \_ -> logAction msg
+
 setupSelfPing :: Int -> (T.Text -> IO ()) -> IO Concurrent.ThreadId
-setupSelfPing port logAction = Concurrent.forkIO $ do
-  let pingAction = do
-        logAction "Performing hourly self-ping"
-        Exception.catch
-          (do
-            request <- HTTP.parseRequest $ "http://localhost:" ++ show port ++ "/"
-            response <- HTTP.httpLBS request
-            let status = HTTP.getResponseStatus response
-            if HTTPStatus.statusIsSuccessful status
-              then logAction "Self-ping successful"
-              else logAction $ "Self-ping failed with status: " <> T.pack (show $ HTTPStatus.statusCode status)
-          )
-          (\e -> do
-            let _ = e :: Exception.SomeException
-            logAction $ "Self-ping error: " <> T.pack (show e)
-          )
-        Concurrent.threadDelay (60 * 60 * 1000000)
-        pingAction
-  pingAction
-
-data AnswerSubmission = AnswerSubmission
-  { submissionAorbId :: AorbID
-  , submissionChoice :: Word.Word8
-  , submissionToken :: T.Text
-  }
-
-parseAnswerBody :: BSL.ByteString -> Maybe AnswerSubmission
-parseAnswerBody body = do
-  let params = HTTP.parseQueryText $ BSL.toStrict $
-        BSL.fromStrict $ TE.encodeUtf8 $
-          TE.decodeUtf8With TEE.lenientDecode $ BSL.toStrict body
-  aorb <- Monad.join (lookup "aorb_id" params) >>=
-    Read.readMaybe . T.unpack
-  choice <- Monad.join (lookup "choice" params) >>=
-    Read.readMaybe . T.unpack
-  token <- Monad.join (lookup "token" params)
-  return AnswerSubmission
-    { submissionAorbId = aorb
-    , submissionChoice = choice
-    , submissionToken = token
-    }
-
-routeAnswerSubmit :: AnswerSubmission -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-routeAnswerSubmit submission conn uid req =
-  submitAnswerRoute conn uid
-    (submissionAorbId submission)
-    (AorbAnswer $ submissionChoice submission)
-    (submissionToken submission)
-    req
-
-routeAnswerEdit :: AnswerSubmission -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-routeAnswerEdit submission conn uid req =
-  editAnswerRoute conn uid
-    (submissionAorbId submission)
-    (AorbAnswer $ submissionChoice submission)
-    (submissionToken submission)
-    req
-
-handleAnswerSubmission :: AppState -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-handleAnswerSubmission _ conn uid req = do
-  body <- Wai.strictRequestBody req
-  case parseAnswerBody body of
-    Just submission -> routeAnswerSubmit submission conn uid req
-    Nothing -> return invalidSubmissionResponse
-
-handleAnswerEdit :: AppState -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-handleAnswerEdit _ conn uid req = do
-  body <- Wai.strictRequestBody req
-  case parseAnswerBody body of
-    Just submission -> routeAnswerEdit submission conn uid req
-    Nothing -> return invalidSubmissionResponse
-
-updateLastAccessed :: SQL.Connection -> Wai.Request -> IO ()
-updateLastAccessed conn req = do
-  case getCookie req of
-    Just cookieBS -> do
-      let hash = TE.decodeUtf8 cookieBS
-      SQL.execute conn
-        "UPDATE auth SET last_accessed = unixepoch('now') WHERE hash = ?"
-        (SQL.Only hash)
-    Nothing -> return ()
+setupSelfPing port logAction = do
+  syncLogger <- setupSyncLogger logAction
+  Concurrent.forkIO $ do
+    let pingAction = do
+          syncLogger "Performing hourly self-ping"
+          Exception.catch
+            (do
+              request <- HTTP.parseRequest $ "http://localhost:" ++ show port ++ "/"
+              response <- HTTP.httpLBS request
+              let status = HTTP.getResponseStatus response
+              if HTTPStatus.statusIsSuccessful status
+                then syncLogger "Self-ping successful"
+                else syncLogger $ "Self-ping failed with status: " <> T.pack (show $ HTTPStatus.statusCode status)
+            )
+            (\e -> do
+              let _ = e :: Exception.SomeException
+              syncLogger $ "Self-ping error: " <> T.pack (show e)
+            )
+          Concurrent.threadDelay (60 * 60 * 1000000)
+          pingAction
+    pingAction
