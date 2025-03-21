@@ -207,13 +207,28 @@ rootTemplateRoute state conn _ = do
         [(Headers.hContentType, "text/html")]
         html
 
-adminTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
-adminTemplateRoute conn _ _ = do
+adminLandingTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+adminLandingTemplateRoute _ _ _ = do
+  return $ Wai.responseLBS
+    HTTP.status200
+    [(Headers.hContentType, "text/html; charset=utf-8")]
+    (R.renderHtml $ adminLandingTemplate)
+
+adminCommonTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+adminCommonTemplateRoute conn _ _ = do
   aorbs <- SQL.query_ conn "SELECT * FROM aorb ORDER BY id" :: IO [Aorb]
   return $ Wai.responseLBS
     HTTP.status200
     [(Headers.hContentType, "text/html; charset=utf-8")]
-    (R.renderHtml $ adminTemplate aorbs)
+    (R.renderHtml $ adminCommonTemplate aorbs)
+
+adminStereoTemplateRoute :: SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+adminStereoTemplateRoute conn _ _ = do
+  stereos <- SQL.query_ conn "SELECT * FROM stereo ORDER BY id" :: IO [Stereo]
+  return $ Wai.responseLBS
+    HTTP.status200
+    [(Headers.hContentType, "text/html; charset=utf-8")]
+    (R.renderHtml $ adminStereoTemplate stereos)
 
 handleAddAorb :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
 handleAddAorb _ conn _ req = do
@@ -278,6 +293,73 @@ handleDeleteAorb _ conn _ aid _ = do
       return $ Wai.responseLBS
         HTTP.status303
         [ (Headers.hLocation, "/admin")
+        , (Headers.hContentType, "text/html")
+        ]
+        ""
+
+handleAddStereo :: Config -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response
+handleAddStereo _ conn _ req = do
+  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  let getParam name = case lookup name params of
+        Just value -> Just $ TE.decodeUtf8With TEE.lenientDecode value
+        Nothing -> Nothing
+  case (getParam "context", getParam "subtext", getParam "option_a", getParam "option_b") of
+    (Just ctx, Just stx, Just a, Just b) -> do
+      SQL.execute conn
+        "INSERT INTO stereo (context, subtext, a, b) VALUES (?, ?, ?, ?)"
+        (ctx, stx, a, b)
+      return $ Wai.responseLBS
+        HTTP.status303
+        [(Headers.hLocation, "/admin/stereo")]
+        ""
+    _ -> return invalidSubmissionResponse
+
+handleEditStereoForm :: Config -> SQL.Connection -> UserID -> Int -> Wai.Request -> IO Wai.Response
+handleEditStereoForm _ conn _ sid _ = do
+  stereos <- SQL.query conn
+    "SELECT * FROM stereo WHERE id = ?"
+    (SQL.Only sid) :: IO [Stereo]
+  case stereos of
+    [stereo] -> return $ Wai.responseLBS
+      HTTP.status200
+      [(Headers.hContentType, "text/html; charset=utf-8")]
+      (R.renderHtml $ editStereoTemplate stereo)
+    _ -> return notFoundResponse
+
+handleEditStereo :: Config -> SQL.Connection -> UserID -> Int -> Wai.Request -> IO Wai.Response
+handleEditStereo _ conn _ sid req = do
+  (params, _) <- Wai.parseRequestBody Wai.lbsBackEnd req
+  let getParam name = case lookup name params of
+        Just value -> Just $ TE.decodeUtf8With TEE.lenientDecode value
+        Nothing -> Nothing
+  case (getParam "context", getParam "subtext", getParam "option_a", getParam "option_b") of
+    (Just ctx, Just stx, Just a, Just b) -> do
+      SQL.execute conn
+        "UPDATE stereo SET context = ?, subtext = ?, a = ?, b = ? WHERE id = ?"
+        (ctx, stx, a, b, sid)
+      return $ Wai.responseLBS
+        HTTP.status303
+        [(Headers.hLocation, "/admin/stereo")]
+        ""
+    _ -> return invalidSubmissionResponse
+
+handleDeleteStereo :: Config -> SQL.Connection -> UserID -> Int -> Wai.Request -> IO Wai.Response
+handleDeleteStereo _ conn _ sid _ = do
+  exists <- SQL.query conn
+    "SELECT 1 FROM stereo WHERE id = ? LIMIT 1"
+    (SQL.Only sid) :: IO [SQL.Only Int]
+  case exists of
+    [] -> return notFoundResponse
+    _ -> do
+      SQL.execute conn
+        "DELETE FROM stereo_guesses WHERE stereo_id = ?"
+        (SQL.Only sid)
+      SQL.execute conn
+        "DELETE FROM stereo WHERE id = ?"
+        (SQL.Only sid)
+      return $ Wai.responseLBS
+        HTTP.status303
+        [ (Headers.hLocation, "/admin/stereo")
         , (Headers.hContentType, "text/html")
         ]
         ""

@@ -207,25 +207,49 @@ routes =
 
   -- Admin routes (protected)
   , Route "GET" "/admin" $ ProtectedHandler $ \_ _ conn uid req ->
-      adminTemplateRoute conn uid req
-  , Route "POST" "/admin/aorb/add" $ ProtectedHandler $ \config _ conn uid req ->
+      adminLandingTemplateRoute conn uid req
+  , Route "GET" "/admin/common" $ ProtectedHandler $ \_ _ conn uid req ->
+      adminCommonTemplateRoute conn uid req
+  , Route "POST" "/admin/common/aorb/add" $ ProtectedHandler $ \config _ conn uid req ->
       handleAddAorb config conn uid req
-  , Route "GET" "/admin/aorb/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
-      case extractParam "/admin/aorb/:id/edit" (Wai.rawPathInfo req) "id" of
+  , Route "GET" "/admin/common/aorb/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/admin/common/aorb/:id/edit" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleEditAorbForm config conn uid id' req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
-  , Route "POST" "/admin/aorb/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
-      case extractParam "/admin/aorb/:id/edit" (Wai.rawPathInfo req) "id" of
+  , Route "POST" "/admin/common/aorb/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/admin/common/aorb/:id/edit" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleEditAorb config conn uid id' req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
-  , Route "POST" "/admin/aorb/:id/delete" $ ProtectedHandler $ \config _ conn uid req ->
-      case extractParam "/admin/aorb/:id/delete" (Wai.rawPathInfo req) "id" of
+  , Route "POST" "/admin/common/aorb/:id/delete" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/admin/common/aorb/:id/delete" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleDeleteAorb config conn uid id' req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
+  , Route "GET" "/admin/stereo" $ ProtectedHandler $ \_ _ conn uid req ->
+      adminStereoTemplateRoute conn uid req
+  , Route "POST" "/admin/stereo/add" $ ProtectedHandler $ \config _ conn uid req ->
+      handleAddStereo config conn uid req
+  , Route "GET" "/admin/stereo/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/admin/stereo/:id/edit" (Wai.rawPathInfo req) "id" of
+        Just idBS -> case reads (BS.unpack idBS) of
+          [(id', "")] -> handleEditStereoForm config conn uid id' req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
+  , Route "POST" "/admin/stereo/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/admin/stereo/:id/edit" (Wai.rawPathInfo req) "id" of
+        Just idBS -> case reads (BS.unpack idBS) of
+          [(id', "")] -> handleEditStereo config conn uid id' req
+          _ -> return notFoundResponse
+        Nothing -> return notFoundResponse
+  , Route "POST" "/admin/stereo/:id/delete" $ ProtectedHandler $ \config _ conn uid req ->
+      case extractParam "/admin/stereo/:id/delete" (Wai.rawPathInfo req) "id" of
+        Just idBS -> case reads (BS.unpack idBS) of
+          [(id', "")] -> handleDeleteStereo config conn uid id' req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
 

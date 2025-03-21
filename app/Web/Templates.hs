@@ -60,15 +60,27 @@ pageHead title more = H.head $ do
   H.link H.! A.rel "stylesheet" H.! A.href "/styles/output.css"
   more
 
-adminTemplate :: [Aorb] -> H.Html
-adminTemplate aorbs = H.docTypeHtml $ H.html $ do
+adminLandingTemplate :: H.Html
+adminLandingTemplate = H.docTypeHtml $ H.html $ do
   pageHead "admin" mempty
+  H.body $ H.div $ do
+    navBar (Just "admin")
+    H.div H.! A.class_ "w-full max-w-4xl mx-auto p-4 grid gap-8" $ do
+      H.div H.! A.class_ "ds-card" $ do
+        H.div H.! A.class_ "ds-card-body" $ do
+          H.div H.! A.class_ "grid gap-4" $ do
+            H.a H.! A.href "/admin/common" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft ds-btn-block" $ "common questions"
+            H.a H.! A.href "/admin/stereo" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft ds-btn-block" $ "stereo questions"
+
+adminCommonTemplate :: [Aorb] -> H.Html
+adminCommonTemplate aorbs = H.docTypeHtml $ H.html $ do
+  pageHead "admin: common" mempty
   H.body $ do
     H.div $ do
-      navBar (Just "admin")
+      navBar (Just "admin: common")
       H.div H.! A.class_ "ds-card max-w-4xl mx-auto mb-8" $ do
-        H.form H.! A.method "POST" H.! A.action "/admin/aorb/add" H.! A.class_ "ds-card-body space-y-4" $ do
-          H.h2 H.! A.class_ "ds-card-title" $ "new question"
+        H.form H.! A.method "POST" H.! A.action "/admin/common/aorb/add" H.! A.class_ "ds-card-body space-y-4" $ do
+          H.h2 H.! A.class_ "ds-card-title" $ "new common question"
           H.textarea H.! A.placeholder "context" H.! A.id "context" H.! A.name "context" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
           H.textarea H.! A.placeholder "subtext" H.! A.id "subtext" H.! A.name "subtext" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
           H.textarea H.! A.placeholder "aaaaa" H.! A.id "option_a" H.! A.name "option_a" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
@@ -77,8 +89,71 @@ adminTemplate aorbs = H.docTypeHtml $ H.html $ do
 
       H.div H.! A.class_ "ds-collapse ds-collapse-arrow border border-base-400 max-w-4xl mx-auto" $ do
         H.input H.! A.type_ "checkbox"
-        H.div H.! A.class_ "ds-collapse-title font-black" $ "edit questions"
+        H.div H.! A.class_ "ds-collapse-title font-black" $ "edit common questions"
         H.div H.! A.class_ "ds-collapse-content" $ mapM_ renderAorbAdmin aorbs
+
+adminStereoTemplate :: [Stereo] -> H.Html
+adminStereoTemplate stereos = H.docTypeHtml $ H.html $ do
+  pageHead "admin: stereo" mempty
+  H.body $ do
+    H.div $ do
+      navBar (Just "admin: stereo")
+      H.div H.! A.class_ "ds-card max-w-4xl mx-auto mb-8" $ do
+        H.form H.! A.method "POST" H.! A.action "/admin/stereo/add" H.! A.class_ "ds-card-body space-y-4" $ do
+          H.h2 H.! A.class_ "ds-card-title" $ "new stereo question"
+          H.textarea H.! A.placeholder "context" H.! A.id "context" H.! A.name "context" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
+          H.textarea H.! A.placeholder "subtext" H.! A.id "subtext" H.! A.name "subtext" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
+          H.textarea H.! A.placeholder "aaaaa" H.! A.id "option_a" H.! A.name "option_a" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
+          H.textarea H.! A.placeholder "bbbbb" H.! A.id "option_b" H.! A.name "option_b" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
+          H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft ds-btn-block" $ "add"
+
+      H.div H.! A.class_ "ds-collapse ds-collapse-arrow border border-base-400 max-w-4xl mx-auto" $ do
+        H.input H.! A.type_ "checkbox"
+        H.div H.! A.class_ "ds-collapse-title font-black" $ "edit stereo questions"
+        H.div H.! A.class_ "ds-collapse-content" $ mapM_ renderStereoAdmin stereos
+
+renderStereoAdmin :: Stereo -> H.Html
+renderStereoAdmin stereo =
+  H.div H.! A.class_ "ds-card" $ do
+    H.div H.! A.class_ "ds-card-body" $ do
+      H.div H.! A.class_ "ds-card-title" $ do
+        H.div $ H.toHtml $ "[" <> T.pack (show $ stereoId stereo) <> "]"
+        H.div $ H.toHtml $ stereoCtx stereo
+      H.div H.! A.class_ "italic" $ H.toHtml $ stereoStx stereo
+      H.div H.! A.class_ "p-4 mb-4 mt-4" $ do
+        H.div $ H.toHtml $ stereoA stereo
+        H.div H.! A.class_ "ds-divider" $ "OR"
+        H.div $ H.toHtml $ stereoB stereo
+
+      H.div H.! A.class_ "grid gap-4" $ do
+        H.form H.! A.method "GET" H.! A.action (H.textValue $ "/admin/stereo/" <> T.pack (show $ stereoId stereo) <> "/edit") $ do
+          H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-soft ds-btn-warning ds-btn-block" $ "edit"
+        let dialogId = "delete-dialog-" <> T.pack (show $ stereoId stereo)
+        H.button H.! A.type_ "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-error ds-btn-block" H.! A.onclick (H.textValue $ "document.getElementById('" <> dialogId <> "').showModal()") $ "delete"
+
+        H.dialog H.! A.id (H.textValue dialogId) H.! A.class_ "ds-modal" $ do
+          H.div H.! A.class_ "ds-modal-box" $ do
+            H.h3 H.! A.class_ "text-2xl font-black mb-4" $ "confirm"
+            H.div H.! A.class_ "grid gap-2" $ do
+              H.form H.! A.method "POST" H.! A.action (H.textValue $ "/admin/stereo/" <> T.pack (show $ stereoId stereo) <> "/delete") H.! A.class_ "" $ do
+                H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-error ds-btn-soft ds-btn-block" $ "delete"
+              H.button H.! A.type_ "button" H.! A.class_ "ds-btn ds-btn-neutral ds-btn-soft ds-btn-block" H.! A.onclick (H.textValue $ "document.getElementById('" <> dialogId <> "').close()") $ "cancel"
+
+editStereoTemplate :: Stereo -> H.Html
+editStereoTemplate stereo = H.docTypeHtml $ H.html $ do
+  pageHead "edit stereo question" mempty
+  H.body $ H.div $ do
+      navBar (Just "admin: edit stereo")
+      H.div H.! A.class_ "ds-card max-w-4xl mx-auto mb-8" $ do
+        H.form H.! A.method "POST" H.! A.action (H.textValue $ "/admin/stereo/" <> T.pack (show $ stereoId stereo) <> "/edit") H.! A.class_ "ds-card-body space-y-4" $ do
+          H.h2 H.! A.class_ "ds-card-title" $ H.toHtml $ "edit stereo question #" <> T.pack (show $ stereoId stereo)
+          H.textarea H.! A.placeholder "context" H.! A.id "context" H.! A.name "context" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (stereoCtx stereo)
+          H.textarea H.! A.placeholder "subtext" H.! A.id "subtext" H.! A.name "subtext" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (stereoStx stereo)
+          H.textarea H.! A.placeholder "aaaaa" H.! A.id "option_a" H.! A.name "option_a" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (stereoA stereo)
+          H.textarea H.! A.placeholder "bbbbb" H.! A.id "option_b" H.! A.name "option_b" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (stereoB stereo)
+          H.div H.! A.class_ "grid gap-4" $ do
+            H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft ds-btn-block" $ "save"
+            H.a H.! A.href "/admin/stereo" H.! A.class_ "ds-btn ds-btn-neutral ds-btn-soft ds-btn-block" $ "cancel"
 
 renderAorbAdmin :: Aorb -> H.Html
 renderAorbAdmin aorb =
@@ -95,7 +170,7 @@ renderAorbAdmin aorb =
         H.div $ H.toHtml $ aorbB aorb
 
       H.div H.! A.class_ "grid gap-4" $ do
-        H.form H.! A.method "GET" H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/edit") $ do
+        H.form H.! A.method "GET" H.! A.action (H.textValue $ "/admin/common/aorb/" <> T.pack (show $ aorbId aorb) <> "/edit") $ do
           H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-soft ds-btn-warning ds-btn-block" $ "edit"
         let dialogId = "delete-dialog-" <> T.pack (show $ aorbId aorb)
         H.button H.! A.type_ "button" H.! A.class_ "ds-btn ds-btn-soft ds-btn-error ds-btn-block" H.! A.onclick (H.textValue $ "document.getElementById('" <> dialogId <> "').showModal()") $ "delete"
@@ -104,7 +179,7 @@ renderAorbAdmin aorb =
           H.div H.! A.class_ "ds-modal-box" $ do
             H.h3 H.! A.class_ "text-2xl font-black mb-4" $ "confirm"
             H.div H.! A.class_ "grid gap-2" $ do
-              H.form H.! A.method "POST" H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/delete") H.! A.class_ "" $ do
+              H.form H.! A.method "POST" H.! A.action (H.textValue $ "/admin/common/aorb/" <> T.pack (show $ aorbId aorb) <> "/delete") H.! A.class_ "" $ do
                 H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-error ds-btn-soft ds-btn-block" $ "delete"
               H.button H.! A.type_ "button" H.! A.class_ "ds-btn ds-btn-neutral ds-btn-soft ds-btn-block" H.! A.onclick (H.textValue $ "document.getElementById('" <> dialogId <> "').close()") $ "cancel"
 
@@ -112,17 +187,17 @@ editAorbTemplate :: Aorb -> H.Html
 editAorbTemplate aorb = H.docTypeHtml $ H.html $ do
   pageHead "edit question" mempty
   H.body $ H.div $ do
-      navBar (Just "admin: edit")
+      navBar (Just "admin: edit common")
       H.div H.! A.class_ "ds-card max-w-4xl mx-auto mb-8" $ do
-        H.form H.! A.method "POST" H.! A.action (H.textValue $ "/admin/aorb/" <> T.pack (show $ aorbId aorb) <> "/edit") H.! A.class_ "ds-card-body space-y-4" $ do
-          H.h2 H.! A.class_ "ds-card-title" $ H.toHtml $ "edit question #" <> T.pack (show $ aorbId aorb)
+        H.form H.! A.method "POST" H.! A.action (H.textValue $ "/admin/common/aorb/" <> T.pack (show $ aorbId aorb) <> "/edit") H.! A.class_ "ds-card-body space-y-4" $ do
+          H.h2 H.! A.class_ "ds-card-title" $ H.toHtml $ "edit common question #" <> T.pack (show $ aorbId aorb)
           H.textarea H.! A.placeholder "context" H.! A.id "context" H.! A.name "context" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (aorbCtx aorb)
           H.textarea H.! A.placeholder "subtext" H.! A.id "subtext" H.! A.name "subtext" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (aorbStx aorb)
           H.textarea H.! A.placeholder "aaaaa" H.! A.id "option_a" H.! A.name "option_a" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (aorbA aorb)
           H.textarea H.! A.placeholder "bbbbb" H.! A.id "option_b" H.! A.name "option_b" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ H.toHtml (aorbB aorb)
           H.div H.! A.class_ "grid gap-4" $ do
             H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft ds-btn-block" $ "save"
-            H.a H.! A.href "/admin" H.! A.class_ "ds-btn ds-btn-neutral ds-btn-soft ds-btn-block" $ "cancel"
+            H.a H.! A.href "/admin/common" H.! A.class_ "ds-btn ds-btn-neutral ds-btn-soft ds-btn-block" $ "cancel"
 
 data ShowAorbMode
   = Population Aorb [Int]
