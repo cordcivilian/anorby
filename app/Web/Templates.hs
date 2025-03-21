@@ -564,7 +564,7 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
 
       Monad.unless (null stereoGuessesAboutUser) $ do
         H.div H.! A.id "about-you" H.! A.class_ "grid gap-4 p-4" $ do
-          H.h1 H.! A.class_ "text-center text-2xl font-black italic" $ "joining the dots on you"
+          H.h1 H.! A.class_ "text-center text-2xl text-warning font-black italic" $ "joining the dots on you"
           Monad.forM_ stereoGuessesAboutUser $ \guess -> do
             case Map.lookup (stereoGuessStereoId guess) stereoMap of
               Just stereo -> H.div $ showStereoGuessAboutYou stereo guess
@@ -598,7 +598,7 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
 
       Monad.when (correctGuessCount > 0 && hasCompletedAllBaseGuesses) $ do
         H.div H.! A.id "stereo" H.! A.class_ "grid gap-4 p-4" $ do
-          H.h1 H.! A.class_ "text-center text-2xl font-black italic" $ "reading between their lines"
+          H.h1 H.! A.class_ "text-center text-2xl text-primary font-black italic" $ "reading between their lines"
           Monad.forM_ (viewStereoGuesses view) $ \guess -> do
             case Map.lookup (stereoGuessStereoId guess) stereoMap of
               Just stereo -> H.div $ showStereoGuess stereo guess
