@@ -407,16 +407,8 @@ data TimeState = BeforeCutoff | BeforeRelease | AfterRelease
 data EnrolState = Enrolled | NotEnrolled
 data MatchPhase = ShowingStatus | ShowingEnrollment | ShowingTiming | ShowingResults
 
-matchTemplate ::
-  Config -> User -> Bool -> Int
-  -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime
-  -> Maybe (Match, Double) -> MatchStatus -> [(Match, Double, Int)]
-  -> H.Html
-matchTemplate
-  config user isEnrolled enrolledCount
-  maybeCutoffTime maybeReleaseTime now
-  maybeMatchScore matchStatus pastMatches
-  =
+matchTemplate :: Config -> User -> Bool -> Int -> Maybe POSIXTime.POSIXTime -> Maybe POSIXTime.POSIXTime -> POSIXTime.POSIXTime -> Maybe (Match, Double, Int, Int) -> MatchStatus -> [(Match, Double, Int, Int)] -> H.Html
+matchTemplate config user isEnrolled enrolledCount maybeCutoffTime maybeReleaseTime now maybeMatchScore matchStatus pastMatches =
   let
     timeState = case (maybeCutoffTime, maybeReleaseTime) of
       (Just ct, Just rt) | now < ct -> BeforeCutoff | now < rt -> BeforeRelease | otherwise -> AfterRelease
@@ -470,9 +462,9 @@ matchTemplate
             else do
               case (timeState, maybeMatchScore) of
                 (AfterRelease, Nothing) -> H.div H.! A.class_ "w-full border-2 border-base-300 p-6 rounded-lg text-center" $ H.text "you were not in the clash pool today"
-                (AfterRelease, Just (match, score)) -> matchCard (floor now) match score 0
+                (AfterRelease, Just (match, score, unread, status)) -> matchCard (floor now) match score unread status
                 _ -> mempty
-              mapM_ (\(m, s, u) -> matchCard (floor now) m s u) pastMatches
+              mapM_ (\(m, s, u, g) -> matchCard (floor now) m s u g) pastMatches
 
 schemeCard :: AssociationScheme -> Maybe AssociationScheme -> H.Html
 schemeCard scheme currentScheme =
@@ -502,16 +494,21 @@ renderTimeDisplay label timeLeft timeStr =
     H.span H.! A.class_ "ds-stat-value" $ H.text $ timeLeft
     H.span H.! A.class_ "ds-stat-actions ds-badge ds-badge-secondary" $ H.text $ timeStr <> " UTC"
 
-matchCard :: Integer -> Match -> Double -> Int -> H.Html
-matchCard currentTimestamp match score unreadCount =
+matchCard :: Integer -> Match -> Double -> Int -> Int -> H.Html
+matchCard currentTimestamp match score unreadCount guessStatus =
   H.a H.!
-      ( if getRelativeMatchDate currentTimestamp (matchTimestamp match) == 0
-        then A.class_ "w-full border-4 border-double border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
-        else A.class_ "w-full border-2 border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
-      )
+    ( if getRelativeMatchDate currentTimestamp (matchTimestamp match) == 0
+      then A.class_ "ds-indicator flex-col w-full border-4 border-double border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
+      else A.class_ "ds-indicator flex-col w-full border-2 border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
+    )
     H.! A.href (H.textValue $ "/clash/t-" <> formatRelativeMatchDate currentTimestamp (matchTimestamp match)) $ do
-    H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml $ formatSemiAbsoluteMatchDate currentTimestamp (matchTimestamp match) unreadCount
-    H.div H.! A.class_ "text-info font-bold" $ H.toHtml $ formatSimilarityScore score
+      case guessStatus of
+        0 -> H.span H.! A.class_ "ds-indicator-item ds-indicator-center ds-badge ds-badge-warning" $ "keep it civil"
+        1 -> H.span H.! A.class_ "ds-indicator-item ds-indicator-center ds-badge ds-badge-success" $ "chat enabled"
+        2 -> H.span H.! A.class_ "ds-indicator-item ds-indicator-center ds-badge ds-badge-error" $ "chat unavailable"
+        _ -> mempty
+      H.div H.! A.class_ "text-sm text-base-content/70 mb-2" $ H.toHtml $ formatSemiAbsoluteMatchDate currentTimestamp (matchTimestamp match) unreadCount
+      H.div H.! A.class_ "text-info font-bold" $ H.toHtml $ formatSimilarityScore score
 
 formatSimilarityScore :: Double -> T.Text
 formatSimilarityScore s = T.pack $ Text.printf "🤝 %.0f%%" ((s + 1) * 50)
@@ -564,7 +561,7 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
 
       Monad.unless (null stereoGuessesAboutUser) $ do
         H.div H.! A.id "about-you" H.! A.class_ "grid gap-4 p-4" $ do
-          H.h1 H.! A.class_ "text-center text-2xl text-warning font-black italic" $ "joining the dots on you"
+          H.h1 H.! A.class_ "text-center text-2xl text-warning font-black italic" $ "your pigeonholes"
           Monad.forM_ stereoGuessesAboutUser $ \guess -> do
             case Map.lookup (stereoGuessStereoId guess) stereoMap of
               Just stereo -> H.div $ showStereoGuessAboutYou stereo guess
@@ -582,7 +579,7 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
           Nothing -> mempty
 
       H.div H.! A.id "guesses" H.! A.class_ "grid gap-4 p-4" $ do
-        H.h1 H.! A.class_ "text-center text-2xl font-black italic" $ "educated guesses about them"
+        H.h1 H.! A.class_ "text-center text-2xl font-black italic" $ "educated guesses"
         Monad.forM_ (viewGuessResults view) $ \result -> H.div $ showGuessResult result
         if length (viewGuessResults view) < 3
           then
@@ -598,7 +595,7 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
 
       Monad.when (correctGuessCount > 0 && hasCompletedAllBaseGuesses) $ do
         H.div H.! A.id "stereo" H.! A.class_ "grid gap-4 p-4" $ do
-          H.h1 H.! A.class_ "text-center text-2xl text-primary font-black italic" $ "reading between their lines"
+          H.h1 H.! A.class_ "text-center text-2xl text-primary font-black italic" $ "reading between the lines"
           Monad.forM_ (viewStereoGuesses view) $ \guess -> do
             case Map.lookup (stereoGuessStereoId guess) stereoMap of
               Just stereo -> H.div $ showStereoGuess stereo guess

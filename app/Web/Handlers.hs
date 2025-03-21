@@ -541,7 +541,22 @@ matchTemplateRoute config state conn uid _ = do
           todayMatchScore <- case todayMatches of
             (match:_) -> do
               (_, score) <- calculateMatchScore conn uid match
-              return $ Just (match, score)
+              unreadCount <- getUnreadMessageCount conn uid match
+              let targetId = if matchUserId match == uid then matchTargetId match else matchUserId match
+
+              matchIdResults <- SQL.query conn
+                "SELECT id FROM matched WHERE user_id = ? AND target_id = ? AND matched_on = ? LIMIT 1"
+                (matchUserId match, matchTargetId match, matchTimestamp match) :: IO [SQL.Only Int]
+              let matchId = case matchIdResults of
+                    (SQL.Only id'):_ -> id'
+                    _ -> 0
+
+              guessResults <- getGuessResults conn matchId uid targetId
+              let guessCount = length guessResults
+                  correctGuessCount = length $ filter guessResultCorrect guessResults
+                  guessStatus = if guessCount < 3 then 0 else if correctGuessCount > 0 then 1 else 2
+
+              return $ Just (match, score, unreadCount, guessStatus)
             [] -> return Nothing
 
           matches <- getUserMatches conn uid
@@ -555,7 +570,21 @@ matchTemplateRoute config state conn uid _ = do
           pastMatchesData <- mapM (\m -> do
             (_, score) <- calculateMatchScore conn uid m
             unreadCount <- getUnreadMessageCount conn uid m
-            return (m, score, unreadCount)) pastMatches
+            let targetId = if matchUserId m == uid then matchTargetId m else matchUserId m
+
+            matchIdResults <- SQL.query conn
+              "SELECT id FROM matched WHERE user_id = ? AND target_id = ? AND matched_on = ? LIMIT 1"
+              (matchUserId m, matchTargetId m, matchTimestamp m) :: IO [SQL.Only Int]
+            let matchId = case matchIdResults of
+                  (SQL.Only id'):_ -> id'
+                  _ -> 0
+
+            guessResults <- getGuessResults conn matchId uid targetId
+            let guessCount = length guessResults
+                correctGuessCount = length $ filter guessResultCorrect guessResults
+                guessStatus = if guessCount < 3 then 0 else if correctGuessCount > 0 then 1 else 2
+
+            return (m, score, unreadCount, guessStatus)) pastMatches
 
           return $ Wai.responseLBS
             HTTP.status200
