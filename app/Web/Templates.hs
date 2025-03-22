@@ -392,14 +392,14 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
         H.input H.! A.class_ "ds-tab mb-4" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "commonplace"
         H.div H.! A.class_ "ds-tab-content" $ do
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
-            Monad.forM_ (orderAorbs (take 3 $ reverse awas) orderFuncs) $ \(aorb, orders) ->
+            Monad.forM_ (orderAorbs (reverse $ take 3 $ awas) orderFuncs) $ \(aorb, orders) ->
               let aorbMode = Individual aorb orders maybeMain maybeUuid
               in showAorb aorbMode
 
         H.input H.! A.class_ "ds-tab mb-4" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "controversial"
         H.div H.! A.class_ "ds-tab-content" $ do
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
-            Monad.forM_ (orderAorbs (take 3 awas) orderFuncs) $ \(aorb, orders) ->
+            Monad.forM_ (orderAorbs (reverse $ take 3 $ reverse awas) orderFuncs) $ \(aorb, orders) ->
               let aorbMode = Individual aorb orders maybeMain maybeUuid
               in showAorb aorbMode
 
