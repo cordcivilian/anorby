@@ -500,7 +500,7 @@ matchTemplate config user isEnrolled enrolledCount maybeCutoffTime maybeReleaseT
         navBar $ Just "clash"
 
         H.div H.! A.class_ "p-4" $ do
-          H.div H.! A.class_ "ds-collapse ds-collapse-arrow mb-4 grid max-w-xl mx-auto bg-base-100 border-2 border-base-300" $ do
+          H.div H.! A.class_ "ds-collapse ds-collapse-arrow grid max-w-xl mx-auto bg-base-100 border-2 border-base-300" $ do
             H.input H.! A.type_ "checkbox"
             H.div H.! A.class_ "ds-collapse-title text-center font-black" $ case userAssoc user of
               Just scheme -> styleScheme scheme False
@@ -514,7 +514,7 @@ matchTemplate config user isEnrolled enrolledCount maybeCutoffTime maybeReleaseT
         case timeState of
           AfterRelease -> mempty
           _ -> do
-            H.div H.! A.class_ "w-full max-w-2xl mx-auto p-4 grid justify-stretch align-center" $ do
+            H.div H.! A.class_ "w-full max-w-2xl mx-auto p-8 grid justify-stretch align-center" $ do
               H.div H.! A.class_ "ds-stats ds-stats-vertical md:ds-stats-horizontal shadow" $ do
                 H.div H.! A.class_ "ds-stat" $ do
                   H.div H.! A.class_ "ds-stat-title" $ "today's clash pool"
