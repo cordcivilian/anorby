@@ -69,8 +69,8 @@ adminLandingTemplate = H.docTypeHtml $ H.html $ do
       H.div H.! A.class_ "ds-card" $ do
         H.div H.! A.class_ "ds-card-body" $ do
           H.div H.! A.class_ "grid gap-4" $ do
-            H.a H.! A.href "/admin/common" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft ds-btn-block" $ "common questions"
-            H.a H.! A.href "/admin/stereo" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft ds-btn-block" $ "stereo questions"
+            H.a H.! A.href "/admin/common" H.! A.class_ "ds-btn ds-btn-info ds-btn-soft ds-btn-block" $ "common questions"
+            H.a H.! A.href "/admin/stereo" H.! A.class_ "ds-btn ds-btn-info ds-btn-soft ds-btn-block" $ "stereo questions"
 
 adminCommonTemplate :: [Aorb] -> H.Html
 adminCommonTemplate aorbs = H.docTypeHtml $ H.html $ do
@@ -79,6 +79,7 @@ adminCommonTemplate aorbs = H.docTypeHtml $ H.html $ do
     H.div $ do
       navBar (Just "admin: common")
       H.div H.! A.class_ "ds-card max-w-4xl mx-auto mb-8" $ do
+        H.a H.! A.href "/admin/stereo" H.! A.class_ "ds-btn ds-btn-info ds-btn-soft ds-btn-block" $ "stereo questions"
         H.form H.! A.method "POST" H.! A.action "/admin/common/aorb/add" H.! A.class_ "ds-card-body space-y-4" $ do
           H.h2 H.! A.class_ "ds-card-title" $ "new common question"
           H.textarea H.! A.placeholder "context" H.! A.id "context" H.! A.name "context" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
@@ -99,6 +100,7 @@ adminStereoTemplate stereos = H.docTypeHtml $ H.html $ do
     H.div $ do
       navBar (Just "admin: stereo")
       H.div H.! A.class_ "ds-card max-w-4xl mx-auto mb-8" $ do
+        H.a H.! A.href "/admin/common" H.! A.class_ "ds-btn ds-btn-info ds-btn-soft ds-btn-block" $ "common questions"
         H.form H.! A.method "POST" H.! A.action "/admin/stereo/add" H.! A.class_ "ds-card-body space-y-4" $ do
           H.h2 H.! A.class_ "ds-card-title" $ "new stereo question"
           H.textarea H.! A.placeholder "context" H.! A.id "context" H.! A.name "context" H.! A.autocomplete "off" H.! A.class_ "w-full pt-4 pb-4 border border-base-400 resize-none field-sizing-content" H.! A.required "required" $ ""
