@@ -506,6 +506,7 @@ matchTemplate config user isEnrolled enrolledCount maybeCutoffTime maybeReleaseT
               Just scheme -> styleScheme scheme False
               Nothing -> "choose your clashes"
             H.div H.! A.class_ "ds-collapse-content grid gap-2 w-full" $ do
+              H.div H.! A.role "alert" H.! A.class_ "ds-alert justify-center" $ "choose your head-to-head vibes"
               schemeCard PPPod (userAssoc user)
               schemeCard Swing (userAssoc user)
               schemeCard Bipolar (userAssoc user)
@@ -560,8 +561,7 @@ styleScheme scheme showDescription =
         Swing -> (A.class_ "font-serif", "lol who cares", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-left")
         Bipolar -> (A.class_ "font-mono", "they're wrong", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
   in if showDescription
-        then H.div H.! schemeDescClass H.! H.dataAttribute "tip" schemeDesc $
-          H.div H.! schemeNameClass $ H.toHtml $ show scheme
+        then H.div H.! schemeDescClass H.! H.dataAttribute "tip" schemeDesc $ H.div H.! schemeNameClass $ H.toHtml $ show scheme
         else H.div H.! schemeNameClass $ H.toHtml $ show scheme
 
 renderTimeDisplay :: T.Text -> T.Text -> T.Text -> H.Html
