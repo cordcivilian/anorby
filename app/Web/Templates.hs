@@ -580,7 +580,7 @@ matchCard currentTimestamp match score unreadCount guessStatus =
     )
     H.! A.href (H.textValue $ "/clash/t-" <> formatRelativeMatchDate currentTimestamp (matchTimestamp match)) $ do
       case guessStatus of
-        0 -> H.span H.! A.class_ "ds-indicator-item ds-indicator-center ds-badge ds-badge-warning" $ "keep it civil"
+        0 -> H.span H.! A.class_ "ds-indicator-item ds-indicator-center ds-badge ds-badge-secondary" $ "keep it civil"
         1 -> H.span H.! A.class_ "ds-indicator-item ds-indicator-center ds-badge ds-badge-success" $ "chat enabled"
         2 -> H.span H.! A.class_ "ds-indicator-item ds-indicator-center ds-badge ds-badge-error" $ "chat unavailable"
         _ -> mempty
