@@ -137,7 +137,7 @@ getRootStats state conn = do
         [SQL.SQLInteger startOfDay]
 
       activeUsers' <- getCachedQuery state conn "active_users"
-        "SELECT COUNT(DISTINCT user_id) FROM aorb_answers WHERE user_id != -1"
+        "SELECT COUNT(*) FROM users WHERE id != -1"
         []
 
       newUsers' <- getCachedQuery state conn "new_users"

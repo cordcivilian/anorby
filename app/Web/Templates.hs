@@ -304,7 +304,7 @@ showAorb mode =
         Just mainAorbId -> aorbId (aorbData awa) == mainAorbId
         Nothing -> False
     aorbClass = case (main, clickable) of
-      (True, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-primary hover:-translate-y-1 hover:bg-base-200 transition-all"
+      (True, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-accent hover:-translate-y-1 hover:bg-base-200 transition-all"
       (True, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-warning"
       (False, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl hover:-translate-y-1 hover:bg-base-200 transition-all"
       (False, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl"
@@ -322,26 +322,33 @@ mkChoice isTop mode =
       let
         mean = aorbMean aorb
         isClear = mean > 0.51 || mean < 0.49
-        (choice, popularity) = if isTop == (mean > 0.5)
-          then (aorbA aorb, mean)
-          else (aorbB aorb, 1 - mean)
-        showFn = case (isTop, isClear) of
-          (True, True)   -> showChoice (A.class_ "text-lg") (Just $ A.class_ "ml-2 text-warning")
-          (False, True)  -> showChoice (A.class_ "text-sm") (Nothing)
-          (_, False)     -> showChoice (mempty) (Just $ A.class_ "ml-2")
+        (choice, popularity) =
+          if isTop == (mean > 0.5) then
+            (aorbB aorb, mean)
+          else
+            (aorbA aorb, 1 - mean)
+        showFn =
+          case (isTop, isClear) of
+            (True, True)   -> showChoice (A.class_ "text-lg") (Just $ A.class_ "ml-2 text-warning")
+            (False, True)  -> showChoice (A.class_ "text-sm") (Nothing)
+            (_, False)     -> showChoice (mempty) (Just $ A.class_ "ml-2")
       in
         showFn choice popularity
-    Individual awa _ _ maybeUuid ->
+    Individual awa _ maybeMain maybeUuid ->
       let
-        ans = userAnswer awa
+        isMain = maybeMain /= Nothing && maybeMain == Just (aorbId $ aorbData awa)
         isShared = maybeUuid /= Nothing
-        (choice, popularity) = if isTop == (ans == AorbAnswer 0)
-          then (aorbA $ aorbData awa, aorbMean $ aorbData awa)
-          else (aorbB $ aorbData awa, 1 - aorbMean (aorbData awa))
-        showFn = case (isTop, isShared) of
-          (True, False)  -> showChoice (A.class_ "text-lg text-primary") (Just $ A.class_ "ml-2 text-primary")
-          (True, True)   -> showChoice (A.class_ "text-lg text-warning") (Just $ A.class_ "ml-2 text-warning")
-          (False, _)     -> showChoice (A.class_ "text-sm") (Nothing)
+        (choice, popularity) =
+          if isTop == (userAnswer awa == AorbAnswer 0) then
+            (aorbA $ aorbData awa, 1 - aorbMean (aorbData awa))
+          else
+            (aorbB $ aorbData awa, aorbMean (aorbData awa))
+        showFn =
+          case (isMain, isTop, isShared) of
+            (True, True, False)  -> showChoice (A.class_ "text-lg text-accent") (Just $ A.class_ "ml-2 text-accent")
+            (False, True, False)  -> showChoice (A.class_ "text-lg text-primary") (Just $ A.class_ "ml-2 text-primary")
+            (_, True, True)   -> showChoice (A.class_ "text-lg text-warning") (Just $ A.class_ "ml-2 text-warning")
+            (_, _, _)     -> showChoice (A.class_ "text-sm") (Nothing)
       in
         showFn choice popularity
 
@@ -457,7 +464,7 @@ existingAnswerTemplate aorb mCurrentAnswer isFavourite token = H.docTypeHtml $ H
               makeExistingChoice aorb token (aorbA aorb) 0 (mCurrentAnswer == Just (AorbAnswer 0)) isFavourite
               H.div H.! A.class_ "ds-divider" $ "OR"
               makeExistingChoice aorb token (aorbB aorb) 1 (mCurrentAnswer == Just (AorbAnswer 1)) isFavourite
-          H.div H.! A.class_ "ds-card-actions justify-center grid gap-6" $ do
+          H.div H.! A.class_ "ds-card-actions justify-center grid gap-4" $ do
             if isFavourite
               then mempty
               else
