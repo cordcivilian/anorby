@@ -52,9 +52,7 @@ runServer = do
           $ Warp.setFileInfoCacheDuration 600
           $ Warp.setSlowlorisSize 8192
           $ Warp.setMaxTotalHeaderLength (1024*50)
-          $ Warp.setOnException (\_ e ->
-            Monad.when (Warp.defaultShouldDisplayException e) $
-              putStrLn $ "Error: " ++ show e)
+          $ Warp.setOnException (\_ e -> Monad.when (Warp.defaultShouldDisplayException e) $ putStrLn $ "Error: " ++ show e)
           $ Warp.setGracefulShutdownTimeout (Just 30)
           $ Warp.defaultSettings
 
@@ -103,10 +101,7 @@ initDatabasePool config = do
     TestWithCustomData -> initPool (dbPath config)
     TestWithMatches 1 -> initGaleShapleyTestDb config dbExists
     TestWithMatches _ -> initLocalSearchTestDb config dbExists
-
-  Monad.when (shouldMigrate config) $ Pool.withResource pool $ \conn ->
-    migrateDatabase config conn
-
+  Monad.when (shouldMigrate config) $ Pool.withResource pool $ \conn -> migrateDatabase config conn
   return pool
 
 initProductionDb :: Config -> Bool -> IO (Pool.Pool SQL.Connection)
@@ -184,11 +179,16 @@ data Route = Route
   , routeHandler :: RouteHandler
   }
 
+data RouteHandler
+  = PublicHandler (AppState -> SQL.Connection -> Wai.Request -> IO Wai.Response)
+  | ProtectedHandler (Config -> AppState -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response)
+  | AuthHandler (SQL.Connection -> Wai.Request -> IO Wai.Response)
+  | AdminHandler (Config -> AppState -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response)
+
 routes :: [Route]
 routes =
   -- Public routes
-  [ Route "GET" "/styles/output.css" $ PublicHandler $ \state _ req ->
-      serveCachedCss state "/styles/output.css" req
+  [ Route "GET" "/styles/output.css" $ PublicHandler $ \state _ req -> serveCachedCss state "/styles/output.css" req
   , Route "GET" "/" $ PublicHandler rootTemplateRoute
   , Route "GET" "/share/:uuid" $ PublicHandler $ \_ conn req ->
       case extractParam "/share/:uuid" (Wai.rawPathInfo req) "uuid" of
@@ -206,47 +206,42 @@ routes =
         Nothing -> return notFoundResponse
 
   -- Admin routes (protected)
-  , Route "GET" "/admin" $ ProtectedHandler $ \_ _ conn uid req ->
-      adminLandingTemplateRoute conn uid req
-  , Route "GET" "/admin/common" $ ProtectedHandler $ \_ _ conn uid req ->
-      adminCommonTemplateRoute conn uid req
-  , Route "POST" "/admin/common/aorb/add" $ ProtectedHandler $ \config _ conn uid req ->
-      handleAddAorb config conn uid req
-  , Route "GET" "/admin/common/aorb/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
+  , Route "GET" "/admin" $ AdminHandler $ \_ _ conn uid req -> adminLandingTemplateRoute conn uid req
+  , Route "GET" "/admin/common" $ AdminHandler $ \_ _ conn uid req -> adminCommonTemplateRoute conn uid req
+  , Route "POST" "/admin/common/aorb/add" $ AdminHandler $ \config _ conn uid req -> handleAddAorb config conn uid req
+  , Route "GET" "/admin/common/aorb/:id/edit" $ AdminHandler $ \config _ conn uid req ->
       case extractParam "/admin/common/aorb/:id/edit" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleEditAorbForm config conn uid id' req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
-  , Route "POST" "/admin/common/aorb/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
+  , Route "POST" "/admin/common/aorb/:id/edit" $ AdminHandler $ \config _ conn uid req ->
       case extractParam "/admin/common/aorb/:id/edit" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleEditAorb config conn uid id' req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
-  , Route "POST" "/admin/common/aorb/:id/delete" $ ProtectedHandler $ \config _ conn uid req ->
+  , Route "POST" "/admin/common/aorb/:id/delete" $ AdminHandler $ \config _ conn uid req ->
       case extractParam "/admin/common/aorb/:id/delete" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleDeleteAorb config conn uid id' req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
-  , Route "GET" "/admin/stereo" $ ProtectedHandler $ \_ _ conn uid req ->
-      adminStereoTemplateRoute conn uid req
-  , Route "POST" "/admin/stereo/add" $ ProtectedHandler $ \config _ conn uid req ->
-      handleAddStereo config conn uid req
-  , Route "GET" "/admin/stereo/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
+  , Route "GET" "/admin/stereo" $ AdminHandler $ \_ _ conn uid req -> adminStereoTemplateRoute conn uid req
+  , Route "POST" "/admin/stereo/add" $ AdminHandler $ \config _ conn uid req -> handleAddStereo config conn uid req
+  , Route "GET" "/admin/stereo/:id/edit" $ AdminHandler $ \config _ conn uid req ->
       case extractParam "/admin/stereo/:id/edit" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleEditStereoForm config conn uid id' req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
-  , Route "POST" "/admin/stereo/:id/edit" $ ProtectedHandler $ \config _ conn uid req ->
+  , Route "POST" "/admin/stereo/:id/edit" $ AdminHandler $ \config _ conn uid req ->
       case extractParam "/admin/stereo/:id/edit" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleEditStereo config conn uid id' req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
-  , Route "POST" "/admin/stereo/:id/delete" $ ProtectedHandler $ \config _ conn uid req ->
+  , Route "POST" "/admin/stereo/:id/delete" $ AdminHandler $ \config _ conn uid req ->
       case extractParam "/admin/stereo/:id/delete" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
           [(id', "")] -> handleDeleteStereo config conn uid id' req
@@ -254,24 +249,19 @@ routes =
         Nothing -> return notFoundResponse
 
   -- User routes (protected)
-  , Route "GET" "/whoami" $ ProtectedHandler $ \config _ conn uid req ->
-      profileTemplateRoute config conn uid req
-  , Route "GET" "/account" $ ProtectedHandler $ \_ _ conn uid req ->
-      accountTemplateRoute conn uid req
+  , Route "GET" "/whoami" $ ProtectedHandler $ \config _ conn uid req -> profileTemplateRoute config conn uid req
+  , Route "GET" "/account" $ ProtectedHandler $ \_ _ conn uid req -> accountTemplateRoute conn uid req
 
   -- Answer routes (protected)
-  , Route "GET" "/ans" $ ProtectedHandler $ \_ _ conn uid req ->
-      answerTemplateRoute conn uid req
+  , Route "GET" "/ans" $ ProtectedHandler $ \_ _ conn uid req -> answerTemplateRoute conn uid req
   , Route "GET" "/ans/:id" $ ProtectedHandler $ \_ _ conn uid req ->
         case extractParam "/ans/:id" (Wai.rawPathInfo req) "id" of
           Just idBS -> case reads (BS.unpack idBS) of
             [(id', "")] -> existingAnswerTemplateRoute conn uid id' req
             _ -> return notFoundResponse
           Nothing -> return notFoundResponse
-  , Route "POST" "/ans/submit" $ ProtectedHandler $ \_ state conn uid req ->
-      handleAnswerSubmission state conn uid req
-  , Route "POST" "/ans/edit" $ ProtectedHandler $ \_ state conn uid req ->
-      handleAnswerEdit state conn uid req
+  , Route "POST" "/ans/submit" $ ProtectedHandler $ \_ state conn uid req -> handleAnswerSubmission state conn uid req
+  , Route "POST" "/ans/edit" $ ProtectedHandler $ \_ state conn uid req -> handleAnswerEdit state conn uid req
   , Route "POST" "/aorb/favorite/:id" $ ProtectedHandler $ \_ _ conn uid req ->
       case extractParam "/aorb/favorite/:id" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
@@ -280,10 +270,8 @@ routes =
         Nothing -> return notFoundResponse
 
   -- Match routes (protected)
-  , Route "GET" "/clash" $ ProtectedHandler $ \config state conn uid req ->
-      matchTemplateRoute config state conn uid req
-  , Route "POST" "/clash/type" $ ProtectedHandler $ \_ _ conn uid req ->
-      handleMatchTypeUpdate conn uid req
+  , Route "GET" "/clash" $ ProtectedHandler $ \config state conn uid req -> matchTemplateRoute config state conn uid req
+  , Route "POST" "/clash/type" $ ProtectedHandler $ \_ _ conn uid req -> handleMatchTypeUpdate conn uid req
   , Route "GET" "/clash/t-:days" $ ProtectedHandler $ \config _ conn uid req ->
       case extractParam "/clash/t-:days" (Wai.rawPathInfo req) "days" of
         Just daysBS -> case reads (BS.unpack daysBS) of
@@ -310,29 +298,18 @@ routes =
         Nothing -> return notFoundResponse
 
   -- Account management routes (protected)
-  , Route "GET" "/logout" $ ProtectedHandler $ \_ _ conn uid req ->
-      logoutGetRoute conn uid req
-  , Route "GET" "/logout/confirm" $ ProtectedHandler $ \_ _ conn uid req ->
-      logoutConfirmRoute conn uid req
-  , Route "POST" "/logout/confirm" $ ProtectedHandler $ \_ _ conn uid req ->
-      logoutConfirmPostRoute conn uid req
-  , Route "GET" "/delete" $ ProtectedHandler $ \_ _ conn uid req ->
-      deleteGetRoute conn uid req
-  , Route "GET" "/delete/confirm" $ ProtectedHandler $ \_ _ conn uid req ->
-      deleteConfirmRoute conn uid req
-  , Route "POST" "/delete/confirm" $ ProtectedHandler $ \_ _ conn uid req ->
-      deleteConfirmPostRoute conn uid req
+  , Route "GET" "/logout" $ ProtectedHandler $ \_ _ conn uid req -> logoutGetRoute conn uid req
+  , Route "GET" "/logout/confirm" $ ProtectedHandler $ \_ _ conn uid req -> logoutConfirmRoute conn uid req
+  , Route "POST" "/logout/confirm" $ ProtectedHandler $ \_ _ conn uid req -> logoutConfirmPostRoute conn uid req
+  , Route "GET" "/delete" $ ProtectedHandler $ \_ _ conn uid req -> deleteGetRoute conn uid req
+  , Route "GET" "/delete/confirm" $ ProtectedHandler $ \_ _ conn uid req -> deleteConfirmRoute conn uid req
+  , Route "POST" "/delete/confirm" $ ProtectedHandler $ \_ _ conn uid req -> deleteConfirmPostRoute conn uid req
   ]
 
 -- | Server
 
 monolith :: AppState -> Wai.Application
 monolith state = Gzip.gzip Gzip.defaultGzipSettings $ Mid.logStdout $ application TIO.putStrLn state
-
-data RouteHandler
-  = PublicHandler (AppState -> SQL.Connection -> Wai.Request -> IO Wai.Response)
-  | ProtectedHandler (Config -> AppState -> SQL.Connection -> UserID -> Wai.Request -> IO Wai.Response)
-  | AuthHandler (SQL.Connection -> Wai.Request -> IO Wai.Response)
 
 application :: Logger -> AppState -> Wai.Application
 application _ state request respond = do
@@ -341,20 +318,13 @@ application _ state request respond = do
 
   let method = Wai.requestMethod request
       path = Wai.rawPathInfo request
-
-      matchingRoute =
-        List.find
-          (\r -> routeMethod r == method && pathMatches (routePath r) path)
-          routes
+      matchingRoute = List.find (\r -> routeMethod r == method && pathMatches (routePath r) path) routes
 
   case matchingRoute of
     Nothing -> respond notFoundResponse
     Just route -> case routeHandler route of
-      PublicHandler h ->
-        Pool.withResource (appPool state) (\conn -> h state conn request) >>= respond
-
-      AuthHandler h ->
-        Pool.withResource (appPool state) (\conn -> h conn request) >>= respond
+      PublicHandler h -> Pool.withResource (appPool state) (\conn -> h state conn request) >>= respond
+      AuthHandler h -> Pool.withResource (appPool state) (\conn -> h conn request) >>= respond
 
       ProtectedHandler h ->
         Pool.withResource (appPool state) (\conn -> do
@@ -364,6 +334,19 @@ application _ state request respond = do
             Just user -> do
               updateLastAccessed conn request
               h config state conn (userId user) request
+        ) >>= respond
+
+      AdminHandler h ->
+        Pool.withResource (appPool state) (\conn -> do
+          maybeUser <- getAuthenticatedUser conn request
+          case maybeUser of
+            Nothing -> return redirectToLogin
+            Just user ->
+              if userId user == shadowUserId
+                then do
+                  updateLastAccessed conn request
+                  h config state conn (userId user) request
+                else return $ serveErrorTemplate 403 "Unauthorized"
         ) >>= respond
 
 setupSyncLogger :: (T.Text -> IO ()) -> IO (T.Text -> IO ())

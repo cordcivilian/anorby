@@ -942,10 +942,14 @@ postMessageRoute config conn uid days req = do
 redirectToLogin :: Wai.Response
 redirectToLogin = Wai.responseLBS
   HTTP.status303
-  [ (Headers.hLocation, "/login")
-  , (Headers.hContentType, "text/html")
-  ]
+  [ (Headers.hLocation, "/login") , (Headers.hContentType, "text/html") ]
   ""
+
+serveErrorTemplate :: Int -> T.Text -> Wai.Response
+serveErrorTemplate code message = Wai.responseLBS
+  (HTTP.Status code (BS.pack $ show code))
+  [(Headers.hContentType, "text/html")]
+  (R.renderHtml $ errorTemplate code message)
 
 invalidSubmissionResponse :: Wai.Response
 invalidSubmissionResponse = Wai.responseLBS
