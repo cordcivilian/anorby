@@ -128,6 +128,7 @@ initTestWithoutAnswersDb config dbExists = do
     putStrLn "Creating new test database without answers..."
     conn <- initDB (dbPath config) True
     mockBase conn (userCount config)
+    ensureShadowUser conn
     SQL.close conn
   initPool (dbPath config)
 
@@ -262,10 +263,10 @@ routes =
           Nothing -> return notFoundResponse
   , Route "POST" "/ans/submit" $ ProtectedHandler $ \_ state conn uid req -> handleAnswerSubmission state conn uid req
   , Route "POST" "/ans/edit" $ ProtectedHandler $ \_ state conn uid req -> handleAnswerEdit state conn uid req
-  , Route "POST" "/aorb/favorite/:id" $ ProtectedHandler $ \_ _ conn uid req ->
-      case extractParam "/aorb/favorite/:id" (Wai.rawPathInfo req) "id" of
+  , Route "POST" "/aorb/favourite/:id" $ ProtectedHandler $ \_ _ conn uid req ->
+      case extractParam "/aorb/favourite/:id" (Wai.rawPathInfo req) "id" of
         Just idBS -> case reads (BS.unpack idBS) of
-          [(id', "")] -> setFavoriteAorbRoute conn uid id' req
+          [(id', "")] -> setFavouriteAorbRoute conn uid id' req
           _ -> return notFoundResponse
         Nothing -> return notFoundResponse
 

@@ -304,8 +304,8 @@ showAorb mode =
         Just mainAorbId -> aorbId (aorbData awa) == mainAorbId
         Nothing -> False
     aorbClass = case (main, clickable) of
-      (True, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-warning hover:-translate-y-1 hover:bg-base-200 transition-all"
-      (True, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-primary"
+      (True, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-primary hover:-translate-y-1 hover:bg-base-200 transition-all"
+      (True, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-warning"
       (False, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl hover:-translate-y-1 hover:bg-base-200 transition-all"
       (False, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl"
     aorbStyle = case mode of
@@ -350,8 +350,7 @@ showChoice choiceClass popularityClass choice popularity =
   H.div H.! choiceClass $ do
     H.toHtml choice
     case popularityClass of
-      Just pc -> H.span H.! pc $ H.toHtml $
-        T.concat ["(", T.pack (Text.printf "%.2f" $ popularity * 100), "%)"]
+      Just pc -> H.span H.! pc $ H.toHtml $ T.concat ["(", T.pack (Text.printf "%.2f" $ popularity * 100), "%)"]
       Nothing -> mempty
 
 profileTemplate :: [AorbWithAnswer] -> Maybe AorbID -> Maybe T.Text -> Maybe T.Text -> H.Html
@@ -387,7 +386,6 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
               (Nothing, Just _) -> mempty
               (Nothing, Nothing) -> do
                 H.p "you haven't selected your main question yet"
-                H.p "pick from the answers below"
 
         H.input H.! A.class_ "ds-tab mb-4" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "commonplace"
         H.div H.! A.class_ "ds-tab-content" $ do
@@ -446,7 +444,7 @@ answerTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
         H.button H.! A.type_ "submit" H.! A.class_ "w-full min-h-[160px] p-8 text-center border rounded-lg transition-all cursor-pointer font-inherit border-base-300 hover:bg-base-200 hover:border-base-300" $ H.toHtml choice
 
 existingAnswerTemplate :: Aorb -> Maybe AorbAnswer -> Bool -> T.Text -> H.Html
-existingAnswerTemplate aorb mCurrentAnswer isFavorite token = H.docTypeHtml $ H.html $ do
+existingAnswerTemplate aorb mCurrentAnswer isFavourite token = H.docTypeHtml $ H.html $ do
   pageHead "answer (edit)" mempty
   H.body $ do
     H.div H.! A.class_ "flex flex-col h-screen" $ do
@@ -456,23 +454,23 @@ existingAnswerTemplate aorb mCurrentAnswer isFavorite token = H.docTypeHtml $ H.
           H.div H.! A.class_ "flex-1 ds-card-body" $ do
             H.div H.! A.class_ "ds-card-title italic mb-8 justify-center" $ H.toHtml (aorbCtx aorb)
             H.div H.! A.class_ "" $ do
-              makeExistingChoice aorb token (aorbA aorb) 0 (mCurrentAnswer == Just (AorbAnswer 0)) isFavorite
+              makeExistingChoice aorb token (aorbA aorb) 0 (mCurrentAnswer == Just (AorbAnswer 0)) isFavourite
               H.div H.! A.class_ "ds-divider" $ "OR"
-              makeExistingChoice aorb token (aorbB aorb) 1 (mCurrentAnswer == Just (AorbAnswer 1)) isFavorite
+              makeExistingChoice aorb token (aorbB aorb) 1 (mCurrentAnswer == Just (AorbAnswer 1)) isFavourite
           H.div H.! A.class_ "ds-card-actions justify-center grid gap-6" $ do
-            if isFavorite
+            if isFavourite
               then mempty
               else
-                H.form H.! A.method "POST" H.! A.action (H.toValue $ "/aorb/favorite/" ++ show (aorbId aorb)) $ do
-                  H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-warning ds-btn-soft" $ "set as favorite question"
+                H.form H.! A.method "POST" H.! A.action (H.toValue $ "/aorb/favourite/" ++ show (aorbId aorb)) $ do
+                  H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-accent ds-btn-soft" $ "set as main question"
             H.a H.! A.href "/whoami" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft" $ "back"
   where
     makeExistingChoice :: Aorb -> T.Text -> T.Text -> Word.Word8 -> Bool -> Bool -> H.Html
-    makeExistingChoice a t choice value isSelected favorite = do
+    makeExistingChoice a t choice value isSelected favourite = do
       let choiceClass= if isSelected
-            then if favorite
-              then A.class_ "w-full min-h-[160px] p-8 text-center border rounded-lg transition-all cursor-pointer font-inherit border-warning text-warning bg-warning/5 hover:bg-warning/10"
-              else A.class_ "w-full min-h-[160px] p-8 text-center border rounded-lg transition-all cursor-pointer font-inherit border-primary text-primary bg-primary/5 hover:bg-primary/10"
+            then if favourite
+              then A.class_ "w-full min-h-[160px] p-8 text-center border-2 rounded-lg transition-all cursor-pointer font-inherit border-accent text-accent bg-accent/5 hover:bg-accent/10"
+              else A.class_ "w-full min-h-[160px] p-8 text-center border-2 rounded-lg transition-all cursor-pointer font-inherit border-primary text-primary bg-primary/5 hover:bg-primary/10"
             else A.class_ "w-full min-h-[160px] p-8 text-center border rounded-lg transition-all cursor-pointer font-inherit border-base-300 hover:bg-base-200"
       H.form H.! A.method "POST" H.! A.action "/ans/edit" $ do
         H.input H.! A.type_ "hidden" H.! A.name "aorb_id" H.! A.value (H.toValue $ show $ aorbId a)
@@ -973,7 +971,7 @@ dailyLimitTemplate :: T.Text -> H.Html
 dailyLimitTemplate timeLeft = msgTemplate MessageTemplate
   { messageTitle = "daily limit"
   , messageHeading = "daily answer limit reached, come back in " <> timeLeft
-  , messageLink = ("/clash", "clash")
+  , messageLink = ("/", "home")
   }
 
 noMoreQuestionsTemplate :: H.Html

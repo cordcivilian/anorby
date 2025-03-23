@@ -506,14 +506,14 @@ existingAnswerTemplateRoute conn uid aid _ = do
       token <- generateAnswerToken uid aid
       userResults <- SQL.query conn
         "SELECT * FROM users WHERE id = ?" (SQL.Only uid) :: IO [User]
-      let isFavorite = case userResults of
+      let isFavourite = case userResults of
             [user] -> userAorbId user == Just aid
             _ -> False
       return $ Wai.responseLBS
         HTTP.status200
         [(Headers.hContentType, BS.pack "text/html")]
         (R.renderHtml $
-          existingAnswerTemplate aorb currentAnswer isFavorite token)
+          existingAnswerTemplate aorb currentAnswer isFavourite token)
     _ -> return $ notFoundTemplateRoute undefined
 
 submitAnswerRoute :: SQL.Connection -> UserID -> AorbID -> AorbAnswer -> T.Text -> Wai.Request -> IO Wai.Response
@@ -580,8 +580,8 @@ editAnswerRoute conn uid aid answer token _ = do
         ]
         ""
 
-setFavoriteAorbRoute :: SQL.Connection -> UserID -> AorbID -> Wai.Request -> IO Wai.Response
-setFavoriteAorbRoute conn uid aid _ = do
+setFavouriteAorbRoute :: SQL.Connection -> UserID -> AorbID -> Wai.Request -> IO Wai.Response
+setFavouriteAorbRoute conn uid aid _ = do
   SQL.execute conn "UPDATE users SET aorb_id = ? WHERE id = ?" (aid, uid)
   return $ Wai.responseLBS
     HTTP.status303

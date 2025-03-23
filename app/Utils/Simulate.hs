@@ -198,10 +198,10 @@ mockMainAorbs conn users =
     Monad.unless (null answeredAorbs) $ do
       let gen = Random.mkStdGen (userId user)
           (idx, _) = Random.randomR (0, length answeredAorbs - 1) gen
-          SQL.Only favoriteId = answeredAorbs !! idx
+          SQL.Only favouriteId = answeredAorbs !! idx
       SQL.execute conn
         "UPDATE users SET aorb_id = ? WHERE id = ?"
-        (favoriteId, userId user)
+        (favouriteId, userId user)
 
 mockAssociations :: SQL.Connection -> [User] -> IO ()
 mockAssociations conn users =
