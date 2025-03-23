@@ -435,9 +435,10 @@ answerTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
             H.div H.! A.class_ "ds-card-title italic justify-center" $ H.toHtml (aorbCtx aorb)
             H.div H.! A.class_ "pt-4 pb-4" $ do
               let (firstChoice, firstValue, secondChoice, secondValue) =
-                    if shouldSwap
-                      then (aorbB aorb, 1, aorbA aorb, 0)
-                      else (aorbA aorb, 0, aorbB aorb, 1)
+                    if shouldSwap then
+                      (aorbB aorb, 1, aorbA aorb, 0)
+                    else
+                      (aorbA aorb, 0, aorbB aorb, 1)
               makeChoice aorb token firstChoice firstValue
               H.div H.! A.class_ "ds-divider" $ "OR"
               makeChoice aorb token secondChoice secondValue
@@ -474,11 +475,14 @@ existingAnswerTemplate aorb mCurrentAnswer isFavourite token = H.docTypeHtml $ H
   where
     makeExistingChoice :: Aorb -> T.Text -> T.Text -> Word.Word8 -> Bool -> Bool -> H.Html
     makeExistingChoice a t choice value isSelected favourite = do
-      let choiceClass= if isSelected
-            then if favourite
-              then A.class_ "w-full min-h-[160px] p-8 text-center border-2 rounded-lg transition-all cursor-pointer font-inherit border-accent text-accent bg-accent/5 hover:bg-accent/10"
-              else A.class_ "w-full min-h-[160px] p-8 text-center border-2 rounded-lg transition-all cursor-pointer font-inherit border-primary text-primary bg-primary/5 hover:bg-primary/10"
-            else A.class_ "w-full min-h-[160px] p-8 text-center border rounded-lg transition-all cursor-pointer font-inherit border-base-300 hover:bg-base-200"
+      let choiceClass=
+            if isSelected then
+              if favourite then
+                A.class_ "w-full min-h-[160px] p-8 text-center border-2 rounded-lg transition-all cursor-pointer font-inherit border-accent text-accent bg-accent/5 hover:bg-accent/10"
+              else
+                A.class_ "w-full min-h-[160px] p-8 text-center border-2 rounded-lg transition-all cursor-pointer font-inherit border-primary text-primary bg-primary/5 hover:bg-primary/10"
+            else
+              A.class_ "w-full min-h-[160px] p-8 text-center border rounded-lg transition-all cursor-pointer font-inherit border-base-300 hover:bg-base-200"
       H.form H.! A.method "POST" H.! A.action "/ans/edit" $ do
         H.input H.! A.type_ "hidden" H.! A.name "aorb_id" H.! A.value (H.toValue $ show $ aorbId a)
         H.input H.! A.type_ "hidden" H.! A.name "token" H.! A.value (H.textValue t)
@@ -537,24 +541,26 @@ matchTemplate config user isEnrolled enrolledCount maybeCutoffTime maybeReleaseT
                   (_, Enrolled) -> renderTimeDisplay "reveal in ..." timeUntilRelease (matchReleaseTime config)
 
         H.div H.! A.class_ "grid gap-8 max-w-2xl mx-auto p-4" $ do
-          if null pastMatches
-            then H.h3 H.! A.class_ "w-full border-2 border-base-300 p-6 rounded-lg" $ do
+          if null pastMatches then
+            H.h3 H.! A.class_ "w-full border-2 border-base-300 p-6 rounded-lg" $ do
               H.div "1. join the clash pool before the daily cutoff"
               H.div "2. check in on your clash-of-the-day at the daily reveal"
               H.div "3. repeat"
-            else do
-              case (timeState, maybeMatchScore) of
-                (AfterRelease, Nothing) -> H.div H.! A.class_ "w-full border-2 border-base-300 p-6 rounded-lg text-center" $ H.text "you were not in the clash pool today"
-                (AfterRelease, Just (match, score, unread, status)) -> matchCard (floor now) match score unread status
-                _ -> mempty
-              mapM_ (\(m, s, u, g) -> matchCard (floor now) m s u g) pastMatches
+          else do
+            case (timeState, maybeMatchScore) of
+              (AfterRelease, Nothing) -> H.div H.! A.class_ "w-full border-2 border-base-300 p-6 rounded-lg text-center" $ H.text "you were not in the clash pool today"
+              (AfterRelease, Just (match, score, unread, status)) -> matchCard (floor now) match score unread status
+              _ -> mempty
+            mapM_ (\(m, s, u, g) -> matchCard (floor now) m s u g) pastMatches
 
 schemeCard :: AssociationScheme -> Maybe AssociationScheme -> H.Html
 schemeCard scheme currentScheme =
   let isSelected = currentScheme == Just scheme
-      schemeClass = if isSelected
-        then A.class_ "ds-btn w-full p-4 rounded-lg cursor-pointer transition-all bg-transparent border-warning text-warning border-2"
-        else A.class_ "ds-btn w-full p-4 rounded-lg cursor-pointer transition-all bg-transparent border border-base-300 hover:bg-base-200"
+      schemeClass =
+        if isSelected then
+          A.class_ "ds-btn w-full p-4 rounded-lg cursor-pointer transition-all bg-transparent border-warning text-warning border-2"
+        else
+          A.class_ "ds-btn w-full p-4 rounded-lg cursor-pointer transition-all bg-transparent border border-base-300 hover:bg-base-200"
   in H.form H.! A.method "POST" H.! A.action "/clash/type" $ do
     H.button H.! A.type_ "submit" H.! A.name "assoc" H.! A.value (H.toValue $ show scheme) H.! schemeClass $ do
       styleScheme scheme True
@@ -565,9 +571,10 @@ styleScheme scheme showDescription =
         PPPod -> (A.class_ "font-sans italic", "validate me", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
         Swing -> (A.class_ "font-serif", "lol who cares", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-left")
         Bipolar -> (A.class_ "font-mono", "they're wrong", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
-  in if showDescription
-        then H.div H.! schemeDescClass H.! H.dataAttribute "tip" schemeDesc $ H.div H.! schemeNameClass $ H.toHtml $ show scheme
-        else H.div H.! schemeNameClass $ H.toHtml $ show scheme
+  in if showDescription then
+      H.div H.! schemeDescClass H.! H.dataAttribute "tip" schemeDesc $ H.div H.! schemeNameClass $ H.toHtml $ show scheme
+     else
+      H.div H.! schemeNameClass $ H.toHtml $ show scheme
 
 renderTimeDisplay :: T.Text -> T.Text -> T.Text -> H.Html
 renderTimeDisplay label timeLeft timeStr =
@@ -579,9 +586,10 @@ renderTimeDisplay label timeLeft timeStr =
 matchCard :: Integer -> Match -> Double -> Int -> Int -> H.Html
 matchCard currentTimestamp match score unreadCount guessStatus =
   H.a H.!
-    ( if getRelativeMatchDate currentTimestamp (matchTimestamp match) == 0
-      then A.class_ "ds-indicator flex-col w-full border-4 border-double border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
-      else A.class_ "ds-indicator flex-col w-full border-2 border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
+    ( if getRelativeMatchDate currentTimestamp (matchTimestamp match) == 0 then
+        A.class_ "ds-indicator flex-col w-full border-4 border-double border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
+      else
+        A.class_ "ds-indicator flex-col w-full border-2 border-base-300 p-6 rounded-lg cursor-pointer transition-all hover:bg-base-200 hover:-translate-y-1 text-inherit"
     )
     H.! A.href (H.textValue $ "/clash/t-" <> formatRelativeMatchDate currentTimestamp (matchTimestamp match)) $ do
       case guessStatus of
@@ -618,9 +626,10 @@ formatSemiAbsoluteMatchDate currentTimestamp' matchTimestamp' unread =
         1 -> "yesterday"
         _ -> T.toLower . T.pack $ DateTimeFormat.formatTime DateTimeFormat.defaultTimeLocale "%A, %Y-%m-%d"
           (POSIXTime.posixSecondsToUTCTime $ fromIntegral matchTimestamp')
-  in if unread > 0
-        then "[" <> T.pack (show unread) <> "] " <> baseText
-        else baseText
+  in if unread > 0 then
+      "[" <> T.pack (show unread) <> "] " <> baseText
+     else
+      baseText
 
 matchProfileTemplate :: Config -> Integer -> UserID -> UserID -> Int -> MatchView -> [Message] -> [StereoGuess] -> Map.Map Int Stereo -> H.Html
 matchProfileTemplate config days mainUserId targetId matchId view messages stereoGuessesAboutUser stereoMap = H.docTypeHtml $ H.html $ do
@@ -663,12 +672,11 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
       H.div H.! A.id "guesses" H.! A.class_ "grid gap-4 p-4" $ do
         H.h1 H.! A.class_ "text-center text-2xl font-black italic" $ "educated guesses"
         Monad.forM_ (viewGuessResults view) $ \result -> H.div $ showGuessResult result
-        if length (viewGuessResults view) < 3
-          then
-            case viewGuessAorbs view of
-              [] -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "no more questions available for guessing"
-              (nextGuess:_) -> showGuessForm days nextGuess matchId
-          else mempty
+        if length (viewGuessResults view) < 3 then
+          case viewGuessAorbs view of
+            [] -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "no more questions available for guessing"
+            (nextGuess:_) -> showGuessForm days nextGuess matchId
+        else mempty
 
       let hasCompletedAllBaseGuesses = length (viewGuessResults view) >= 3
           correctGuessCount = length $ filter guessResultCorrect $ viewGuessResults view
@@ -682,17 +690,17 @@ matchProfileTemplate config days mainUserId targetId matchId view messages stere
             case Map.lookup (stereoGuessStereoId guess) stereoMap of
               Just stereo -> H.div $ showStereoGuess stereo guess
               Nothing -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "question #" <> H.toHtml (show (stereoGuessStereoId guess))
-          if length (viewStereoGuesses view) < 3
-            then
-              case viewStereoQuestions view of
-                [] -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "no more personal questions available"
-                (nextQuestion:_) -> showStereoForm days nextQuestion matchId targetId
-            else mempty
+          if length (viewStereoGuesses view) < 3 then
+            case viewStereoQuestions view of
+              [] -> H.div H.! A.class_ "text-center p-4 bg-base-200 rounded-lg" $ "no more personal questions available"
+              (nextQuestion:_) -> showStereoForm days nextQuestion matchId targetId
+          else mempty
 
       H.div H.! A.class_ "p-4" $ do
-        if chatEnabled
-          then renderMessages config days mainUserId messages correctGuessCount
-          else H.div H.! A.class_ "w-full max-w-2xl mx-auto text-center p-4 bg-base-200 rounded-lg" $
+        if chatEnabled then
+          renderMessages config days mainUserId messages correctGuessCount
+        else
+          H.div H.! A.class_ "w-full max-w-2xl mx-auto text-center p-4 bg-base-200 rounded-lg" $
             case hasCompletedAllBaseGuesses of
               False -> "earn chat messages with correct guesses"
               True -> case correctGuessCount of
@@ -762,9 +770,11 @@ showGuessResult :: GuessResult -> H.Html
 showGuessResult result = do
   let aorb = guessResultAorb result
       isCorrect = guessResultCorrect result
-      resultClass = if isCorrect
-                    then A.class_ "ds-card ds-card-border border-2 border-success w-full max-w-2xl mx-auto grid"
-                    else A.class_ "ds-card ds-card-border border-2 border-error w-full max-w-2xl mx-auto grid"
+      resultClass =
+        if isCorrect then
+          A.class_ "ds-card ds-card-border border-2 border-success w-full max-w-2xl mx-auto grid"
+        else
+          A.class_ "ds-card ds-card-border border-2 border-error w-full max-w-2xl mx-auto grid"
 
   H.div H.! resultClass $ do
     H.div H.! A.class_ "ds-card-body p-6" $ do
@@ -774,21 +784,29 @@ showGuessResult result = do
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ aorbCtx aorb
 
       H.div H.! A.class_ "grid mt-4" $ do
-        let guessClassA = if guessResultGuess result == AorbAnswer 0
-                         then A.class_ "w-full p-4 text-left border-2 rounded-lg border-primary"
-                         else A.class_ "w-full p-4 text-left border rounded-lg"
+        let guessClassA =
+              if guessResultGuess result == AorbAnswer 0 then
+                A.class_ "w-full p-4 text-left border-2 rounded-lg border-primary"
+              else
+                A.class_ "w-full p-4 text-left border rounded-lg"
 
-            actualClassA = if guessResultActual result == AorbAnswer 0
-                          then A.class_ "ds-indicator-item ds-indicator-middle ds-badge ds-badge-warning"
-                          else A.class_ "hidden"
+            actualClassA =
+              if guessResultActual result == AorbAnswer 0 then
+                A.class_ "ds-indicator-item ds-indicator-middle ds-badge ds-badge-warning"
+              else
+                A.class_ "hidden"
 
-            guessClassB = if guessResultGuess result == AorbAnswer 1
-                         then A.class_ "w-full p-4 text-left border-2 rounded-lg border-primary"
-                         else A.class_ "w-full p-4 text-left border rounded-lg"
+            guessClassB =
+              if guessResultGuess result == AorbAnswer 1 then
+                A.class_ "w-full p-4 text-left border-2 rounded-lg border-primary"
+              else
+                A.class_ "w-full p-4 text-left border rounded-lg"
 
-            actualClassB = if guessResultActual result == AorbAnswer 1
-                          then A.class_ "ds-indicator-item ds-indicator-middle ds-badge ds-badge-warning"
-                          else A.class_ "hidden"
+            actualClassB =
+              if guessResultActual result == AorbAnswer 1 then
+                A.class_ "ds-indicator-item ds-indicator-middle ds-badge ds-badge-warning"
+              else
+                A.class_ "hidden"
 
         H.div H.! A.class_ "ds-indicator w-full" $ do
           H.div H.! guessClassA $ H.toHtml $ aorbA aorb
@@ -829,13 +847,19 @@ showStereoGuess stereo guess = do
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
 
       H.div H.! A.class_ "grid mt-4" $ do
-        H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 0
-                           then "w-full p-4 text-left border-2 rounded-lg border-primary"
-                           else "w-full p-4 text-left border rounded-lg") $ H.toHtml $ stereoA stereo
+        H.div H.!
+          ( if stereoGuessAnswer guess == AorbAnswer 0 then
+              A.class_ "w-full p-4 text-left border-2 rounded-lg border-primary"
+            else
+              A.class_ "w-full p-4 text-left border rounded-lg"
+          ) $ H.toHtml $ stereoA stereo
         H.div H.! A.class_ "ds-divider" $ "OR"
-        H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 1
-                           then "w-full p-4 text-left border-2 rounded-lg border-primary"
-                           else "w-full p-4 text-left border rounded-lg") $ H.toHtml $ stereoB stereo
+        H.div H.!
+          ( if stereoGuessAnswer guess == AorbAnswer 1 then
+              A.class_ "w-full p-4 text-left border-2 rounded-lg border-primary"
+            else
+              A.class_ "w-full p-4 text-left border rounded-lg"
+          ) $ H.toHtml $ stereoB stereo
 
 showStereoGuessAboutYou :: Stereo -> StereoGuess -> H.Html
 showStereoGuessAboutYou stereo guess = do
@@ -844,13 +868,19 @@ showStereoGuessAboutYou stereo guess = do
       H.div H.! A.class_ "ds-card-title" $ H.toHtml $ stereoCtx stereo
 
       H.div H.! A.class_ "grid mt-4" $ do
-        H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 0
-                           then "w-full p-4 text-left border-2 rounded-lg border-warning"
-                           else "w-full p-4 text-left border rounded-lg") $ H.toHtml $ stereoA stereo
+        H.div H.!
+          ( if stereoGuessAnswer guess == AorbAnswer 0 then
+              A.class_ "w-full p-4 text-left border-2 rounded-lg border-warning"
+            else
+              A.class_ "w-full p-4 text-left border rounded-lg"
+          ) $ H.toHtml $ stereoA stereo
         H.div H.! A.class_ "ds-divider" $ "OR"
-        H.div H.! A.class_ (if stereoGuessAnswer guess == AorbAnswer 1
-                           then "w-full p-4 text-left border-2 rounded-lg border-warning"
-                           else "w-full p-4 text-left border rounded-lg") $ H.toHtml $ stereoB stereo
+        H.div H.!
+          ( if stereoGuessAnswer guess == AorbAnswer 1 then
+              A.class_ "w-full p-4 text-left border-2 rounded-lg border-warning"
+            else
+              A.class_ "w-full p-4 text-left border rounded-lg"
+          ) $ H.toHtml $ stereoB stereo
 
 renderMessages :: Config -> Integer -> UserID -> [Message] -> Int -> H.Html
 renderMessages config days uid messages correctGuessCount = do
@@ -867,36 +897,34 @@ renderMessages config days uid messages correctGuessCount = do
     mapM_ (renderMessage uid) messages
 
   H.div H.! A.class_ "w-full max-w-2xl mx-auto mb-8" $ do
-    if hasReachedLimit
-      then
-        H.div H.! A.class_ "p-4 text-center rounded-lg bg-base-200" $
-          H.toHtml ("you have reached the limit of " ++ show messageLimit ++ " messages")
-      else
-        H.form H.! A.id "message-form" H.! A.class_ "flex flex-col" H.! A.method "POST"
-               H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/message") $ do
-          H.div H.! A.class_ "text-sm text-base-content/70 mb-1" $
-            H.text $ case correctGuessCount of
-              0 -> "no messages allowed (0 correct guesses)"
-              1 -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining (1 correct guess)"
-              2 -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining (2 correct guesses)"
-              3 -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining (all guesses correct!)"
-              _ -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining"
-          H.textarea H.! A.class_ "w-full p-4 mb-4 border border-base-400 resize-none field-sizing-content target:border-primary"
-            H.! A.form "message-form" H.! A.type_ "text" H.! A.id "new-message" H.! A.name "new-message"
-            H.! A.placeholder ( "message (max " <> (H.toValue $ show $ matchMessageMaxLength config) <> " characters)")
-            H.! A.required "required"
-            H.! A.autocomplete "off"
-            H.! A.maxlength (H.toValue $ show $ matchMessageMaxLength config)
-            $ ""
-          H.input H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg cursor-pointer font-inherit hover:bg-primary/90"
-                 H.! A.type_ "submit" H.! A.value "send"
+    if hasReachedLimit then
+      H.div H.! A.class_ "p-4 text-center rounded-lg bg-base-200" $
+        H.toHtml ("you have reached the limit of " ++ show messageLimit ++ " messages")
+    else
+      H.form H.! A.id "message-form" H.! A.class_ "flex flex-col" H.! A.method "POST" H.! A.action (H.textValue $ "/clash/t-" <> T.pack (show days) <> "/message") $ do
+        H.div H.! A.class_ "text-sm text-base-content/70 mb-1" $
+          H.text $ case correctGuessCount of
+            0 -> "no messages allowed (0 correct guesses)"
+            1 -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining (1 correct guess)"
+            2 -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining (2 correct guesses)"
+            3 -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining (all guesses correct!)"
+            _ -> (T.pack $ show (messageLimit - userMessageCount)) <> " messages remaining"
+        H.textarea H.! A.class_ "w-full p-4 mb-4 border border-base-400 resize-none field-sizing-content target:border-primary"
+          H.! A.form "message-form" H.! A.type_ "text" H.! A.id "new-message" H.! A.name "new-message"
+          H.! A.placeholder ( "message (max " <> (H.toValue $ show $ matchMessageMaxLength config) <> " characters)")
+          H.! A.required "required"
+          H.! A.autocomplete "off"
+          H.! A.maxlength (H.toValue $ show $ matchMessageMaxLength config)
+          $ ""
+        H.input H.! A.class_ "px-4 py-2 bg-primary text-primary-content rounded-lg cursor-pointer font-inherit hover:bg-primary/90" H.! A.type_ "submit" H.! A.value "send"
 
 renderMessage :: UserID -> Message -> H.Html
 renderMessage uid msg = do
   let (messageContainerClass, messageBubbleClass) =
-        if messageSenderId msg == uid
-          then (A.class_ "ds-chat ds-chat-end", A.class_ "ds-chat-bubble ds-chat-bubble-primary")
-          else (A.class_ "ds-chat ds-chat-start", A.class_ "ds-chat-bubble ds-chat-bubble-warning")
+        if messageSenderId msg == uid then
+          (A.class_ "ds-chat ds-chat-end", A.class_ "ds-chat-bubble ds-chat-bubble-primary")
+        else
+          (A.class_ "ds-chat ds-chat-start", A.class_ "ds-chat-bubble ds-chat-bubble-warning")
       decodedContent = H.preEscapedToHtml $ XSS.sanitize $ TE.decodeUtf8With TEE.lenientDecode $ TE.encodeUtf8 $ messageContent msg
   H.div H.! messageContainerClass $ H.div H.! messageBubbleClass $ decodedContent
 
