@@ -432,8 +432,8 @@ answerTemplate aorb shouldSwap token = H.docTypeHtml $ H.html $ do
       H.div H.! A.class_ "flex-1 h-auto justify-items-center" $ do
         H.div H.! A.class_ "ds-card w-screen max-w-4xl" $ do
           H.div H.! A.class_ "flex-1 ds-card-body" $ do
-            H.div H.! A.class_ "ds-card-title italic mb-8 justify-center" $ H.toHtml (aorbCtx aorb)
-            H.div $ do
+            H.div H.! A.class_ "ds-card-title italic justify-center" $ H.toHtml (aorbCtx aorb)
+            H.div H.! A.class_ "pt-4 pb-4" $ do
               let (firstChoice, firstValue, secondChoice, secondValue) =
                     if shouldSwap
                       then (aorbB aorb, 1, aorbA aorb, 0)
@@ -459,18 +459,18 @@ existingAnswerTemplate aorb mCurrentAnswer isFavourite token = H.docTypeHtml $ H
       H.div H.! A.class_ "flex-1 h-auto justify-items-center" $ do
         H.div H.! A.class_ "ds-card w-screen max-w-4xl" $ do
           H.div H.! A.class_ "flex-1 ds-card-body" $ do
-            H.div H.! A.class_ "ds-card-title italic mb-8 justify-center" $ H.toHtml (aorbCtx aorb)
-            H.div H.! A.class_ "" $ do
+            H.div H.! A.class_ "ds-card-title italic justify-center" $ H.toHtml (aorbCtx aorb)
+            H.div H.! A.class_ "pt-4 pb-4" $ do
               makeExistingChoice aorb token (aorbA aorb) 0 (mCurrentAnswer == Just (AorbAnswer 0)) isFavourite
               H.div H.! A.class_ "ds-divider" $ "OR"
               makeExistingChoice aorb token (aorbB aorb) 1 (mCurrentAnswer == Just (AorbAnswer 1)) isFavourite
-          H.div H.! A.class_ "ds-card-actions justify-center grid gap-4" $ do
-            if isFavourite
-              then mempty
+            H.div H.! A.class_ "ds-card-actions justify-between" $ do
+              if isFavourite then
+                H.div ""
               else
-                H.form H.! A.method "POST" H.! A.action (H.toValue $ "/aorb/favourite/" ++ show (aorbId aorb)) $ do
+                H.form H.! A.method "POST" H.! A.action (H.toValue $ "/aorb/favourite/" ++ show (aorbId aorb)) $
                   H.button H.! A.type_ "submit" H.! A.class_ "ds-btn ds-btn-accent ds-btn-soft" $ "set as main question"
-            H.a H.! A.href "/whoami" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft" $ "back"
+              H.a H.! A.href "/whoami" H.! A.class_ "ds-btn ds-btn-primary ds-btn-soft" $ "back"
   where
     makeExistingChoice :: Aorb -> T.Text -> T.Text -> Word.Word8 -> Bool -> Bool -> H.Html
     makeExistingChoice a t choice value isSelected favourite = do
