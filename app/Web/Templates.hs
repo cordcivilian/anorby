@@ -513,9 +513,11 @@ matchTemplate config user isEnrolled enrolledCount maybeCutoffTime maybeReleaseT
             H.input H.! A.type_ "checkbox"
             H.div H.! A.class_ "ds-collapse-title text-center font-black" $ case userAssoc user of
               Just scheme -> styleScheme scheme False
-              Nothing -> "choose your clashes"
+              Nothing -> "choose your head-to-head vibes"
             H.div H.! A.class_ "ds-collapse-content grid gap-2 w-full" $ do
-              H.div H.! A.role "alert" H.! A.class_ "ds-alert justify-center" $ "choose your head-to-head vibes"
+              case userAssoc user of
+                Just _ -> H.div H.! A.role "alert" H.! A.class_ "ds-alert justify-center" $ "choose your head-to-head vibes"
+                Nothing -> mempty
               schemeCard PPPod (userAssoc user)
               schemeCard Swing (userAssoc user)
               schemeCard Bipolar (userAssoc user)

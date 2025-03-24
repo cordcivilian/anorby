@@ -744,9 +744,11 @@ matchProfileTemplateRoute config conn uid days _ = do
     (uid, uid, targetDay, nextDay) :: IO [MatchRecord]
   case matches of
     (MatchRecord (matchId, match):_) -> do
-      let targetId = if matchUserId match == uid
-                    then matchTargetId match
-                    else matchUserId match
+      let targetId =
+            if matchUserId match == uid then
+              matchTargetId match
+            else
+              matchUserId match
       (answers1, answers2) <- getLargestIntersectionAnswers conn uid targetId
       userAorbInfo <- getUserAorbAndAssoc conn uid
       let weights = case userAorbInfo of
@@ -762,19 +764,19 @@ matchProfileTemplateRoute config conn uid days _ = do
       disagreements <- getMatchesTopXCommonDisagreement conn uid targetId 1
 
       guessResults <- getGuessResults conn matchId uid targetId
-      guessAorbs <- if length guessResults < 3
-                       then do
-                         let neededGuesses = 3 - length guessResults
-                         let guessedAorbIds = map (aorbId . guessResultAorb) guessResults
-                         let shownAorbIds =
-                               (maybe [] (\(a1, a2) -> [aorbId (matchingAorbData a1), aorbId (matchingAorbData a2)]) targetMainAorbs) ++
-                               (maybe [] (\a -> [aorbId (matchingAorbData a)]) $ Maybe.listToMaybe agreements) ++
-                               (maybe [] (\a -> [aorbId (matchingAorbData a)]) $ Maybe.listToMaybe disagreements)
-                         let excludeIds = shownAorbIds ++ guessedAorbIds
-                         aorbs <- getGuessAorbs conn targetId excludeIds neededGuesses
-                         return aorbs
-                       else
-                         return []
+      guessAorbs <-
+        if length guessResults < 3 then do
+          let neededGuesses = 3 - length guessResults
+          let guessedAorbIds = map (aorbId . guessResultAorb) guessResults
+          let shownAorbIds =
+                (maybe [] (\(a1, a2) -> [aorbId (matchingAorbData a1), aorbId (matchingAorbData a2)]) targetMainAorbs) ++
+                (maybe [] (\a -> [aorbId (matchingAorbData a)]) $ Maybe.listToMaybe agreements) ++
+                (maybe [] (\a -> [aorbId (matchingAorbData a)]) $ Maybe.listToMaybe disagreements)
+          let excludeIds = shownAorbIds ++ guessedAorbIds
+          aorbs <- getGuessAorbs conn targetId excludeIds neededGuesses
+          return aorbs
+        else
+          return []
 
       stereoGuesses <- getStereoGuesses conn matchId uid
 
