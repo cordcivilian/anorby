@@ -1,0 +1,16 @@
+# on:
+#   push:
+#     branches:
+#       - main
+jobs:
+  build-deploy:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cabal update
+          cabal build
+          rsync -av --update data/*.json styles/output.css $HOME/deploy/bin/anorby/
+          cabal install exe:anorby --install-method=copy --overwrite-policy=always --installdir=$HOME/deploy/bin/anorby
+          pkill -f $HOME/deploy/bin/anorby/anorby || true
+          RUNNER_TRACKING_ID="" && nohup $HOME/deploy/bin/anorby/anorby > anorby.log &

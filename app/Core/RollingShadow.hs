@@ -17,10 +17,10 @@ shadowUserId :: UserID
 shadowUserId = -1
 
 shadowUserName :: T.Text
-shadowUserName = "cord"
+shadowUserName = "unity"
 
 shadowUserEmail :: T.Text
-shadowUserEmail = "public@cordcivilian.com"
+shadowUserEmail = "one@walden99.com"
 
 trackUnmatchedUser :: SQL.Connection -> UserID -> IO ()
 trackUnmatchedUser conn uid = do
@@ -88,32 +88,35 @@ ensureShadowUser conn = do
     "SELECT 1 FROM users WHERE id = ?"
     (SQL.Only shadowUserId) :: IO [SQL.Only UserID]
   Monad.when (null existing) $ do
-    let userInsert = ( shadowUserId :: Int
-                     , shadowUserName :: T.Text
-                     , shadowUserEmail :: T.Text
-                     , "void" :: T.Text
-                     )
+    let userInsert =
+          ( shadowUserId :: Int
+          , shadowUserName :: T.Text
+          , shadowUserEmail :: T.Text
+          , "void" :: T.Text
+          )
     SQL.execute conn
       "INSERT INTO users (id, name, email, uuid) VALUES (?, ?, ?, ?)"
       userInsert
     (answers, mainAorb, assoc) <- createShadowUser conn
     now <- POSIXTime.getPOSIXTime
     Monad.forM_ (zip [(1::AorbID)..] answers) $ \(aid, ans) ->
-      let answerInsert = ( shadowUserId :: UserID
-                         , aid :: AorbID
-                         , ans :: AorbAnswer
-                         , floor now :: Integer
-                         )
+      let answerInsert =
+            ( shadowUserId :: UserID
+            , aid :: AorbID
+            , ans :: AorbAnswer
+            , floor now :: Integer
+            )
       in SQL.execute conn
         ( SQL.Query $ T.unwords
           [ "INSERT INTO aorb_answers (user_id, aorb_id, answer, answered_on)"
           , "VALUES (?, ?, ?, ?)"
           ]
         ) answerInsert
-    let updateUserInsert = ( mainAorb :: AorbID
-                           , assoc :: AssociationScheme
-                           , shadowUserId :: UserID
-                           )
+    let updateUserInsert =
+          ( mainAorb :: AorbID
+          , assoc :: AssociationScheme
+          , shadowUserId :: UserID
+          )
     SQL.execute conn
       "UPDATE users SET aorb_id = ?, assoc = ? WHERE id = ?"
       updateUserInsert
@@ -132,6 +135,7 @@ isShadowMatch match =
 
 getRealUserFromShadowMatch :: Match -> UserID
 getRealUserFromShadowMatch match =
-  if matchUserId match == shadowUserId
-    then matchTargetId match
-    else matchUserId match
+  if matchUserId match == shadowUserId then
+    matchTargetId match
+  else
+    matchUserId match

@@ -1,14 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Utils.Email
-  ( -- * Email Configuration
-    EmailConfig(..)
-  , getEmailConfig
-    -- * Email Sending
-  , sendAuthEmail
-  , sendLogoutConfirmEmail
-  , sendDeleteConfirmEmail
-  ) where
+module Utils.Email where
 
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
@@ -37,13 +29,15 @@ getEmailConfig = do
   return $ EmailConfig
     { emailHost = "smtp.protonmail.ch"
     , emailPort = 587
-    , emailUser = "anorby@cordcivilian.com"
+    , emailUser = "one@walden99.com"
     , emailPass = pass
-    , emailFrom = "anorby@cordcivilian.com"
+    , emailFrom = "one@walden99.com"
     , emailSend = environment config == Production
-    , emailBaseUrl = if environment config == Production
-                     then "https://anorby.cordcivilian.com"
-                     else "http://localhost:5001"
+    , emailBaseUrl =
+        if environment config == Production then
+          "https://anorby.walden99.com"
+        else
+          "http://localhost:5001"
     }
 
 -- | Email Sending Functions
@@ -61,21 +55,16 @@ sendAuthEmail config toEmail hash = do
       from = Mail.Address (Just "anorby") (emailFrom config)
       to = Mail.Address Nothing toEmail
 
-  if emailSend config
-    then do
-      mail <- Mail.simpleMail from to "" "" subject
-        [(TL.toStrict textBody, "plain"), (TL.toStrict htmlBody, "html")]
-      SMTP.sendMailWithLogin
-        (emailHost config)
-        (emailUser config)
-        (emailPass config)
-        mail
-    else do
-      putStrLn $
-        "auth url for "
-        ++ T.unpack toEmail
-        ++ ": "
-        ++ T.unpack authUrl
+  if emailSend config then do
+    mail <- Mail.simpleMail from to "" "" subject
+      [(TL.toStrict textBody, "plain"), (TL.toStrict htmlBody, "html")]
+    SMTP.sendMailWithLogin
+      (emailHost config)
+      (emailUser config)
+      (emailPass config)
+      mail
+  else do
+    putStrLn $ "auth url for " ++ T.unpack toEmail ++ ": " ++ T.unpack authUrl
 
 sendLogoutConfirmEmail :: EmailConfig -> T.Text -> T.Text -> IO ()
 sendLogoutConfirmEmail config toEmail token = do
@@ -92,21 +81,16 @@ sendLogoutConfirmEmail config toEmail token = do
       from = Mail.Address (Just "anorby") (emailFrom config)
       to = Mail.Address Nothing toEmail
 
-  if emailSend config
-    then do
-      mail <- Mail.simpleMail from to "" "" subject
-        [(TL.toStrict textBody, "plain"), (TL.toStrict htmlBody, "html")]
-      SMTP.sendMailWithLogin
-        (emailHost config)
-        (emailUser config)
-        (emailPass config)
-        mail
-    else do
-      putStrLn $
-        "logout confirm url for "
-        ++ T.unpack toEmail
-        ++ ": "
-        ++ T.unpack confirmUrl
+  if emailSend config then do
+    mail <- Mail.simpleMail from to "" "" subject
+      [(TL.toStrict textBody, "plain"), (TL.toStrict htmlBody, "html")]
+    SMTP.sendMailWithLogin
+      (emailHost config)
+      (emailUser config)
+      (emailPass config)
+      mail
+  else do
+    putStrLn $ "logout confirm url for " ++ T.unpack toEmail ++ ": " ++ T.unpack confirmUrl
 
 sendDeleteConfirmEmail :: EmailConfig -> T.Text -> T.Text -> IO ()
 sendDeleteConfirmEmail config toEmail token = do
@@ -123,18 +107,13 @@ sendDeleteConfirmEmail config toEmail token = do
       from = Mail.Address (Just "anorby") (emailFrom config)
       to = Mail.Address Nothing toEmail
 
-  if emailSend config
-    then do
-      mail <- Mail.simpleMail from to "" "" subject
-        [(TL.toStrict textBody, "plain"), (TL.toStrict htmlBody, "html")]
-      SMTP.sendMailWithLogin
-        (emailHost config)
-        (emailUser config)
-        (emailPass config)
-        mail
-    else do
-      putStrLn $
-        "delete confirm url for "
-        ++ T.unpack toEmail
-        ++ ": "
-        ++ T.unpack confirmUrl
+  if emailSend config then do
+    mail <- Mail.simpleMail from to "" "" subject
+      [(TL.toStrict textBody, "plain"), (TL.toStrict htmlBody, "html")]
+    SMTP.sendMailWithLogin
+      (emailHost config)
+      (emailUser config)
+      (emailPass config)
+      mail
+  else do
+    putStrLn $ "delete confirm url for " ++ T.unpack toEmail ++ ": " ++ T.unpack confirmUrl

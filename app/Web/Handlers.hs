@@ -435,7 +435,7 @@ profileTemplateRoute config conn uid _ = do
           myAorbs <- getUserAorbsFromControversialToCommonPlace conn uid
           let shareBaseUrl =
                 if environment config == Production
-                  then "https://anorby.cordcivilian.com/share/"
+                  then "https://anorby.walden99.com/share/"
                   else "http://localhost:5001/share/"
               shareUrl = Just $ shareBaseUrl <> userUuid user
           return $ Wai.responseLBS
