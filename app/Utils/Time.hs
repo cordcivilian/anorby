@@ -27,9 +27,10 @@ formatTimeUntil now target =
       hours = div diffSeconds 3600
       minutes = div (mod diffSeconds 3600) 60
       roundedHours = if minutes > 30 then hours + 1 else hours
-  in if roundedHours > 0
-     then T.pack $ show roundedHours <> " hours"
-     else T.pack $ show minutes <> " minutes"
+  in if roundedHours > 0 then
+        T.pack $ show roundedHours <> (" hour" <> if roundedHours > 1 then "s" else "")
+     else
+        T.pack $ show minutes <> (" minute" <> if minutes > 1 then "s" else "")
 
 parseMatchTime :: T.Text -> IO (Maybe POSIXTime.POSIXTime)
 parseMatchTime timeStr = do
