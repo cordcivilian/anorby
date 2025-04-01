@@ -503,14 +503,42 @@ matchTemplate config user isEnrolled enrolledCount maybeCutoffTime maybeReleaseT
     timeUntilCutoff = maybe "soon" (formatTimeUntil now) maybeCutoffTime
     timeUntilRelease = maybe "soon" (formatTimeUntil now) maybeReleaseTime
   in H.docTypeHtml $ H.html $ do
-    pageHead "clash" mempty
+    pageHead "clash" $ do
+      H.script $ H.preEscapedText $ T.unlines
+        [ "document.addEventListener('DOMContentLoaded', function() {"
+        , "  var timeDisplays = document.querySelectorAll('[data-utc-time]');"
+        , "  var offset = new Date().getTimezoneOffset();"
+        , "  var offsetHours = Math.abs(Math.floor(offset / 60));"
+        , "  var offsetMinutes = Math.abs(offset % 60);"
+        , "  var offsetSign = offset <= 0 ? '+' : '-';"
+        , "  var offsetFormatted = offsetSign + "
+        , "    (offsetHours < 10 ? '0' + offsetHours : offsetHours) + "
+        , "    ':' + (offsetMinutes < 10 ? '0' + offsetMinutes : offsetMinutes);"
+        , "  var tzName = new Date().toLocaleDateString('en-US', "
+        , "    { timeZoneName: 'short' }).split(', ')[1];"
+        , ""
+        , "  timeDisplays.forEach(function(el) {"
+        , "    var utcTime = el.getAttribute('data-utc-time');"
+        , "    var [hours, minutes] = utcTime.split(':').map(Number);"
+        , "    var utcDate = new Date();"
+        , "    utcDate.setUTCHours(hours, minutes, 0, 0);"
+        , "    var localHours = utcDate.getHours();"
+        , "    var localMinutes = utcDate.getMinutes();"
+        , "    var localTimeFormatted = "
+        , "      (localHours < 10 ? '0' + localHours : localHours) + "
+        , "      ':' + (localMinutes < 10 ? '0' + localMinutes : localMinutes);"
+        , "    el.innerHTML = localTimeFormatted + ' (' + 'UTC' + "
+        , "      offsetFormatted + ')';"
+        , "  });"
+        , "});"
+        ]
     H.body $
       H.div $ do
         navBar $ Just "clash"
 
         H.div H.! A.class_ "p-4" $ do
           H.div H.! A.class_ "ds-collapse ds-collapse-arrow grid max-w-xl mx-auto bg-base-100 border-2 border-base-300" $ do
-            H.input H.! A.type_ "checkbox"
+            H.input H.! A.id "clash-scheme_choice" H.! A.type_ "checkbox"
             H.div H.! A.class_ "ds-collapse-title text-center font-black" $ case userAssoc user of
               Just scheme -> styleScheme scheme False
               Nothing -> "choose your head-to-head vibes"
@@ -583,7 +611,7 @@ renderTimeDisplay label timeLeft timeStr =
   H.div H.! A.class_ "ds-stat" $ do
     H.div H.! A.class_ "ds-stat-title" $ H.text label
     H.span H.! A.class_ "ds-stat-value" $ H.text $ timeLeft
-    H.span H.! A.class_ "ds-stat-actions ds-badge ds-badge-secondary" $ H.text $ timeStr <> " UTC"
+    H.span H.! A.id "time-display" H.! A.class_ "ds-stat-actions ds-badge ds-badge-secondary" H.! H.dataAttribute "utc-time" (H.textValue timeStr) $ H.text $ timeStr <> " UTC"
 
 matchCard :: Integer -> Match -> Double -> Int -> Int -> H.Html
 matchCard currentTimestamp match score unreadCount guessStatus =

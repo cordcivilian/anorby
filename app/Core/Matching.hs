@@ -297,7 +297,7 @@ localSearchRound group1Rankings group2Rankings marriages
                 ++ show (length pairs)
                 ++ " blocking pairs to resolve"
               let newMarriages = resolveMultipleBlockingPairs marriages pairs
-              let (newGen, _) = Random.split gen
+              let (newGen, _) = Random.splitGen gen
               localSearchRound
                 group1Rankings
                 group2Rankings
