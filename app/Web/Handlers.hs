@@ -830,7 +830,7 @@ handleGuessSubmission _ conn uid days req = do
           saveGuess conn matchId uid aid (AorbAnswer choice)
           return $ Wai.responseLBS
             HTTP.status303
-            [ (Headers.hLocation, BS.pack $ "/clash/t-" ++ show days ++ "#guesses") ]
+            [ (Headers.hLocation, BS.pack $ "/clash/t-" ++ show days ++ "#bottom") ]
             ""
         _ -> do
           return invalidSubmissionResponse
@@ -860,7 +860,7 @@ submitGuessRoute _ conn uid days aid answer _ = do
       return $ Wai.responseLBS
         HTTP.status303
         [ (Headers.hLocation,
-           BS.pack $ "/clash/t-" ++ show days ++ "#guesses")
+           BS.pack $ "/clash/t-" ++ show days ++ "#bottom")
         ]
         ""
     _ -> return notFoundResponse
@@ -897,7 +897,7 @@ handleStereoSubmission _ conn uid days req = do
                   saveStereoGuess conn matchId uid targetId sid (AorbAnswer choice)
                   return $ Wai.responseLBS
                     HTTP.status303
-                    [ (Headers.hLocation, BS.pack $ "/clash/t-" ++ show days ++ "#stereo") ]
+                    [ (Headers.hLocation, BS.pack $ "/clash/t-" ++ show days ++ "#bottom") ]
                     ""
         _ -> do
           return invalidSubmissionResponse
