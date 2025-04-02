@@ -613,8 +613,9 @@ renderTimeDisplay :: T.Text -> T.Text -> T.Text -> H.Html
 renderTimeDisplay label timeLeft timeStr =
   H.div H.! A.class_ "ds-stat" $ do
     H.div H.! A.class_ "ds-stat-title" $ H.text label
-    H.span H.! A.class_ "ds-stat-value" $ H.text $ timeLeft
-    H.span H.! A.id "time-display" H.! A.class_ "ds-stat-actions ds-badge ds-badge-secondary" H.! H.dataAttribute "utc-time" (H.textValue timeStr) $ H.text $ timeStr <> " UTC"
+    H.div H.! A.class_ "ds-stat-value" $ H.text $ timeLeft
+    H.div H.! A.class_ "ds-stat-actions" $ do
+      H.div H.! A.id "time-display" H.! A.class_ "ds-badge ds-badge-secondary" H.! H.dataAttribute "utc-time" (H.textValue timeStr) $ H.text $ timeStr <> " UTC"
 
 matchCard :: Integer -> Match -> Double -> Int -> Int -> H.Html
 matchCard currentTimestamp match score unreadCount guessStatus =
