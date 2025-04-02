@@ -304,10 +304,10 @@ showAorb mode =
         Just mainAorbId -> aorbId (aorbData awa) == mainAorbId
         Nothing -> False
     aorbClass = case (main, clickable) of
-      (True, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-accent hover:-translate-y-1 hover:bg-base-200 transition-all"
-      (True, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl border-warning"
-      (False, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl hover:-translate-y-1 hover:bg-base-200 transition-all"
-      (False, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl"
+      (True, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-xl border-accent hover:-translate-y-1 hover:bg-base-200 transition-all"
+      (True, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-xl border-warning"
+      (False, True) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-xl hover:-translate-y-1 hover:bg-base-200 transition-all"
+      (False, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-xl"
     aorbStyle = case mode of
       Population _ orders -> A.style (aorbDynamicCSS (zip ["diced", "sided", "split"] orders))
       Individual _ sortable orders _ _ ->
@@ -984,7 +984,7 @@ loginTemplate token = H.docTypeHtml $ H.html $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       H.div H.! A.class_ "md:text-3xl text-xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
       H.div H.! A.class_ "w-full max-w-sm mx-auto mb-8" $ do
-        H.form H.! A.class_ "flex flex-col gap-2" H.! A.method "POST" H.! A.action "/login" $ do
+        H.form H.! A.class_ "flex flex-col" H.! A.method "POST" H.! A.action "/login" $ do
           H.input H.! A.type_ "email" H.! A.name "email" H.! A.placeholder "email" H.! A.class_ "p-2 font-inherit text-inherit rounded-lg border border-base-300" H.! A.required "required"
           H.input H.! A.type_ "hidden" H.! A.name "token" H.! A.value (H.textValue token)
           H.button H.! A.type_ "submit" H.! A.class_ "w-full p-2 mt-4 font-inherit bg-primary text-primary-content rounded-lg cursor-pointer hover:bg-primary/90" $ "login"
@@ -997,7 +997,7 @@ registerTemplate token = H.docTypeHtml $ H.html $ do
     H.div H.! A.class_ "min-h-screen flex flex-col items-center justify-center p-4" $ do
       H.div H.! A.class_ "md:text-3xl text-xl mb-8" $ H.a H.! A.href "/" $ anorbyTitle
       H.div H.! A.class_ "w-full max-w-sm mx-auto mb-8" $ do
-        H.form H.! A.class_ "flex flex-col gap-2" H.! A.method "POST" H.! A.action "/register" $ do
+        H.form H.! A.class_ "flex flex-col" H.! A.method "POST" H.! A.action "/register" $ do
           H.input H.! A.type_ "email" H.! A.name "email" H.! A.placeholder "email" H.! A.class_ "p-2 font-inherit text-inherit rounded-lg border border-base-300" H.! A.required "required"
           H.input H.! A.type_ "hidden" H.! A.name "token" H.! A.value (H.textValue token)
           H.button H.! A.type_ "submit" H.! A.class_ "w-full p-2 mt-4 font-inherit bg-primary text-primary-content rounded-lg cursor-pointer hover:bg-primary/90" $ "register"
