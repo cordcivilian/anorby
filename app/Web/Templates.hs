@@ -46,10 +46,10 @@ navBar maybeSubtitle = do
 anorbyTitle :: H.Html
 anorbyTitle = do
   H.span H.! A.class_ "border-b-3 border-primary inline-block leading-[0.85] mx-[3px]" $ "a"
-  H.span H.! A.class_ "border-b-3 border-transparent inline-block" $ "n"
+  H.span H.! A.class_ "border-b-3 border-transparent inline-block leading-[0.85]" $ "n"
   H.span H.! A.class_ "border-b-3 border-secondary inline-block leading-[0.85] mx-[3px]" $ "or"
   H.span H.! A.class_ "border-b-3 border-primary inline-block leading-[0.85] mx-[3px]" $ "b"
-  H.span H.! A.class_ "border-b-3 border-transparent inline-block" $ "y"
+  H.span H.! A.class_ "border-b-3 border-transparent inline-block leading-[0.85]" $ "y"
 
 pageHead :: T.Text -> H.Html -> H.Html
 pageHead title more = H.head $ do
@@ -203,7 +203,7 @@ editAorbTemplate aorb = H.docTypeHtml $ H.html $ do
 
 data ShowAorbMode
   = Population Aorb [Int]
-  | Individual AorbWithAnswer [Int] (Maybe AorbID) (Maybe T.Text)
+  | Individual AorbWithAnswer Bool [Int] (Maybe AorbID) (Maybe T.Text)
 
 aorbDynamicCSS :: [(String, Int)] -> H.AttributeValue
 aorbDynamicCSS orderPairs =
@@ -292,15 +292,15 @@ showAorb mode =
   where
     aid = case mode of
       Population a _ -> aorbId a
-      Individual awa _ _ _ -> aorbId $ aorbData awa
+      Individual awa _ _ _ _ -> aorbId $ aorbData awa
     clickable = case mode of
       Population _ _ -> False
-      Individual _ _ _ maybeUuid -> case maybeUuid of
+      Individual _ _ _ _ maybeUuid -> case maybeUuid of
         Just _ -> False
         Nothing -> True
     main = case mode of
       Population _ _ -> False
-      Individual awa _ maybeMain _ -> case maybeMain of
+      Individual awa _ _ maybeMain _ -> case maybeMain of
         Just mainAorbId -> aorbId (aorbData awa) == mainAorbId
         Nothing -> False
     aorbClass = case (main, clickable) of
@@ -310,10 +310,13 @@ showAorb mode =
       (False, False) -> A.class_ "aorb w-full max-w-3xl ds-card ds-card-border border-3 rounded-4xl"
     aorbStyle = case mode of
       Population _ orders -> A.style (aorbDynamicCSS (zip ["diced", "sided", "split"] orders))
-      Individual _ orders _ _ -> A.style (aorbDynamicCSS (zip ["basic", "flake"] orders))
+      Individual _ sortable orders _ _ ->
+        case sortable of
+          True -> A.style (aorbDynamicCSS (zip ["basic", "flake"] orders))
+          False -> mempty
     context = case mode of
       Population a _ -> aorbCtx a
-      Individual awa _ _ _ -> aorbCtx $ aorbData awa
+      Individual awa _ _ _ _ -> aorbCtx $ aorbData awa
 
 mkChoice :: Bool -> ShowAorbMode -> H.Html
 mkChoice isTop mode =
@@ -334,7 +337,7 @@ mkChoice isTop mode =
             (_, False)     -> showChoice (mempty) (Just $ A.class_ "ml-2")
       in
         showFn choice popularity
-    Individual awa _ maybeMain maybeUuid ->
+    Individual awa _ _ maybeMain maybeUuid ->
       let
         isMain = maybeMain /= Nothing && maybeMain == Just (aorbId $ aorbData awa)
         isShared = maybeUuid /= Nothing
@@ -388,7 +391,7 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
             case (maybeMain, maybeUuid) of
               (Just aid, _) -> do
                 Monad.forM_ (orderAorbs (filter ((== aid) . aorbId . aorbData) awas) orderFuncs) $ \(aorb, orders) ->
-                  let aorbMode = Individual aorb orders maybeMain maybeUuid
+                  let aorbMode = Individual aorb True orders maybeMain maybeUuid
                   in showAorb aorbMode
               (Nothing, Just _) -> mempty
               (Nothing, Nothing) -> do
@@ -397,15 +400,15 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
         H.input H.! A.class_ "ds-tab mb-4" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "commonplace"
         H.div H.! A.class_ "ds-tab-content" $ do
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
-            Monad.forM_ (orderAorbs (reverse $ take 3 $ reverse awas) orderFuncs) $ \(aorb, orders) ->
-              let aorbMode = Individual aorb orders maybeMain maybeUuid
+            Monad.forM_ (orderAorbs (take 3 $ reverse awas) orderFuncs) $ \(aorb, orders) ->
+              let aorbMode = Individual aorb False orders maybeMain maybeUuid
               in showAorb aorbMode
 
         H.input H.! A.class_ "ds-tab mb-4" H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "controversial"
         H.div H.! A.class_ "ds-tab-content" $ do
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
-            Monad.forM_ (orderAorbs (reverse $ take 3 $ awas) orderFuncs) $ \(aorb, orders) ->
-              let aorbMode = Individual aorb orders maybeMain maybeUuid
+            Monad.forM_ (orderAorbs (take 3 $ awas) orderFuncs) $ \(aorb, orders) ->
+              let aorbMode = Individual aorb False orders maybeMain maybeUuid
               in showAorb aorbMode
 
         H.input H.! A.class_ "ds-tab mb-4 " H.! A.type_ "radio" H.! A.name "profile-tabs" H.! I.customAttribute "aria-label" "all"
@@ -419,7 +422,7 @@ profileTemplate awas maybeMain maybeUuid shareUrl = H.docTypeHtml $ H.html $ do
               H.input H.! A.id "remember-basic" H.! A.name "whoami-sort" H.! A.type_ "radio" H.! A.class_ "ds-btn" H.! I.customAttribute "aria-label" "conformist"
           H.div H.! A.class_ "grid gap-8 justify-items-center" $ do
             Monad.forM_ (orderAorbs awas orderFuncs) $ \(aorb, orders) ->
-              let aorbMode = Individual aorb orders maybeMain maybeUuid
+              let aorbMode = Individual aorb True orders maybeMain maybeUuid
               in showAorb aorbMode
   where orderFuncs = [reverse, id]
 

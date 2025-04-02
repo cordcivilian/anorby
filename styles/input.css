@@ -3,7 +3,7 @@
 @config './tailwind.config.js';
 
 @theme {
-  --font-sans: "Lucida Console", monospace;
+  --font-sans: -apple-system,BlinkMacSystemFont,"Segoe UI","Roboto","Helvetica Neue",Helvetica,Arial,Arimo,sans-serif
 }
 
 @plugin "daisyui" {
