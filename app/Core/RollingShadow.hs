@@ -50,7 +50,7 @@ createShadowUser conn = do
   let answers = take (length aorbIds) $ Random.randoms gen
       (mainIdx, _) = Random.randomR (0, length aorbIds - 1) gen
       mainAorbId = maybe 1 SQL.fromOnly $ atMay aorbIds mainIdx
-  return (answers, mainAorbId, Swing)
+  return (answers, mainAorbId, Shuffle)
   where
     atMay xs n = if n < length xs then Just (xs !! n) else Nothing
 

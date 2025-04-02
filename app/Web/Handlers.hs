@@ -700,9 +700,9 @@ handleMatchTypeUpdate conn uid req = do
     Nothing -> return invalidSubmissionResponse
   where
     parseAssociationScheme :: T.Text -> Maybe AssociationScheme
-    parseAssociationScheme "PPPod" = Just PPPod
-    parseAssociationScheme "Swing" = Just Swing
-    parseAssociationScheme "Bipolar" = Just Bipolar
+    parseAssociationScheme "Mirror" = Just Mirror
+    parseAssociationScheme "Shuffle" = Just Shuffle
+    parseAssociationScheme "Rival" = Just Rival
     parseAssociationScheme _ = Nothing
 
 calculateMatchScore :: SQL.Connection -> UserID -> Match -> IO (Match, Double)

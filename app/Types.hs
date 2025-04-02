@@ -31,21 +31,21 @@ type Rankings = Map.Map UserID Ranking
 type Marriages = Map.Map UserID (Maybe UserID)
 type OrderingFunction a = [a] -> [a]
 
-data AssociationScheme = PPPod | Swing | Bipolar deriving (Eq, Show, Enum, Bounded)
+data AssociationScheme = Mirror | Shuffle | Rival deriving (Eq, Show, Enum, Bounded)
 
 instance SQL.FromField AssociationScheme where
   fromField f = do
     assocInt <- SQL.fromField f
     case assocInt :: Int of
-      1  -> SQL.Ok PPPod
-      0  -> SQL.Ok Swing
-      -1 -> SQL.Ok Bipolar
-      _  -> SQL.Ok Swing
+      1  -> SQL.Ok Mirror
+      0  -> SQL.Ok Shuffle
+      -1 -> SQL.Ok Rival
+      _  -> SQL.Ok Shuffle
 
 instance SQL.ToField AssociationScheme where
-  toField PPPod = SQL.SQLInteger 1
-  toField Swing = SQL.SQLInteger 0
-  toField Bipolar = SQL.SQLInteger (-1)
+  toField Mirror = SQL.SQLInteger 1
+  toField Shuffle = SQL.SQLInteger 0
+  toField Rival = SQL.SQLInteger (-1)
 
 instance Random.Random AssociationScheme where
   random g = Random.randomR (minBound, maxBound) g

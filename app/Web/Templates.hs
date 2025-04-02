@@ -542,16 +542,16 @@ matchTemplate config user isEnrolled enrolledCount maybeCutoffTime maybeReleaseT
         H.div H.! A.class_ "p-4" $ do
           H.div H.! A.class_ "ds-collapse ds-collapse-arrow grid max-w-xl mx-auto bg-base-100 border-2 border-base-300" $ do
             H.input H.! A.id "clash-scheme_choice" H.! A.type_ "checkbox"
-            H.div H.! A.class_ "ds-collapse-title text-center font-black" $ case userAssoc user of
+            H.div H.! A.class_ "ps-0 pe-0 text-xl ds-collapse-title text-center font-black" $ case userAssoc user of
               Just scheme -> styleScheme scheme False
               Nothing -> "choose your head-to-head vibes"
             H.div H.! A.class_ "ds-collapse-content grid gap-2 w-full" $ do
               case userAssoc user of
                 Just _ -> H.div H.! A.role "alert" H.! A.class_ "ds-alert justify-center" $ "choose your head-to-head vibes"
                 Nothing -> mempty
-              schemeCard PPPod (userAssoc user)
-              schemeCard Swing (userAssoc user)
-              schemeCard Bipolar (userAssoc user)
+              schemeCard Mirror (userAssoc user)
+              schemeCard Shuffle (userAssoc user)
+              schemeCard Rival (userAssoc user)
 
         case timeState of
           AfterRelease -> mempty
@@ -601,13 +601,13 @@ schemeCard scheme currentScheme =
 styleScheme :: AssociationScheme -> Bool -> H.Html
 styleScheme scheme showDescription =
   let (schemeNameClass, schemeDesc, schemeDescClass)  = case scheme of
-        PPPod -> (A.class_ "font-sans italic", "validate me", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
-        Swing -> (A.class_ "font-serif", "lol who cares", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-left")
-        Bipolar -> (A.class_ "font-mono", "they're wrong", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
+        Mirror -> (A.class_ "font-sans italic", "validate me", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
+        Shuffle -> (A.class_ "font-mono", "lol who cares", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-left")
+        Rival -> (A.class_ "font-serif", "they're wrong", A.class_ "ds-tooltip ds-tooltip-open ds-tooltip-right")
   in if showDescription then
       H.div H.! schemeDescClass H.! H.dataAttribute "tip" schemeDesc $ H.div H.! schemeNameClass $ H.toHtml $ show scheme
      else
-      H.div H.! schemeNameClass $ H.toHtml $ show scheme
+      H.div H.! schemeNameClass $ H.toHtml $ (show scheme) <> " " <> "Mode"
 
 renderTimeDisplay :: T.Text -> T.Text -> T.Text -> H.Html
 renderTimeDisplay label timeLeft timeStr =
