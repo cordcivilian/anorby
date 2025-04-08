@@ -29,6 +29,7 @@ import Utils.Config
 import Utils.Simulate
 import Utils.MatchState
 import Utils.MatchTrigger
+import Utils.Time
 import Web.Types
 import Web.Handlers
 import Core.RollingShadow
@@ -60,7 +61,7 @@ runServer = do
   putStrLn $ "  Environment: " ++ show (environment config)
   putStrLn $ "  Database: " ++ dbPath config
 
-  pingThread <- setupSelfPing port TIO.putStrLn
+  pingThread <- setupSelfPing port TIO.putStrLn state
   MVar.modifyMVar_ (appPingTimer state) $ \_ -> return (Just pingThread)
 
   Warp.runSettings settings $ monolith state
@@ -355,20 +356,30 @@ setupSyncLogger logAction = do
   logLock <- MVar.newMVar ()
   return $ \msg -> MVar.withMVar logLock $ \_ -> logAction msg
 
-setupSelfPing :: Int -> (T.Text -> IO ()) -> IO Concurrent.ThreadId
-setupSelfPing port logAction = do
+setupSelfPing :: Int -> (T.Text -> IO ()) -> AppState -> IO Concurrent.ThreadId
+setupSelfPing port logAction state = do
   syncLogger <- setupSyncLogger logAction
   Concurrent.forkIO $ do
     let pingLoop = Monad.forever $ do
           syncLogger "Performing hourly self-ping"
+
+          status <- MVar.readMVar (matchMVar $ appMatchState state)
+          lastMatchPosix <- MVar.readMVar (lastMatchedOn $ appMatchState state)
+
+          let lastMatchUTC = formatUTCTime lastMatchPosix
+              stateMsg = T.pack $ "Match state: " ++ show status ++ ", Last matched: " ++ lastMatchUTC
+
+          syncLogger stateMsg
+
           Exception.catch
             (do
               request <- HTTP.parseRequest $ "http://localhost:" ++ show port ++ "/"
               response <- HTTP.httpLBS request
-              let status = HTTP.getResponseStatus response
-              if HTTPStatus.statusIsSuccessful status
-                then syncLogger "Self-ping successful"
-                else syncLogger $ "Self-ping failed with status: " <> T.pack (show $ HTTPStatus.statusCode status)
+              let status' = HTTP.getResponseStatus response
+              if HTTPStatus.statusIsSuccessful status' then
+                syncLogger "Self-ping successful"
+              else
+                syncLogger $ "Self-ping failed with status: " <> T.pack (show $ HTTPStatus.statusCode status')
             )
             (\e -> do
               let _ = e :: Exception.SomeException

@@ -3,9 +3,10 @@
 module Utils.Time where
 
 import qualified Data.Text as T
-import qualified Data.Time.Clock.POSIX as POSIXTime
-import qualified Data.Time.LocalTime as LocalTime
 import qualified Data.Time.Clock as Clock
+import qualified Data.Time.Clock.POSIX as POSIXTime
+import qualified Data.Time.Format as DateTimeFormat
+import qualified Data.Time.LocalTime as LocalTime
 
 getTimeUntilNextMidnight :: IO T.Text
 getTimeUntilNextMidnight = do
@@ -55,3 +56,9 @@ parseMatchTime timeStr = do
     readMaybe s = case reads s of
       [(x, "")] -> Just x
       _ -> Nothing
+
+formatUTCTime :: POSIXTime.POSIXTime -> String
+formatUTCTime posixTime = formatted
+  where
+    utcTime = POSIXTime.posixSecondsToUTCTime posixTime
+    formatted = DateTimeFormat.formatTime DateTimeFormat.defaultTimeLocale "%Y-%m-%d %H:%M:%S UTC" utcTime

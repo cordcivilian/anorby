@@ -38,7 +38,6 @@ setMatchStatus state status = do
       MVar.modifyMVar_ (lastMatchedOn state) $ \_ -> return now
     _ -> return ()
 
-
 withMatchLock :: MatchState -> IO a -> IO (Maybe a)
 withMatchLock state action =
   MVar.modifyMVar (matchMVar state) $ \status -> case status of

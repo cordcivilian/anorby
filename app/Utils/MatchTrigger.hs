@@ -52,8 +52,7 @@ hasAlreadyMatchedToday state now = do
           LocalTime.localDay $ LocalTime.utcToLocalTime LocalTime.utc $
             POSIXTime.posixSecondsToUTCTime now
         matchedInMemory = lastMatchDay == currentDay
-    if matchedInMemory then return True
-                       else do
+    if matchedInMemory then return True else do
       let startOfDay = floor (now / 86400) * 86400 :: Integer
       matchedInDb <- Pool.withResource (appPool state) $ \conn -> do
           matches <- SQL.query conn
