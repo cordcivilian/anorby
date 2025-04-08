@@ -4,11 +4,12 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Exception as Exception
 import qualified Data.Time.Clock.POSIX as POSIXTime
 
-data MatchStatus = NotStarted
-                 | InProgress
-                 | Completed
-                 | Failed String
-                 deriving (Show, Eq)
+data MatchStatus
+  = NotStarted
+  | InProgress
+  | Completed
+  | Failed String
+  deriving (Show, Eq)
 
 data MatchState = MatchState
   { matchMVar :: MVar.MVar MatchStatus

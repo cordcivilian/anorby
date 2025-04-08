@@ -44,28 +44,27 @@ shouldTriggerMatching now config =
 
 hasAlreadyMatchedToday :: AppState -> POSIXTime.POSIXTime -> IO Bool
 hasAlreadyMatchedToday state now = do
-    lastMatchedTime <- MVar.readMVar (lastMatchedOn $ appMatchState state)
-    let lastMatchDay =
-          LocalTime.localDay $ LocalTime.utcToLocalTime LocalTime.utc $
-            POSIXTime.posixSecondsToUTCTime lastMatchedTime
-        currentDay =
-          LocalTime.localDay $ LocalTime.utcToLocalTime LocalTime.utc $
-            POSIXTime.posixSecondsToUTCTime now
-        matchedInMemory = lastMatchDay == currentDay
-    if matchedInMemory then return True else do
-      let startOfDay = floor (now / 86400) * 86400 :: Integer
-      matchedInDb <- Pool.withResource (appPool state) $ \conn -> do
-          matches <- SQL.query conn
-              (SQL.Query $
-                T.pack "SELECT 1 FROM matched WHERE matched_on >= ? LIMIT 1"
-              ) [startOfDay] :: IO [SQL.Only Int]
-          return $ not $ null matches
-      Monad.when matchedInDb $ do
-          MVar.modifyMVar_ (lastMatchedOn $ appMatchState state) $
-            \_ -> return now
-          MVar.modifyMVar_ (matchMVar $ appMatchState state) $
-            \_ -> return Completed
-      return matchedInDb
+  lastMatchedTime <- MVar.readMVar (lastMatchedOn $ appMatchState state)
+  let lastMatchDay = LocalTime.localDay $ LocalTime.utcToLocalTime LocalTime.utc $ POSIXTime.posixSecondsToUTCTime lastMatchedTime
+      currentDay = LocalTime.localDay $ LocalTime.utcToLocalTime LocalTime.utc $ POSIXTime.posixSecondsToUTCTime now
+      matchedInMemory = lastMatchDay == currentDay
+  if matchedInMemory then return True else do
+    let startOfDay = floor (now / 86400) * 86400 :: Integer
+    matchedInDb <- Pool.withResource (appPool state) $ \conn -> do
+      maxTimestampResults <- SQL.query_ conn (SQL.Query $ T.pack "SELECT MAX(matched_on) FROM matched") :: IO [SQL.Only (Maybe Integer)]
+      case maxTimestampResults of
+        [SQL.Only (Just maxTimestamp)] ->
+          case maxTimestamp > startOfDay of
+            True -> do
+              MVar.modifyMVar_ (lastMatchedOn $ appMatchState state) $ \_ -> return $ fromIntegral maxTimestamp
+              MVar.modifyMVar_ (matchMVar $ appMatchState state) $ \_ -> return Completed
+              return True
+            False -> do
+              MVar.modifyMVar_ (lastMatchedOn $ appMatchState state) $ \_ -> return $ fromIntegral maxTimestamp
+              MVar.modifyMVar_ (matchMVar $ appMatchState state) $ \_ -> return NotStarted
+              return False
+        _ -> return False
+    return matchedInDb
 
 checkAndTriggerMatching :: AppState -> Config -> IO ()
 checkAndTriggerMatching state config = do
