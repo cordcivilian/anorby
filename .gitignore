@@ -1,4 +1,5 @@
 dist-newstyle/
 node_modules/
 package-lock.json
+bun.lock
 data/*.db*
