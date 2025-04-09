@@ -515,8 +515,10 @@ getUsersAorbIdAndAssoc conn users = do
 
 baseAorbsToSubmissions :: SQL.Connection -> IO Submissions
 baseAorbsToSubmissions conn = do
-  basedUsers <- getUsersWithAnswers conn [1..100]
-  basedUsersAnswers <- getUsersAnswers conn basedUsers [1..100]
+  aorbIds <- SQL.query_ conn "SELECT id FROM aorb" :: IO [SQL.Only AorbID]
+  let count_aorbs = length aorbIds
+  basedUsers <- getUsersWithAnswers conn [1..count_aorbs]
+  basedUsersAnswers <- getUsersAnswers conn basedUsers [1..count_aorbs]
   basedUsersAorbIdAssoc <- getUsersAorbIdAndAssoc conn basedUsers
   return $ Map.mapWithKey (\uid (aid, assoc) ->
     let answers =

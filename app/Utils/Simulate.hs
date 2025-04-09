@@ -89,8 +89,7 @@ mockBaseAorbAnswers conn n = do
 
 type MatchingAlgorithm = Rankings -> Rankings -> IO Marriages
 
-mockBaseAorbAnswersWithMatching :: SQL.Connection -> Int -> MatchingAlgorithm
-                                -> IO ()
+mockBaseAorbAnswersWithMatching :: SQL.Connection -> Int -> MatchingAlgorithm -> IO ()
 mockBaseAorbAnswersWithMatching conn n matchingAlgorithm = do
   mockBaseAorbAnswers conn n
   putStrLn "Running matching backfill..."
