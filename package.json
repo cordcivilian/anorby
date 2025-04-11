@@ -3,7 +3,7 @@
     "tailwind": "bunx @tailwindcss/cli -i ./styles/input.css -o ./styles/output.css --watch --minify"
   },
   "devDependencies": {
-    "daisyui": "^5.0.18",
+    "daisyui": "^5.0.19",
     "tailwindcss": "^4.1.3",
     "@tailwindcss/cli": "^4.1.3"
   },
