@@ -1,11 +1,13 @@
 {
   "scripts": {
-    "tailwind": "bunx @tailwindcss/cli -i ./styles/input.css -o ./styles/output.css --watch --minify"
+    "haskell": "MCH=1 ghcid",
+    "tailwind": "bunx @tailwindcss/cli -i ./styles/input.css -o ./styles/output.css --watch --minify",
+    "anorby": "concurrently \"bun run haskell\" \"bun run tailwind\""
   },
+  "dependencies": {},
   "devDependencies": {
-    "daisyui": "^5.0.20",
+    "concurrently": "^9.1.2",
     "tailwindcss": "^4.1.4",
     "@tailwindcss/cli": "^4.1.4"
-  },
-  "dependencies": {}
+  }
 }
